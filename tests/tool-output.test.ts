@@ -7,6 +7,8 @@ import { createAnalystHarness } from "../src/harness";
 import { SqliteDataAdapter } from "../src/adapters/sqlite-adapter";
 import { setSharedAdapter } from "../src/tools/analyst-tools";
 import { parseAuditVerdict } from "../src/subagents/auditor-subagent";
+import type { AnalystPlanDocument } from "../src/docs/plan";
+import type { FindingsDocument } from "../src/docs/findings";
 
 describe("tool results reach the model", () => {
     test("the model sees query rows, not just the progress line", async () => {
@@ -100,8 +102,8 @@ describe("optional tool arguments", () => {
         try {
             await analyst.conversation.submit({ type: "input", content: "note it", requestId: "optional" }, analyst.context);
             await analyst.conversation.waitForIdle(analyst.context);
-            expect((await analyst.getPlan())?.hypotheses.map((h) => h.title)).toEqual(["Basic tier churns more"]);
-            expect((await analyst.getFindings())?.findings.map((f) => f.title)).toEqual(["Basic churn"]);
+            expect(((await analyst.getPlan()) as AnalystPlanDocument | undefined)?.hypotheses.map((h) => h.title)).toEqual(["Basic tier churns more"]);
+            expect(((await analyst.getFindings()) as FindingsDocument | undefined)?.findings.map((f) => f.title)).toEqual(["Basic churn"]);
         } finally {
             await analyst.close();
             await rm(projectRoot, { recursive: true, force: true });

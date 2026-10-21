@@ -10,7 +10,10 @@
     "demo": "bun run examples/demo-run.ts",
     "demo:auto-improve": "bun run examples/auto-improve-demo.ts",
     "demo:resilience": "bun run examples/crash-resilience-demo.ts",
-    "demo:databricks": "bun run examples/databricks-demo.ts"
+    "demo:databricks": "bun run examples/databricks-demo.ts",
+    "evals": "bun run evals/run.ts",
+    "evals:report": "bun run evals/report.ts",
+    "evals:calibrate": "bun run evals/calibrate.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
