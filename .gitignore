@@ -46,6 +46,8 @@ skills-lock.json
 # Daily workspace memory. Bootstrap files and skills stay tracked.
 workspace/memory/*
 !workspace/memory/.gitkeep
+# Per-agent compute homes (src/compute/agent-compute.ts).
+/workspace/agents/
 
 # SQLite databases
 *.sqlite
@@ -60,3 +62,7 @@ workspace/memory/*
 /dataclaw.capabilities.json
 # Pre-registration plans a plugin wrote into the workspace (TEATOOLS_PLAN_DIR).
 /workspace/plans/
+
+# Local tooling state and backups
+/.pi/arrakis/
+/.pi/*.bak
