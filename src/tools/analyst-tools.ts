@@ -238,7 +238,7 @@ export const manageHypothesesTool = defineTool({
                     description: args.description ?? args.title,
                     status: args.status ?? "proposed",
                     evidenceIds: [],
-                    notes: args.notes,
+                    ...(args.notes ? { notes: args.notes } : {}),
                     proposedAt: Date.now(),
                     updatedAt: Date.now(),
                 });
@@ -303,7 +303,7 @@ export const recordFindingTool = defineTool({
                 impact: args.impact,
                 confidence: args.confidence,
                 evidence: {
-                    query: args.queryUsed,
+                    ...(args.queryUsed ? { query: args.queryUsed } : {}),
                     rationale: args.rationale,
                 },
                 audited: false,

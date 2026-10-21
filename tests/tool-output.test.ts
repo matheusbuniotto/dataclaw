@@ -67,3 +67,44 @@ describe("parseAuditVerdict", () => {
         expect(parseAuditVerdict("Looks fine to me.")).toBe("caution");
     });
 });
+
+describe("optional tool arguments", () => {
+    test("record_finding and manage_hypotheses accept a call without their optional fields", async () => {
+        setSharedAdapter(await SqliteDataAdapter.create(":memory:"));
+        const faux = fauxProvider({ provider: "faux", models: [{ id: "probe" }] });
+        faux.setResponses([
+            fauxAssistantMessage(fauxToolCall("manage_hypotheses", { action: "propose", title: "Basic tier churns more" }), { stopReason: "toolUse" }),
+            fauxAssistantMessage(
+                fauxToolCall("record_finding", {
+                    title: "Basic churn",
+                    observation: "Basic churns at 71%",
+                    impact: "high",
+                    confidence: 0.7,
+                    rationale: "tier aggregate",
+                    recommendations: [],
+                }),
+                { stopReason: "toolUse" },
+            ),
+            fauxAssistantMessage("done"),
+        ]);
+        const projectRoot = await mkdtemp(join(tmpdir(), "dataclaw-optional-"));
+        const analyst = await createAnalystHarness({
+            storagePath: ":memory:",
+            resume: false,
+            databricks: false,
+            fauxHandle: faux,
+            model: { provider: "faux", modelId: "probe" },
+            projectRoot,
+            workspaceDir: join(projectRoot, "workspace"),
+        });
+        try {
+            await analyst.conversation.submit({ type: "input", content: "note it", requestId: "optional" }, analyst.context);
+            await analyst.conversation.waitForIdle(analyst.context);
+            expect((await analyst.getPlan())?.hypotheses.map((h) => h.title)).toEqual(["Basic tier churns more"]);
+            expect((await analyst.getFindings())?.findings.map((f) => f.title)).toEqual(["Basic churn"]);
+        } finally {
+            await analyst.close();
+            await rm(projectRoot, { recursive: true, force: true });
+        }
+    });
+});

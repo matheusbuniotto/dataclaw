@@ -177,7 +177,7 @@ export const triggerAutoImprovementTool = defineTool({
 
         const taskId = await api.createTask(
             AutoImprovementTask,
-            { focusDomain: args.focusDomain },
+            args.focusDomain ? { focusDomain: args.focusDomain } : {},
             { ownership: { kind: "task", taskId: api.taskId } },
             context,
         );
