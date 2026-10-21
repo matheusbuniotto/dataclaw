@@ -1,8 +1,9 @@
 /**
  * Turn a DataClaw transcript into a flat trace, and flag runs that got stuck.
- * Everything here is read from what the harness already persists: assistant messages
- * (tool calls, stop reason), tool results (isError, durationMs), and FindingsDoc audit verdicts.
+ * Everything here is read from the events `src/transcript` parses out of the persisted messages:
+ * tool calls with their results, assistant text, and the stop reason.
  */
+import { asRecord, parseTranscript } from "../src/transcript";
 
 export interface TraceToolCall {
     name: string;
@@ -33,22 +34,6 @@ export interface EpisodeTrace {
     findings: TraceFinding[];
 }
 
-type Json = Record<string, unknown>;
-
-const asRecord = (value: unknown): Json | undefined =>
-    value !== null && typeof value === "object" ? (value as Json) : undefined;
-
-function textOf(content: unknown): string {
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) return "";
-    return content
-        .flatMap((part) => {
-            const record = asRecord(part);
-            return record?.type === "text" && typeof record.text === "string" ? [record.text] : [];
-        })
-        .join("");
-}
-
 function canonical(value: unknown): string {
     if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
     const record = asRecord(value);
@@ -62,38 +47,22 @@ function canonical(value: unknown): string {
 }
 
 export function extractTrace(messages: readonly unknown[], findings: readonly TraceFinding[] = []): EpisodeTrace {
-    const results = new Map<string, Json>();
-    for (const message of messages) {
-        const record = asRecord(message);
-        if (record?.role === "toolResult" && typeof record.toolCallId === "string") results.set(record.toolCallId, record);
-    }
-
+    const transcript = parseTranscript(messages);
     const toolCalls: TraceToolCall[] = [];
     let finalText = "";
-    let lastStopReason: string | undefined;
-    let lastErrorMessage: string | undefined;
-    let assistantTurns = 0;
 
-    for (const message of messages) {
-        const record = asRecord(message);
-        if (record?.role !== "assistant") continue;
-        assistantTurns++;
-        if (typeof record.stopReason === "string") lastStopReason = record.stopReason;
-        lastErrorMessage = record.stopReason === "error" && typeof record.errorMessage === "string" ? record.errorMessage : undefined;
-        const text = textOf(record.content).trim();
-        if (text) finalText = text;
-        if (!Array.isArray(record.content)) continue;
-        for (const part of record.content) {
-            const call = asRecord(part);
-            if (call?.type !== "toolCall" || typeof call.name !== "string") continue;
-            const result = typeof call.id === "string" ? results.get(call.id) : undefined;
+    for (const event of transcript.events) {
+        if (event.kind === "assistantText") {
+            finalText = event.text;
+        } else if (event.kind === "toolCall") {
+            const result = event.result;
             toolCalls.push({
-                name: call.name,
-                args: canonical(call.arguments ?? {}),
+                name: event.toolName,
+                args: canonical(event.args ?? {}),
                 // A call with no result never finished (aborted or crashed), which is a failure too.
-                isError: result ? Boolean(result.isError) : true,
-                ...(typeof result?.durationMs === "number" ? { durationMs: result.durationMs } : {}),
-                resultText: result ? textOf(result.content) : "",
+                isError: result ? result.isError : true,
+                ...(result?.durationMs !== undefined ? { durationMs: result.durationMs } : {}),
+                resultText: result?.text ?? "",
             });
         }
     }
@@ -101,9 +70,9 @@ export function extractTrace(messages: readonly unknown[], findings: readonly Tr
     return {
         toolCalls,
         finalText,
-        ...(lastStopReason ? { lastStopReason } : {}),
-        ...(lastErrorMessage ? { lastErrorMessage } : {}),
-        assistantTurns,
+        ...(transcript.stopReason !== undefined ? { lastStopReason: transcript.stopReason } : {}),
+        ...(transcript.errorMessage !== undefined ? { lastErrorMessage: transcript.errorMessage } : {}),
+        assistantTurns: transcript.assistantMessages,
         findings: [...findings],
     };
 }
