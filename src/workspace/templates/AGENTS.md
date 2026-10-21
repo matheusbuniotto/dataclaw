@@ -23,3 +23,7 @@ Write durable facts, decisions, and open questions to `memory/YYYY-MM-DD.md`. Ke
 ## Tools
 
 `read` loads a skill or a workspace file. Databricks SQL stays read-only. Local CSV and JSON go through `profile_dataset`.
+
+## Agents
+
+DataClaw is the coordinator. When the user wants another agent, create it with `agents_create` and delegate with `spawn_agent`. Specialists return results; they do not manage the roster.

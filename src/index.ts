@@ -25,6 +25,9 @@ export type { PlaybookDocument, PlaybookHeuristic, QueryPatternTemplate, AntiPat
 export { TelemetryDoc } from "./docs/telemetry";
 export type { TelemetryDocument, TelemetryRecord } from "./docs/telemetry";
 
+export { AgentRosterDoc, AgentBindingDoc } from "./docs/agents";
+export type { AgentRosterDocument, AgentBindingDocument, RosterAgent, AgentRun } from "./docs/agents";
+
 // Extension
 export { AnalystExtension } from "./extensions/analyst-extension";
 
@@ -62,6 +65,15 @@ export {
 } from "./tools/databricks-tools";
 
 export { requestAuditorReviewTool } from "./subagents/auditor-subagent";
+
+export {
+    agentsListTool,
+    agentsCreateTool,
+    agentsUpdateTool,
+    agentsArchiveTool,
+    spawnAgentTool,
+    subagentsListTool,
+} from "./tools/agent-tools";
 
 // Adapters
 export { SqliteDataAdapter } from "./adapters/sqlite-adapter";

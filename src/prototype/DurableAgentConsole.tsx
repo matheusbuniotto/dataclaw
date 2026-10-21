@@ -5,6 +5,7 @@ import type {
     DataSource,
     Run,
     TranscriptItem,
+    RosterEntry,
     WorkspaceAgent,
     WorkspaceSkillInfo,
     WorkspaceSnapshot,
@@ -49,6 +50,7 @@ const STARTERS = [
     "Explore the Databricks workspace: list catalogs, pick a table, and profile it.",
     "Profile sample-data/customer_churn.csv and tell me what is worth testing.",
     "Summarize the current plan, findings, and playbook.",
+    "Create a researcher named churn-analyst and have them profile sample-data/customer_churn.csv.",
 ];
 
 const navItems = [
@@ -185,7 +187,7 @@ export function DurableAgentConsole() {
         if (run) await ask(run.goal);
     };
 
-    const agents = snapshot ? [snapshot.agent] : [];
+    const agents = snapshot ? [snapshot.agent, ...rosterAsAgents(snapshot.roster, snapshot.agent.model)] : [];
     const runs = snapshot?.runs ?? [];
     const sources = snapshot?.sources ?? [];
     const agent = snapshot?.agent;
@@ -328,6 +330,7 @@ export function DurableAgentConsole() {
                     <Route path="/prototype/agents">
                         <AgentsPage
                             agents={agents}
+                            roster={snapshot?.roster ?? []}
                             transcript={snapshot?.transcript ?? []}
                             skills={snapshot?.home.skills ?? []}
                             workspacePath={snapshot?.home.path}
@@ -511,6 +514,7 @@ function Overview({
     ops: boolean;
 }) {
     const active = runs.filter((run) => run.status === "Running").length;
+    const specialists = (snapshot?.roster ?? []).filter((agent) => agent.status === "active");
     const attention = sources.filter((source) => source.status === "Warning").length;
     const today = new Date().toLocaleDateString("en-US", {
         weekday: "long",
@@ -541,9 +545,13 @@ function Overview({
             <div className="metric-grid">
                 <Metric
                     icon={Bot}
-                    label="Main agent"
-                    value="1"
-                    foot={snapshot?.agent.working ? "<b>Working</b> on the current turn" : "<b>Ready</b> to explore data"}
+                    label="Agents"
+                    value={`${1 + specialists.length}`}
+                    foot={specialists.length > 0
+                        ? `<b>${specialists.slice(0, 3).map((agent) => agent.name).join(", ")}</b>`
+                        : snapshot?.agent.working
+                            ? "<b>Working</b> on the current turn"
+                            : "<b>DataClaw</b> can create specialists in chat"}
                 />
                 <Metric
                     icon={Workflow}
@@ -662,8 +670,21 @@ function Overview({
     );
 }
 
+function rosterAsAgents(roster: RosterEntry[] | undefined, model: string): WorkspaceAgent[] {
+    return (roster ?? []).map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        description: entry.purpose,
+        status: entry.working ? "Working" : "Ready",
+        working: entry.working,
+        model,
+        sources: [entry.status === "archived" ? `${entry.role} · archived` : entry.role],
+    }));
+}
+
 function AgentsPage({
     agents,
+    roster,
     transcript,
     skills,
     workspacePath,
@@ -674,6 +695,7 @@ function AgentsPage({
     ops,
 }: {
     agents: WorkspaceAgent[];
+    roster: RosterEntry[];
     transcript: TranscriptItem[];
     skills: WorkspaceSkillInfo[];
     workspacePath?: string | undefined;
@@ -686,6 +708,8 @@ function AgentsPage({
     const [draft, setDraft] = useState("");
     const [showContext, setShowContext] = useState(false);
     const agent = agents[0];
+    const entries = roster ?? [];
+    const specialists = entries.filter((entry) => entry.status === "active");
     const endRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const turns = useMemo(() => groupIntoTurns(transcript), [transcript]);
@@ -719,6 +743,7 @@ function AgentsPage({
                     <div className="agent-title">{agent?.name ?? "DataClaw"}</div>
                     <div className="agent-owner">
                         {agent ? `${agent.sources.join(" · ")}${ops ? ` · ${agent.model}` : ""}` : "Opening…"}
+                        {specialists.length > 0 ? ` · ${specialists.map((entry) => entry.name).join(", ")}` : ""}
                     </div>
                 </div>
                 <span className={working ? "status-pill status-running" : "status-pill status-idle"}>
@@ -737,6 +762,14 @@ function AgentsPage({
                 <div className="chat-context">
                     {agent && <p>{agent.description}</p>}
                     <div className="panel-note">{workspacePath ?? "Opening workspace…"} · AGENTS.md loads every turn</div>
+                    <div className="data-chips" style={{ marginTop: 10 }}>
+                        <span className="chip">DataClaw · coordinator</span>
+                        {entries.map((entry) => (
+                            <span className="chip" key={entry.id} title={entry.purpose}>
+                                {entry.name} · {entry.role}{entry.status === "archived" ? " · archived" : ""}
+                            </span>
+                        ))}
+                    </div>
                     {skills.length > 0 && (
                         <div className="data-chips" style={{ marginTop: 10 }}>
                             {skills.map((skill) => (
@@ -755,7 +788,7 @@ function AgentsPage({
                         <div className="chat-empty">
                             <Sparkles size={22} />
                             <h2>What should DataClaw look at?</h2>
-                            <p>Ask about a catalog, a table, or a local file.</p>
+                            <p>Ask about a catalog, a table, or a local file. Or ask DataClaw to create a specialist.</p>
                             <div className="chat-starters">
                                 {STARTERS.map((prompt) => (
                                     <button key={prompt} onClick={() => submit(prompt)} disabled={working}>

@@ -657,6 +657,12 @@ const TOOL_PHRASES: Record<string, { calling: string; called: string }> = {
     record_human_feedback: { calling: "Recording feedback", called: "Recorded feedback" },
     promote_playbook_rule: { calling: "Promoting playbook rule", called: "Promoted playbook rule" },
     trigger_auto_improvement: { calling: "Improving playbook", called: "Improved playbook" },
+    agents_list: { calling: "Listing agents", called: "Listed agents" },
+    agents_create: { calling: "Creating agent", called: "Created agent" },
+    agents_update: { calling: "Updating agent", called: "Updated agent" },
+    agents_archive: { calling: "Archiving agent", called: "Archived agent" },
+    spawn_agent: { calling: "Delegating to agent", called: "Delegated to agent" },
+    subagents_list: { calling: "Listing delegated runs", called: "Listed delegated runs" },
 };
 
 export function toolCategory(name: string): {

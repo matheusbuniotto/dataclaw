@@ -17,6 +17,7 @@ flowchart TD
         FindingsDoc["FindingsDoc\n(Verified Findings, Audit Verdicts)"]
         PlaybookDoc["PlaybookDoc\n(Learned Rules, Heuristics, Anti-Patterns)"]
         TelemetryDoc["TelemetryDoc\n(Feedback, Durations, Ratings)"]
+        RosterDoc["AgentRosterDoc\n(Specialists, delegated runs)"]
     end
 
     subgraph AgentLoop ["Pi Durable Agent Runtime"]
@@ -69,11 +70,20 @@ flowchart TD
 - **Durable `AutoImprovementTask`**: A multi-phase state machine that scans past telemetry, identifies recurring failure modes (e.g., small sample sizes, Simpson's paradox, unsegmented cohorts), and synthesizes new domain heuristics into `PlaybookDoc`.
 - **Dynamic System Prompt Injection**: Upgraded playbook rules (e.g. Version 2, Version 3) are injected directly into the LLM system prompt via `section("auto_improving_playbook")` on every subsequent turn!
 
-### 🕵️ 4. Task-Owned Auditor Subagent
+### 🤖 4. Meta-agent roster
+DataClaw is the coordinator. From the same chat the user can create, update, archive, and delegate specialists. The roster is a session-scoped durable document, so it survives restarts.
+
+- `agents_create` adds a persistent agent. Roles: `coordinator`, `researcher`, `writer`, `reviewer`, or `custom` with instructions. Each agent gets its own conversation.
+- `agents_update` and `agents_archive` change or retire one. Archiving keeps the conversation; restoring sets status back to `active`.
+- `spawn_agent` delegates a task and waits. `mode: run` (the default) is an isolated subagent whose answer comes back into this chat. `mode: session` continues that agent's own conversation.
+- A spawned run cannot create further agents. Specialists other than a coordinator cannot manage the roster.
+- `bun run cli agents` lists the roster. The console shows specialists on the overview and in the chat context panel.
+
+### 🕵️ 5. Task-Owned Auditor Subagent
 - Spawns a dedicated, skeptical statistical auditor subagent (`request_auditor_review`) owned by `api.taskId`.
 - Scrutinizes findings for p-hacking, confirmation bias, confounding variables, or sample size deficiencies before claims are presented.
 
-### 🧱 5. Databricks over MCP (Unity Catalog)
+### 🧱 6. Databricks over MCP (Unity Catalog)
 - Connects to the **Databricks-managed SQL MCP server** at `https://<workspace>/api/2.0/mcp/sql` over streamable HTTP.
 - Authenticates with `DATABRICKS_HOST`/`DATABRICKS_TOKEN`, the local **Databricks CLI profile** (OAuth token refresh
   included), **browser OAuth** (authorization code + PKCE), or a **service principal** (client credentials).
@@ -154,6 +164,9 @@ bun run cli auto-improve "retention_strategy"
 
 # View the upgraded institutional playbook
 bun run cli playbook
+
+# List specialists created from chat
+bun run cli agents
 ```
 
 ### Databricks commands
@@ -231,11 +244,13 @@ dataclaw/
 │   │   ├── plan.ts                  # AnalystPlanDoc (active goal, hypotheses, milestones)
 │   │   ├── findings.ts              # FindingsDoc (verified insights, evidence, audit verdicts)
 │   │   ├── playbook.ts              # PlaybookDoc (learned heuristics, anti-patterns, templates)
-│   │   └── telemetry.ts             # TelemetryDoc (feedback ratings, error logs, reflections)
+│   │   ├── telemetry.ts             # TelemetryDoc (feedback ratings, error logs, reflections)
+│   │   └── agents.ts                # AgentRosterDoc (specialists and delegated runs)
 │   ├── tools/                       # Replayable agent tools
 │   │   ├── analyst-tools.ts         # profile_dataset, run_analytical_query, calculate_metric, etc.
 │   │   ├── databricks-tools.ts      # connect/query/discover/profile Databricks via MCP
-│   │   └── auto-improve-tools.ts    # record_reflection, record_feedback, promote_rule, etc.
+│   │   ├── auto-improve-tools.ts    # record_reflection, record_feedback, promote_rule, etc.
+│   │   └── agent-tools.ts           # agents_create, spawn_agent, subagents_list, and the rest of the roster
 │   ├── mcp/                         # MCP transport & auth
 │   │   ├── databricks-config.ts     # DATABRICKS_* / ~/.databrickscfg / CLI token resolution
 │   │   ├── databricks-oauth.ts      # PKCE browser flow + service-principal client credentials
@@ -267,5 +282,6 @@ dataclaw/
     ├── databricks-mcp.test.ts       # MCP client, SQL safety, OAuth helpers, and adapter tests
     ├── databricks-oauth-flow.test.ts # End-to-end browser OAuth callback + MCP connect (mock workspace)
     ├── workflow.test.ts             # Tests for AnalysisWorkflowTask
-    └── auto-improvement.test.ts     # Tests for AutoImprovementTask
+    ├── auto-improvement.test.ts     # Tests for AutoImprovementTask
+    └── agents.test.ts               # Roster rules and the chat create → delegate → archive loop
 ```

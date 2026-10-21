@@ -23,6 +23,7 @@ Commands:
   playbook                    Display the active institutional playbook heuristics
   findings                    Display the latest verified findings and audit states
   plan                        Display the active analytical plan and hypotheses
+  agents                      List specialists the meta-agent can create from chat
 
   databricks-status           Show the resolved Databricks workspace / MCP endpoint
   databricks-catalogs         List Unity Catalog catalogs over MCP
@@ -112,6 +113,22 @@ Environment:
                 for (const r of f.actionableRecommendations) {
                     console.log(`    - ${r}`);
                 }
+            }
+        } else if (command === "agents") {
+            const roster = await analyst.getRoster();
+            const agents = roster?.agents ?? [];
+            console.log(`\n### Agent roster (${agents.length})`);
+            if (agents.length === 0) {
+                console.log("No specialists yet. Ask DataClaw in the console to create a researcher, writer, or reviewer.");
+            }
+            for (const agent of agents) {
+                console.log(`  - [${agent.id}] ${agent.name} · ${agent.role} · ${agent.status}`);
+                console.log(`    ${agent.purpose}`);
+            }
+            const runs = roster?.runs ?? [];
+            console.log(`\nDelegated runs (${runs.length}):`);
+            for (const run of runs.slice(-10)) {
+                console.log(`  - [${run.id}] ${run.agentName} · ${run.mode} · ${run.status} — ${run.label}`);
             }
         } else if (command === "plan") {
             const plan = await analyst.getPlan();

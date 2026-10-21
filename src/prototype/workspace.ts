@@ -12,10 +12,12 @@ import {
     subscribeDatabricks,
 } from "./databricks-api";
 import { loadSkills } from "../workspace/context";
+import type { AgentRosterDocument, AgentRun } from "../docs/agents";
 import type {
     ActivityItem,
     Checkpoint,
     DataSource,
+    RosterEntry,
     Run,
     ToolInvocation,
     TranscriptItem,
@@ -34,6 +36,7 @@ const CAPABILITIES = [
     "Findings",
     "Playbook",
     "Auditor",
+    "Agent roster",
 ];
 
 let opening: Promise<AnalystHarness> | undefined;
@@ -169,10 +172,11 @@ function submissionKeepsAgentBusy(
 }
 
 export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceSnapshot> {
-    const [plan, findings, playbook, view, inspection] = await Promise.all([
+    const [plan, findings, playbook, rosterDoc, view, inspection] = await Promise.all([
         analyst.getPlan(),
         analyst.getFindings(),
         analyst.getPlaybook(),
+        analyst.getRoster(),
         analyst.conversation.context(analyst.context),
         analyst.harness.inspect(analyst.context),
     ]);
@@ -188,7 +192,9 @@ export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceS
         return run ? [run] : [];
     });
 
-    const runs = [...taskRuns, ...turnRuns.reverse()];
+    const roster = rosterEntries(rosterDoc);
+    const delegated = (rosterDoc?.runs ?? []).slice(-12).reverse().map((run) => runFromRoster(run));
+    const runs = [...delegated, ...taskRuns, ...turnRuns.reverse()];
     const transcript = transcriptFrom(view.messages).slice(-150);
     const activity = activityFrom(transcript, plan?.goal);
 
@@ -198,6 +204,7 @@ export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceS
         documentSource("doc:plan", "Analyst plan", plan ? `${plan.hypotheses.length} hypotheses` : "No plan"),
         documentSource("doc:findings", "Findings", `${findings?.findings.length ?? 0} findings`),
         documentSource("doc:playbook", "Playbook", `v${playbook?.version ?? 1} · ${playbook?.heuristics.length ?? 0} heuristics`),
+        documentSource("doc:roster", "Agent roster", `${roster.filter((agent) => agent.status === "active").length} specialists`),
     ], runs);
 
     const dataset = plan?.activeDataset
@@ -224,6 +231,7 @@ export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceS
         findingsCount: findings?.findings.length ?? 0,
         playbookVersion: playbook?.version ?? 1,
         heuristicCount: playbook?.heuristics.length ?? 0,
+        roster,
         storagePath: analyst.storagePath,
         home: {
             path: analyst.workspaceDir,
@@ -511,6 +519,43 @@ function runFromTask(
         }],
         dataSources,
         event: `${kind} is in progress`,
+    };
+}
+
+function rosterEntries(roster: AgentRosterDocument | undefined): RosterEntry[] {
+    const runs = roster?.runs ?? [];
+    return (roster?.agents ?? []).map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        purpose: agent.purpose,
+        status: agent.status,
+        canManage: agent.canManage,
+        working: runs.some((run) => run.agentId === agent.id && run.status === "running"),
+    }));
+}
+
+function runFromRoster(run: AgentRun): Run {
+    const status = run.status === "running" ? "Running" : run.status === "failed" ? "Failed" : "Completed";
+    const ended = run.finishedAt > 0 ? run.finishedAt : Date.now();
+    return {
+        id: run.id,
+        agentId: run.agentId,
+        goal: run.label,
+        status,
+        startedAt: formatWhen(run.startedAt),
+        duration: formatDuration(run.startedAt, ended),
+        currentStep: status === "Running" ? "Delegated" : status === "Failed" ? "Failed" : "Returned",
+        checkpoints: [{
+            id: `${run.id}-step`,
+            label: run.mode === "session" ? "Session" : "Run",
+            timestamp: formatClock(run.startedAt),
+            summary: run.summary.slice(0, 220) || run.label,
+            state: status === "Running" ? "current" : "done",
+        }],
+        dataSources: [],
+        event: run.summary.slice(0, 180) || `${run.agentName} · ${run.mode}`,
+        ...(status === "Failed" && run.summary ? { error: run.summary } : {}),
     };
 }
 

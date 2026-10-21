@@ -15,6 +15,7 @@ import { AnalystPlanDoc } from "./docs/plan";
 import { FindingsDoc } from "./docs/findings";
 import { PlaybookDoc } from "./docs/playbook";
 import { TelemetryDoc } from "./docs/telemetry";
+import { AgentBindingDoc, AgentRosterDoc } from "./docs/agents";
 import { bindAgentWorkspace, ensureWorkspace, resolveWorkspaceDir } from "./workspace/context";
 
 export interface CreateAnalystHarnessOptions {
@@ -118,6 +119,9 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         await tx.doc(FindingsDoc, conversation.id);
         await tx.doc(PlaybookDoc, conversation.id);
         await tx.doc(TelemetryDoc, conversation.id);
+        await tx.doc(AgentRosterDoc);
+        const binding = await tx.doc(AgentBindingDoc, conversation.id);
+        if (!binding.agentId) binding.origin = "roster";
     }, context);
 
     // 8. Optionally attach Databricks as the data source via its managed SQL MCP server.
@@ -175,6 +179,10 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         },
         async getTelemetry() {
             const state = await harness.documentState(TelemetryDoc, conversation.id, context);
+            return state?.value;
+        },
+        async getRoster() {
+            const state = await harness.documentState(AgentRosterDoc, context);
             return state?.value;
         },
 

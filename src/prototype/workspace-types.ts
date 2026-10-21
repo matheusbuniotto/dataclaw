@@ -31,8 +31,18 @@ export interface DataSource {
     runs: string[];
 }
 
+export interface RosterEntry {
+    id: string;
+    name: string;
+    role: string;
+    purpose: string;
+    status: "active" | "archived";
+    canManage: boolean;
+    working: boolean;
+}
+
 export interface WorkspaceAgent {
-    id: "dataclaw";
+    id: string;
     name: string;
     description: string;
     status: "Working" | "Ready";
@@ -103,6 +113,7 @@ export interface WorkspaceSnapshot {
     findingsCount: number;
     playbookVersion: number;
     heuristicCount: number;
+    roster: RosterEntry[];
     storagePath: string;
     home: WorkspaceHome;
     sources: DataSource[];

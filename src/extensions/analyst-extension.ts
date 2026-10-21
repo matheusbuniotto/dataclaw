@@ -28,6 +28,15 @@ import {
 import { AnalysisWorkflowTask } from "../tasks/analysis-workflow";
 import { AutoImprovementTask } from "../tasks/auto-improvement";
 import { currentWorkspace, workspacePrompt } from "../workspace/context";
+import { AgentRosterDoc, formatRosterPrompt } from "../docs/agents";
+import {
+    agentsArchiveTool,
+    agentsCreateTool,
+    agentsListTool,
+    agentsUpdateTool,
+    spawnAgentTool,
+    subagentsListTool,
+} from "../tools/agent-tools";
 
 export const AnalystExtension = defineExtension({
     name: "durable-analyst",
@@ -41,6 +50,10 @@ export const AnalystExtension = defineExtension({
         section("available_skills", async () => {
             const prompt = await workspacePrompt(currentWorkspace());
             return prompt.skillsPrompt;
+        }),
+        section("agent_roster", async (input, context) => {
+            const roster = await input.read.snapshot(AgentRosterDoc, context);
+            return formatRosterPrompt(roster);
         }),
         // 1. Current Analytical Plan & Active Hypotheses
         section("analyst_plan_status", async (input, context) => {
@@ -121,6 +134,12 @@ export const AnalystExtension = defineExtension({
         recordHumanFeedbackTool,
         promotePlaybookRuleTool,
         triggerAutoImprovementTool,
+        agentsListTool,
+        agentsCreateTool,
+        agentsUpdateTool,
+        agentsArchiveTool,
+        spawnAgentTool,
+        subagentsListTool,
     ],
 
     // Durable state machines registered in the runtime
