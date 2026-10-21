@@ -5,31 +5,17 @@
  * can satisfy `plugin:<name>` or an explicit `<plugin>__<tool>` without rewriting the roster.
  * `resolveAgentCapabilities()` turns those names into the exact tools and extensions a
  * conversation is configured with, using the registry snapshot that is live at that moment.
+ *
+ * The tool lists below are views of `src/tools/inventory.ts`, where each tool declares itself
+ * once; nothing here spells a tool name out.
  */
+import { declaredTools, type ToolCapabilityGroup } from "../tools/inventory";
 
 /** The source-neutral data tools. They work against whichever data source is connected. */
-export const DATA_TOOLS = [
-    "list_data_sources",
-    "connect_data_source",
-    "discover_data",
-    "profile_table",
-    "query_data",
-    "calculate_metric",
-] as const;
+export const DATA_TOOLS = declaredTools("databricks");
 
 /** Tools that come from the core analyst extension (`durable-analyst`). */
-export const ANALYST_TOOLS = [
-    ...DATA_TOOLS,
-    "load_dataset",
-    "manage_hypotheses",
-    "record_finding",
-    "consult_playbook",
-    "request_auditor_review",
-    "record_reflection",
-    "record_human_feedback",
-    "promote_playbook_rule",
-    "trigger_auto_improvement",
-] as const;
+export const ANALYST_TOOLS = [...DATA_TOOLS, ...declaredTools("analyst")];
 
 /**
  * Kept as the name existing profiles use: the data tools are the same for every source, so a
@@ -38,33 +24,21 @@ export const ANALYST_TOOLS = [
 export const DATABRICKS_TOOLS = DATA_TOOLS;
 
 /** Tools that come from the `coding-tools` extension. */
-export const CODING_TOOLS = ["read", "write", "edit", "bash"] as const;
+export const CODING_TOOLS = declaredTools("coding");
 
 /** Roster management and delegation. A run-mode specialist never gets these. */
-export const ROSTER_TOOLS = [
-    "agents_list",
-    "agents_inspect",
-    "agents_create",
-    "agents_update",
-    "agents_archive",
-    "spawn_agent",
-    "subagents_list",
-] as const;
+export const ROSTER_TOOLS = declaredTools("roster");
 
 /** The meta-agent's self-extension tools. A run-mode specialist never gets these. */
-export const FEATURE_TOOLS = [
-    "features_list",
-    "features_create_skill",
-    "features_remove_skill",
-    "features_create_plugin",
-    "features_remove_plugin",
-    "features_apply",
-] as const;
+export const FEATURE_TOOLS = declaredTools("features");
 
 export interface CapabilityGroup {
     description: string;
     tools: readonly string[];
 }
+
+/** Group ids that resolve to a fixed list; `all` and `plugins` resolve from the live inventory. */
+type DeclaredGroupId = ToolCapabilityGroup | "all" | "plugins";
 
 export const AGENT_CAPABILITY_GROUPS = {
     all: {
@@ -95,7 +69,7 @@ export const AGENT_CAPABILITY_GROUPS = {
         description: "Create skills and plugins for DataClaw itself, then apply them at runtime.",
         tools: FEATURE_TOOLS,
     },
-} as const satisfies Record<string, CapabilityGroup>;
+} as const satisfies Record<DeclaredGroupId, CapabilityGroup>;
 
 export type AgentCapabilityGroup = keyof typeof AGENT_CAPABILITY_GROUPS;
 
@@ -235,10 +209,9 @@ export function resolveAgentCapabilities(
     }
 
     if (options.isolate) {
+        const managerOnly = new Set<string>([...ROSTER_TOOLS, ...FEATURE_TOOLS]);
         for (const name of [...selected]) {
-            if ((ROSTER_TOOLS as readonly string[]).includes(name) || (FEATURE_TOOLS as readonly string[]).includes(name)) {
-                selected.delete(name);
-            }
+            if (managerOnly.has(name)) selected.delete(name);
         }
     }
 
