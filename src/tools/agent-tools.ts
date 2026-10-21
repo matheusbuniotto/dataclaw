@@ -1,7 +1,18 @@
 import { Type } from "@earendil-works/pi-ai";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { Context } from "@earendil-works/chord/context";
-import { AgentDoc, AssistantEntry, configure, defineTool, type ConversationId, type ToolRegistration, type Tx } from "@earendil-works/pi-durable";
+import {
+    AgentDoc,
+    AssistantEntry,
+    configure,
+    defineTool,
+    type AgentChange,
+    type ConversationId,
+    type Extension,
+    type RegistrySnapshot,
+    type ToolRegistration,
+    type Tx,
+} from "@earendil-works/pi-durable";
 import {
     AgentBindingDoc,
     AgentRosterDoc,
@@ -9,17 +20,33 @@ import {
     copyAgent,
     formatRosterPrompt,
     managementRefusal,
+    normalizedAgentProfile,
     prepareAgent,
     rememberRun,
     type AgentRun,
     type RosterAgent,
 } from "../docs/agents";
-
-const managementTools: ToolRegistration[] = [];
+import {
+    formatCapabilities,
+    resolveAgentCapabilities,
+    type ToolInventory,
+} from "../docs/agent-capabilities";
+import { computeCwd, ensureAgentCompute, formatCompute } from "../compute/agent-compute";
+import { removeDockerContainer } from "../compute/docker-env";
+import { currentWorkspace } from "../workspace/context";
 
 function textResult(text: string) {
     return { content: [{ type: "text" as const, text }] };
 }
+
+const computeSchema = Type.Optional(Type.Union([
+    Type.String({ description: "shared, local, or docker" }),
+    Type.Object({
+        kind: Type.Optional(Type.String({ description: "shared, local, or docker" })),
+        image: Type.Optional(Type.String({ description: "Docker image; default oven/bun:1" })),
+        network: Type.Optional(Type.String({ description: 'Docker network: "none" (default) or "bridge"' })),
+    }),
+], { description: "Where this agent's files and shell live. local gives it a private home; docker adds an isolated container." }));
 
 function assistantText(message: AssistantMessage | undefined): string {
     if (!message) return "";
@@ -57,12 +84,22 @@ export const agentsListTool = defineTool({
 
 export const agentsCreateTool = defineTool({
     name: "agents_create",
-    description: "Creates a persistent specialist the user can keep. Roles: coordinator, researcher, writer, reviewer, or custom (custom requires instructions). The new agent gets its own conversation.",
+    description: "Creates a persistent specialist the user can keep. Roles: coordinator, researcher, writer, reviewer, or custom (custom requires instructions). Each agent gets its own conversation, persona, knowledge context, and capability set.",
     parameters: Type.Object({
         name: Type.String({ description: "Display name, such as Churn Analyst" }),
         role: Type.String({ description: "coordinator, researcher, writer, reviewer, or custom" }),
-        instructions: Type.Optional(Type.String({ description: "Operating instructions. Required for custom. Replaces the role template when set." })),
+        instructions: Type.Optional(Type.String({ description: "Operating instructions (persona). Required for custom. Replaces the role template when set." })),
         purpose: Type.Optional(Type.String({ description: "One line describing what this agent is for" })),
+        capabilities: Type.Optional(Type.Array(Type.String(), {
+            description: "Tool groups (analyst, databricks, coding, plugins, roster, features, all), plugin:<name>, or explicit tool names. Omit for the role default.",
+        })),
+        contextFiles: Type.Optional(Type.Array(Type.String(), {
+            description: "Workspace- or project-relative text files whose content becomes this agent's knowledge.",
+        })),
+        background: Type.Optional(Type.String({ description: "Inline knowledge or briefing, up to 8000 characters" })),
+        skills: Type.Optional(Type.Array(Type.String(), { description: "Skill names this agent may use. Omit for every available skill." })),
+        model: Type.Optional(Type.String({ description: 'Optional model override, "provider/modelId". Omit to inherit the coordinator\'s model.' })),
+        compute: computeSchema,
     }),
     replay: "safe",
     execute: async (args, api, context) => {
@@ -90,7 +127,7 @@ export const agentsCreateTool = defineTool({
                 conversationId: Number(conversation.id),
                 createdByTask: marker,
             };
-            await configureSpecialist(tx, conversation.id, agent, parent, agent.canManage ? "session" : "run");
+            await configureSpecialist(tx, conversation.id, agent, parent, agent.canManage ? "session" : "run", api.registry);
             const childBinding = await tx.doc(AgentBindingDoc, conversation.id);
             childBinding.agentId = agent.id;
             childBinding.origin = "roster";
@@ -99,24 +136,69 @@ export const agentsCreateTool = defineTool({
         }, context);
 
         if (!created.ok) return textResult(created.error);
+        const ready = normalizedAgentProfile(created.agent);
         api.output(`Created ${created.agent.role} ${created.agent.name}.\n`);
         return textResult([
             `Created ${created.agent.role} "${created.agent.name}" (id: ${created.agent.id}).`,
             `Purpose: ${created.agent.purpose}`,
+            `Capabilities: ${formatCapabilities(ready.capabilities)}`,
+            `Compute: ${formatCompute(ready.compute)}`,
+            `Context: ${ready.contextFiles.length} file(s)${ready.background ? ", plus background notes" : ""}${ready.skills.length ? `, skills: ${ready.skills.join(", ")}` : ""}`,
             `Delegate with spawn_agent agentId "${created.agent.id}".`,
         ].join("\n"));
     },
 });
 
+export const agentsInspectTool = defineTool({
+    name: "agents_inspect",
+    description: "Shows one specialist's full profile: role, purpose, instructions, capability selection, knowledge context, skills, model, status, and conversation.",
+    parameters: Type.Object({
+        agentId: Type.String({ description: "Roster id from agents_list" }),
+    }),
+    replay: "safe",
+    execute: async (args, api, context) => {
+        const refusal = await refuseIfUnmanaged(api, context);
+        if (refusal) return textResult(refusal);
+        const text = await api.commit(async (tx) => {
+            const roster = await tx.doc(AgentRosterDoc);
+            const agent = roster.agents.find((item) => item.id === args.agentId);
+            if (!agent) return `No agent with id "${args.agentId}". Use agents_list.`;
+            const ready = normalizedAgentProfile(agent);
+            return [
+                `### ${agent.name} [${agent.id}]`,
+                `Role: ${agent.role} · status: ${agent.status} · can manage: ${agent.canManage ? "yes" : "no"}`,
+                `Purpose: ${agent.purpose}`,
+                `Capabilities: ${formatCapabilities(ready.capabilities)}`,
+                `Context files: ${ready.contextFiles.length ? ready.contextFiles.join(", ") : "none"}`,
+                `Skills: ${ready.skills.length ? ready.skills.join(", ") : "all available"}`,
+                `Model: ${agent.model ? `${agent.model.provider}/${agent.model.modelId}` : "inherits the coordinator"}`,
+                `Compute: ${formatCompute(normalizedAgentProfile(agent).compute)}`,
+                `Conversation: ${agent.conversationId || "none"}`,
+                "",
+                "#### Instructions",
+                agent.instructions,
+                ...(ready.background ? ["", "#### Background", ready.background] : []),
+            ].join("\n");
+        }, context);
+        return textResult(text);
+    },
+});
+
 export const agentsUpdateTool = defineTool({
     name: "agents_update",
-    description: "Updates a specialist's name, role, instructions, purpose, or status (active or archived). Restoring an archived agent sets status to active.",
+    description: "Updates a specialist's name, role, instructions, purpose, capabilities, context files, background, skills, model, or status (active or archived). Restoring an archived agent sets status to active.",
     parameters: Type.Object({
         agentId: Type.String({ description: "Roster id from agents_list, such as churn-analyst" }),
         name: Type.Optional(Type.String()),
         role: Type.Optional(Type.String()),
         instructions: Type.Optional(Type.String()),
         purpose: Type.Optional(Type.String()),
+        capabilities: Type.Optional(Type.Array(Type.String())),
+        contextFiles: Type.Optional(Type.Array(Type.String())),
+        background: Type.Optional(Type.String()),
+        skills: Type.Optional(Type.Array(Type.String())),
+        model: Type.Optional(Type.String({ description: 'provider/modelId, or "" to inherit again' })),
+        compute: computeSchema,
         status: Type.Optional(Type.String({ description: "active or archived" })),
     }),
     replay: "safe",
@@ -132,17 +214,21 @@ export const agentsUpdateTool = defineTool({
             const stored = roster.agents.find((agent) => agent.id === result.agent.id);
             const parent = await tx.doc(AgentDoc, api.conversationId);
             if (stored && stored.conversationId > 0) {
-                await configure(tx, stored.conversationId as ConversationId, {
-                    instructions: stored.instructions,
-                    ...(parent.model ? { model: { provider: parent.model.provider, modelId: parent.model.modelId } } : {}),
-                    tools: stored.canManage ? null : { remove: managementTools },
-                });
+                await configureSpecialist(tx, stored.conversationId as ConversationId, stored, parent, stored.canManage ? "session" : "run", api.registry);
             }
             return { ok: true as const, agent: result.agent };
         }, context);
 
         if (!updated.ok) return textResult(updated.error);
-        return textResult(`Updated [${updated.agent.id}] ${updated.agent.name} · ${updated.agent.role} · ${updated.agent.status}.`);
+        if (args.compute !== undefined && updated.agent.compute?.kind !== "docker") {
+            await removeDockerContainer(updated.agent.id, currentWorkspace().projectRoot).catch(() => undefined);
+        }
+        const ready = normalizedAgentProfile(updated.agent);
+        return textResult([
+            `Updated [${updated.agent.id}] ${updated.agent.name} · ${updated.agent.role} · ${updated.agent.status}.`,
+            `Capabilities: ${formatCapabilities(ready.capabilities)}`,
+            `Compute: ${formatCompute(ready.compute)}`,
+        ].join("\n"));
     },
 });
 
@@ -162,6 +248,9 @@ export const agentsArchiveTool = defineTool({
             return applyAgentUpdate(roster, args.agentId, { status: "archived" }, Date.now());
         }, context);
         if (!archived.ok) return textResult(archived.error);
+        if (archived.agent.compute?.kind === "docker") {
+            await removeDockerContainer(archived.agent.id, currentWorkspace().projectRoot).catch(() => undefined);
+        }
         return textResult(`Archived [${archived.agent.id}] ${archived.agent.name}. Restore it with agents_update status "active".`);
     },
 });
@@ -212,7 +301,7 @@ export const spawnAgentTool = defineTool({
                     }
                     const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
                     conversationId = Number(created.id);
-                    await configureSpecialist(tx, created.id, agent, parent, "run");
+                    await configureSpecialist(tx, created.id, agent, parent, "run", api.registry);
                     const childBinding = await tx.doc(AgentBindingDoc, created.id);
                     childBinding.agentId = agent.id;
                     childBinding.origin = "run";
@@ -308,14 +397,48 @@ export const subagentsListTool = defineTool({
     },
 });
 
-managementTools.push(
-    agentsListTool,
-    agentsCreateTool,
-    agentsUpdateTool,
-    agentsArchiveTool,
-    spawnAgentTool,
-    subagentsListTool,
-);
+/** Tool name -> extension name, plus the extension list, from one registry snapshot. */
+export function toolInventory(snapshot: RegistrySnapshot): ToolInventory {
+    const tools = new Map<string, string>();
+    for (const entry of snapshot.tools()) {
+        if (!tools.has(entry.tool.name)) tools.set(entry.tool.name, entry.extension.name);
+    }
+    return { tools, extensions: snapshot.installed().map((extension) => extension.name) };
+}
+
+/**
+ * The complete `pi.agent` change for one roster profile. Used both when a conversation is
+ * created and when `features_apply` re-resolves agents after a plugin connects.
+ *
+ * Extensions are selected explicitly, so a writer with no `plugins` capability does not carry
+ * every plugin's prompt section, and `tools` is the resolved allowlist. A tool named before
+ * its plugin is installed is left out now; the next reconfiguration picks it up.
+ */
+export function agentConfiguration(
+    agent: RosterAgent,
+    parentModel: { provider: string; modelId: string } | undefined,
+    snapshot: RegistrySnapshot,
+    mode: "run" | "session",
+    workspaceDir: string,
+): AgentChange {
+    const ready = normalizedAgentProfile(agent);
+    const inventory = toolInventory(snapshot);
+    const resolution = resolveAgentCapabilities(ready.capabilities, inventory, { isolate: mode === "run" });
+    const toolsByName = new Map(snapshot.tools().map((entry) => [entry.tool.name, entry.tool]));
+    const tools = resolution.tools
+        .map((name) => toolsByName.get(name))
+        .filter((tool): tool is ToolRegistration => tool !== undefined);
+    const extensions = resolution.extensions
+        .map((name) => snapshot.extension(name))
+        .filter((extension): extension is Extension<ToolRegistration> => extension !== undefined);
+    return {
+        ...(agent.model ?? parentModel ? { model: agent.model ?? parentModel } : {}),
+        cwd: computeCwd(agent.id, ready.compute, workspaceDir),
+        instructions: agent.instructions,
+        extensions,
+        tools,
+    };
+}
 
 async function configureSpecialist(
     tx: Parameters<typeof configure>[0],
@@ -323,14 +446,17 @@ async function configureSpecialist(
     agent: RosterAgent,
     parent: { model?: { provider: string; modelId: string }; cwd?: string },
     mode: "run" | "session",
+    snapshot: RegistrySnapshot,
 ): Promise<void> {
-    const isolate = mode === "run" || !agent.canManage;
-    await configure(tx, conversationId, {
-        model: parent.model ? { provider: parent.model.provider, modelId: parent.model.modelId } : undefined,
-        ...(parent.cwd ? { cwd: parent.cwd } : {}),
-        instructions: agent.instructions,
-        ...(isolate ? { tools: { remove: managementTools } } : {}),
-    });
+    const workspaceDir = currentWorkspace().workspaceDir;
+    await ensureAgentCompute(agent, workspaceDir);
+    await configure(tx, conversationId, agentConfiguration(
+        agent,
+        parent.model,
+        snapshot,
+        mode,
+        workspaceDir,
+    ));
 }
 
 async function finishRun(

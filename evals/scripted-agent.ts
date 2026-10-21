@@ -54,11 +54,11 @@ export function sampleFaults(rates: FaultRates, seed: number): ScriptedFaults {
 type Step = { tool: string; args: Record<string, unknown> } | { answer: true } | { giveUp: true };
 
 function plan(task: EvalTask, faults: ScriptedFaults): Step[] {
-    const query = { tool: "run_analytical_query", args: { sql: task.referenceSql, rationale: task.question } };
+    const query = { tool: "query_data", args: { sql: task.referenceSql, rationale: task.question } };
     const steps: Step[] = [{ tool: "consult_playbook", args: {} }];
     if (faults.skipProfile) steps.push(query);
-    steps.push({ tool: "profile_dataset", args: { filePath: task.dataset } });
-    if (faults.sqlTypo) steps.push({ tool: "run_analytical_query", args: { sql: task.referenceSql.replace("SELECT", "SELEC"), rationale: task.question } });
+    steps.push({ tool: "load_dataset", args: { filePath: task.dataset } });
+    if (faults.sqlTypo) steps.push({ tool: "query_data", args: { sql: task.referenceSql.replace("SELECT", "SELEC"), rationale: task.question } });
     steps.push(query);
     if (faults.loop) steps.push(query, query, query);
     if (faults.loop && faults.giveUpAfterLoop) return [...steps, { giveUp: true }];
@@ -79,7 +79,7 @@ const text = (content: unknown): string =>
 function lastQueryAnswer(messages: readonly Message[]): string | undefined {
     for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i]!;
-        if (m.role !== "toolResult" || m.toolName !== "run_analytical_query" || m.isError) continue;
+        if (m.role !== "toolResult" || m.toolName !== "query_data" || m.isError) continue;
         const row = text(m.content).split("\n").find((line, idx, lines) => idx > 0 && lines[idx - 1]!.includes("---"));
         return row?.split("|")[1]?.trim();
     }

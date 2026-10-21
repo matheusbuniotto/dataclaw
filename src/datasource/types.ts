@@ -81,6 +81,8 @@ export interface ConnectIntent {
     credential?: SourceCredential;
     /** Overrides the manifest's endpoint for this connection. */
     endpoint?: string;
+    /** Overrides the host the provider connects to: a workspace or account URL. */
+    host?: string;
     /** Selects a dataset immediately after connecting. */
     dataset?: string;
 }

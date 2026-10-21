@@ -1,10 +1,10 @@
 import { describeDatabricksConfig } from "../mcp/databricks-config";
 import { createAnalystHarness } from "../harness";
 import { MAIN_AGENT_DESCRIPTION, MAIN_AGENT_NAME } from "../agent/instructions";
-import { releaseSharedAdapter, setSharedAdapter } from "../tools/analyst-tools";
-import { noteDatabricksAdapter } from "../tools/databricks-tools";
 import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
 import { databricksRecord } from "../datasource/providers/databricks";
+import { bridgedProvider } from "../datasource/providers/bridged";
+import { databricksDialect } from "../datasource/dialects";
 import { AnalystPlanDoc } from "../docs/plan";
 import { FindingsDoc } from "../docs/findings";
 import { PlaybookDoc } from "../docs/playbook";
@@ -132,44 +132,35 @@ async function startConsoleHarness(): Promise<AnalystHarness> {
     return analyst;
 }
 
+/**
+ * The console's auth panel owns its Databricks connection (OAuth refresh, status, catalogs). Hand
+ * the adapter to the session as a provider, so the agent and the panel share one live source.
+ */
 async function rememberDatabricks(analyst: AnalystHarness, adapter: DatabricksDataAdapter): Promise<void> {
-    setSharedAdapter(adapter);
-    noteDatabricksAdapter(adapter);
+    const host = adapter.options.host ?? "unknown";
     // The adapter may finish connecting after a capability reload closed this harness.
-    await rememberDatabricksPlan(analyst, adapter).catch((err: unknown) => {
+    await (async () => {
+        const plan = await analyst.getPlan();
+        const sameWorkspace = plan?.dataSource?.host === host;
+        await analyst.dataSources.attach(
+            analyst.conversation.id,
+            bridgedProvider("databricks", databricksDialect, adapter),
+            databricksRecord({
+                host,
+                ...(adapter.options.mcpUrl ? { mcpUrl: adapter.options.mcpUrl } : {}),
+                ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
+                connectedAt: sameWorkspace ? plan?.dataSource?.connectedAt ?? Date.now() : Date.now(),
+            }),
+        );
+    })().catch((err: unknown) => {
         console.error(`could not record the Databricks session: ${err instanceof Error ? err.message : String(err)}`);
     });
 }
 
-async function rememberDatabricksPlan(analyst: AnalystHarness, adapter: DatabricksDataAdapter): Promise<void> {
-    const host = adapter.options.host ?? "unknown";
-    await analyst.conversation.commit(async (tx) => {
-        const plan = await tx.doc(AnalystPlanDoc, analyst.conversation.id);
-        const sameWorkspace = plan.dataSource?.host === host;
-        plan.dataSource = databricksRecord({
-            host,
-            ...(adapter.options.mcpUrl ? { mcpUrl: adapter.options.mcpUrl } : {}),
-            ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
-            connectedAt: sameWorkspace ? plan.dataSource?.connectedAt ?? Date.now() : Date.now(),
-        });
-        plan.updatedAt = Date.now();
-    }, analyst.context);
-}
-
 async function forgetDatabricks(analyst: AnalystHarness): Promise<void> {
-    noteDatabricksAdapter(null);
-    releaseSharedAdapter();
-    await forgetDatabricksPlan(analyst).catch((err: unknown) => {
+    await analyst.dataSources.disconnect(analyst.conversation.id).catch((err: unknown) => {
         console.error(`could not clear the Databricks session: ${err instanceof Error ? err.message : String(err)}`);
     });
-}
-
-async function forgetDatabricksPlan(analyst: AnalystHarness): Promise<void> {
-    await analyst.conversation.commit(async (tx) => {
-        const plan = await tx.doc(AnalystPlanDoc, analyst.conversation.id);
-        delete plan.dataSource;
-        plan.updatedAt = Date.now();
-    }, analyst.context);
 }
 
 export async function askMainAgent(content: string, agentId?: string): Promise<{ submissionId: string; agentId: string }> {
@@ -827,17 +818,13 @@ function sourcesMentioned(text: string): string[] {
 function sourcesForTool(name: string, args: unknown): string[] {
     const found: string[] = [];
     const record = asRecord(args);
-    if (name === "profile_dataset" && typeof record?.filePath === "string") {
+    if (name === "load_dataset" && typeof record?.filePath === "string") {
         found.push(record.filePath.split(/[/\\]/).pop() ?? record.filePath);
     }
-    if (
-        name === "connect_databricks"
-        || name === "query_databricks"
-        || name === "list_databricks_assets"
-        || name === "profile_databricks_table"
-    ) {
-        found.push("Databricks");
+    if (name === "connect_data_source" && typeof record?.provider === "string") {
+        found.push(record.provider);
     }
+    if (typeof record?.dataset === "string") found.push(record.dataset);
     if (typeof record?.table === "string") found.push(record.table);
     return found;
 }
@@ -897,8 +884,11 @@ function summarizeToolArgs(name: string, args: unknown): string {
         const id = typeof record.hypothesisId === "string" ? ` ${record.hypothesisId}` : "";
         return `${act}${id}`;
     }
-    if (name === "list_databricks_assets") {
-        return [record.action, record.catalog, record.schema].filter(Boolean).join(" · ") || "catalogs";
+    if (name === "discover_data") {
+        return [record.step, record.namespace, record.dataset].filter(Boolean).join(" · ") || "children";
+    }
+    if (name === "connect_data_source") {
+        return typeof record.provider === "string" ? record.provider : "data source";
     }
     const interesting = record.title ?? record.statement ?? record.table ?? record.action ?? record.rationale ?? record.goal;
     if (typeof interesting === "string") return interesting.slice(0, 120);

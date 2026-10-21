@@ -1,4 +1,5 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -20,6 +21,23 @@ export interface AgentSkill {
     location: string;
     source: SkillSource;
 }
+
+export interface AgentContextFile {
+    /** Path as the profile stored it. */
+    path: string;
+    /** Absolute path that was read. */
+    resolved: string;
+    content: string;
+    truncated: boolean;
+}
+
+export interface AgentContextLoad {
+    files: AgentContextFile[];
+    missing: string[];
+}
+
+const CONTEXT_FILE_MAX_CHARS = 20_000;
+const CONTEXT_TOTAL_MAX_CHARS = 40_000;
 
 export interface WorkspaceBinding {
     workspaceDir: string;
@@ -100,6 +118,77 @@ export async function loadSkills(workspace: WorkspaceBinding): Promise<AgentSkil
         }
     }
     return [...byName.values()];
+}
+
+/**
+ * Read the files an agent profile names as its knowledge. Paths are relative and confined to
+ * the workspace first, then the project root; a missing or oversized file is reported, never
+ * fatal, so a profile cannot stop a turn.
+ */
+export async function loadAgentContextFiles(
+    files: readonly string[],
+    workspace: WorkspaceBinding = currentWorkspace(),
+): Promise<AgentContextLoad> {
+    const loaded: AgentContextFile[] = [];
+    const missing: string[] = [];
+    let total = 0;
+
+    for (const path of files) {
+        const resolved = resolveContextFile(path, workspace);
+        if (!resolved) {
+            missing.push(path);
+            continue;
+        }
+        let raw: string;
+        try {
+            raw = await readFile(resolved, "utf8");
+        } catch {
+            missing.push(path);
+            continue;
+        }
+        const room = CONTEXT_TOTAL_MAX_CHARS - total;
+        if (room <= 200) {
+            missing.push(`${path} (context budget exhausted)`);
+            continue;
+        }
+        const max = Math.min(CONTEXT_FILE_MAX_CHARS, room);
+        const clipped = raw.length > max
+            ? `${raw.slice(0, max)}\n\n[truncated; read the file for the rest]`
+            : raw;
+        loaded.push({
+            path,
+            resolved,
+            content: clipped,
+            truncated: raw.length > max,
+        });
+        total += clipped.length;
+    }
+
+    return { files: loaded, missing };
+}
+
+/** Where a relative context path may live: `<workspace>/...`, `<project>/workspace/...`, then `<project>/...`. */
+export function resolveContextFile(path: string, workspace: WorkspaceBinding = currentWorkspace()): string | undefined {
+    const cleaned = path.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+    if (!cleaned || cleaned.startsWith("/") || cleaned.split("/").includes("..")) return undefined;
+    const workspaceDir = resolve(workspace.workspaceDir);
+    const projectRoot = resolve(workspace.projectRoot);
+    const candidates = cleaned.startsWith("workspace/")
+        ? [resolve(projectRoot, cleaned)]
+        : [resolve(workspaceDir, cleaned), resolve(projectRoot, cleaned)];
+    for (const candidate of candidates) {
+        if (!isInside(candidate, workspaceDir) && !isInside(candidate, projectRoot)) continue;
+        try {
+            if (statSync(candidate).isFile()) return candidate;
+        } catch {
+            // try the next root
+        }
+    }
+    return undefined;
+}
+
+function isInside(path: string, root: string): boolean {
+    return path === root || path.startsWith(`${root}/`);
 }
 
 export function formatSkillsForPrompt(skills: readonly AgentSkill[]): string | undefined {

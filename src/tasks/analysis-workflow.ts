@@ -1,6 +1,6 @@
 import { defineTask } from "@earendil-works/pi-durable";
 import { readFileSync } from "fs";
-import { getOrCreateAdapter } from "../tools/analyst-tools";
+import { SqliteDataAdapter } from "../adapters/sqlite-adapter";
 import { AnalystPlanDoc } from "../docs/plan";
 import { FindingsDoc } from "../docs/findings";
 
@@ -24,13 +24,15 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
         intake_and_profile: async (task, runtime, context) => {
             console.log(`[AnalysisWorkflowTask ${task.id}] Phase 1: Intake & Profiling for ${task.input.filePath}...`);
 
-            const adapter = await getOrCreateAdapter();
+            // Self-contained: the saga owns its scratch database, so it needs no process global.
+            const adapter = await SqliteDataAdapter.create(":memory:");
             const content = readFileSync(task.input.filePath, "utf-8");
             const tableName = task.input.tableName ?? "data";
 
             const profile = task.input.filePath.endsWith(".json")
                 ? await adapter.loadJson(tableName, content)
                 : await adapter.loadCsv(tableName, content);
+            await adapter.close();
 
             const summary = `Table "${tableName}": ${profile.rowCount} rows, ${profile.columnCount} columns.`;
 
@@ -100,7 +102,11 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
 
         deep_dive_analysis: async (task, runtime, context) => {
             console.log(`[AnalysisWorkflowTask ${task.id}] Phase 3: Executing analytical queries and statistical tests...`);
-            const adapter = await getOrCreateAdapter();
+            const adapter = await SqliteDataAdapter.create(":memory:");
+            const content = readFileSync(task.input.filePath, "utf-8");
+            await (task.input.filePath.endsWith(".json")
+                ? adapter.loadJson(task.input.tableName ?? "data", content)
+                : adapter.loadCsv(task.input.tableName ?? "data", content));
 
             // Run analytical queries
             const churnByTier = await adapter.query(
@@ -120,6 +126,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
             };
             const basic = tierRate("Basic");
             const enterprise = tierRate("Enterprise");
+            await adapter.close();
             const findingTitles = [
                 `Support tickets in the last 30 days correlate with churn (r = ${r.toFixed(2)})`,
                 `Basic tier churns at ${basic}% vs ${enterprise}% for Enterprise`,

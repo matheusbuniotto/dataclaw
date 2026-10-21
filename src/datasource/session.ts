@@ -161,7 +161,7 @@ class Session implements DataSourceSession {
                 provider: next.id,
                 dialect: next.dialect.id,
                 connectedAt: this.now(),
-                ...(next.host ? { host: next.host } : {}),
+                ...(intent.host ?? next.host ? { host: intent.host ?? next.host } : {}),
                 ...(intent.endpoint ?? next.endpoint ? { endpoint: intent.endpoint ?? next.endpoint } : {}),
                 ...(intent.credential ? { credential: intent.credential } : {}),
                 ...(intent.dataset ? { dataset: intent.dataset } : {}),
@@ -386,6 +386,27 @@ class Session implements DataSourceSession {
         });
     }
 
+    /** Adopt a provider a host already opened (the console's auth panel). Writes the record. */
+    async attach(provider: DataProvider, record: SourceRecord): Promise<void> {
+        if (this.retired) {
+            throw new SourceError("no-session", "This data-source session is closed.", { provider: record.provider });
+        }
+        await this.store.write(record);
+        const previous = this.live;
+        this.live = { provider, record };
+        this.state = { state: "live", record };
+        if (previous) await previous.provider.close().catch(() => undefined);
+    }
+
+    /** Close the live provider and clear the record, leaving the session usable. */
+    async disconnect(): Promise<void> {
+        const live = this.live;
+        this.live = undefined;
+        this.state = { state: "idle" };
+        await live?.provider.close().catch(() => undefined);
+        await this.store.clear().catch(() => undefined);
+    }
+
     async close(): Promise<void> {
         this.retired = true;
         this.closed.abort();
@@ -403,6 +424,10 @@ export class DataSourceRegistry {
     constructor(private readonly options: DataSourceRegistryOptions) {}
 
     for(conversationId: string | number): DataSourceSession {
+        return this.session(conversationId);
+    }
+
+    private session(conversationId: string | number): Session {
         const key = String(conversationId);
         let session = this.sessions.get(key);
         if (!session) {
@@ -415,6 +440,16 @@ export class DataSourceRegistry {
     /** Providers a manifest makes available, for `list_data_sources` and the console. */
     providers(): ProviderDescriptor[] {
         return this.options.catalog.list();
+    }
+
+    /** Adopt a provider the host opened itself. Console-only; tools never call this. */
+    async attach(conversationId: string | number, provider: DataProvider, record: SourceRecord): Promise<void> {
+        await this.session(conversationId).attach(provider, record);
+    }
+
+    /** Disconnect the live source, keeping the session usable. */
+    async disconnect(conversationId: string | number): Promise<void> {
+        await this.session(conversationId).disconnect();
     }
 
     async close(): Promise<void> {

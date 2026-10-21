@@ -132,11 +132,19 @@ test("chat creates a specialist, delegates a run, and archives it", async () => 
         const configured = await session!.agent(analyst.context);
         expect(configured.instructions).toContain("researcher");
         expect(configured.tools.map((item) => item.name)).not.toContain("spawn_agent");
-        expect(configured.tools.map((item) => item.name)).toContain("profile_dataset");
+        expect(configured.tools.map((item) => item.name)).toContain("query_data");
 
         const workspace = await readWorkspace(analyst);
         expect(workspace.roster.some((agent) => agent.id === "churn-analyst")).toBe(true);
         expect(workspace.agent.sources).toContain("Agent roster");
+
+        const specialistView = await readWorkspace(analyst, { agentId: "churn-analyst" });
+        expect(specialistView.agent.id).toBe("churn-analyst");
+        expect(specialistView.agent.name).toBe("Churn Analyst");
+        expect(specialistView.agent.sources.join(" ")).toContain("researcher specialist");
+
+        const stale = await readWorkspace(analyst, { agentId: "nope" });
+        expect(stale.agent.id).toBe("dataclaw");
 
         await turn(analyst, "Ask churn-analyst to profile the file.", "delegate-agent");
         const delegated = await analyst.getRoster();

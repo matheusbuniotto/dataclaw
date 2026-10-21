@@ -43,6 +43,7 @@ export async function openDatabricksProvider(
     options: DatabricksProviderOptions = {},
 ): Promise<DataProvider> {
     const resolve = options.resolve ?? ((wanted: ConnectIntent) => resolveDatabricksConfig({
+        ...(wanted.host ? { host: wanted.host } : {}),
         ...(wanted.credential?.profile ? { profile: wanted.credential.profile } : {}),
     }));
     const tokenFactory = options.tokenFactory ?? (() => resolve(intent).token);

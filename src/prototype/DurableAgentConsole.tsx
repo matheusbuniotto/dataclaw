@@ -18,6 +18,7 @@ import {
 import { AssistantTurnView, groupIntoTurns } from "./ChatComponents";
 import type { PluginCheck, PluginsSummary } from "./plugins-api";
 import { CapabilitiesPage } from "./CapabilitiesPage";
+import { AgentsPage } from "./AgentsPage";
 import {
     ArrowRight,
     Bell,
@@ -67,6 +68,16 @@ const navItems = [
 
 const agentById = (id: string, agents: WorkspaceAgent[]) => agents.find((agent) => agent.id === id);
 const statusClass = (s: string) => `status-pill status-${s.toLowerCase()}`;
+const agentPath = (id: string) => id === "dataclaw"
+    ? "/prototype/agents"
+    : `/prototype/agents?agent=${encodeURIComponent(id)}`;
+const agentInitials = (name: string) => name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "DC";
 
 /** `response.json()` in Safari throws "The string did not match the expected pattern." for a non-JSON body. */
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -99,10 +110,36 @@ export function DurableAgentConsole() {
     const [toast, setToast] = useState("");
     const [menuOpen, setMenuOpen] = useState(false);
     const [location, setLocation] = useLocation();
+    const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
+        if (typeof window === "undefined") return "dataclaw";
+        const fromUrl = new URLSearchParams(window.location.search).get("agent");
+        return fromUrl || window.localStorage.getItem("dataclaw.activeAgent") || "dataclaw";
+    });
 
-    const refresh = async () => {
+    // A stale picker (archived agent, deleted roster entry) falls back to DataClaw without
+    // rewriting the stored choice, so restoring the agent brings the selection back.
+    const activeAgentId = useMemo(() => {
+        if (!selectedAgentId || selectedAgentId === "dataclaw") return "dataclaw";
+        // Before the first snapshot, trust the URL/localStorage choice; the backend validates it.
+        if (!snapshot) return selectedAgentId;
+        const active = (snapshot.roster ?? []).some((entry) => entry.id === selectedAgentId && entry.status === "active");
+        return active ? selectedAgentId : "dataclaw";
+    }, [selectedAgentId, snapshot]);
+
+    const selectAgent = (id: string) => {
+        const next = !id || id === "dataclaw" ? "dataclaw" : id;
+        setSelectedAgentId(next);
+        if (typeof window !== "undefined") window.localStorage.setItem("dataclaw.activeAgent", next);
+        setLocation(agentPath(next));
+        void refresh(next);
+    };
+
+    const refresh = async (agentId: string = activeAgentId) => {
         try {
-            const response = await fetch("/api/workspace");
+            const url = agentId && agentId !== "dataclaw"
+                ? `/api/workspace?agentId=${encodeURIComponent(agentId)}`
+                : "/api/workspace";
+            const response = await fetch(url);
             const body = await readJson(response) as WorkspaceSnapshot & { error?: string };
             if (!response.ok) throw new Error(body.error ?? `Workspace unavailable (${response.status})`);
             setSnapshot(body);
@@ -114,12 +151,12 @@ export function DurableAgentConsole() {
 
     useEffect(() => {
         void refresh();
-    }, [auth.status?.connected, auth.status?.host]);
+    }, [auth.status?.connected, auth.status?.host, activeAgentId]);
 
     useEffect(() => {
         const timer = window.setInterval(() => void refresh(), snapshot?.agent.working ? 1000 : 2500);
         return () => window.clearInterval(timer);
-    }, [snapshot?.agent.working]);
+    }, [snapshot?.agent.working, activeAgentId]);
 
     const notify = (message: string) => {
         setToast(message);
@@ -131,7 +168,11 @@ export function DurableAgentConsole() {
     const [stopping, setStopping] = useState(false);
 
     const postAbort = async () => {
-        const response = await fetch("/api/agent/abort", { method: "POST" });
+        const response = await fetch("/api/agent/abort", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ agentId: activeAgentId === "dataclaw" ? undefined : activeAgentId }),
+        });
         const body = await readJson(response);
         if (!response.ok || body.ok === false) {
             throw new Error(typeof body.error === "string" ? body.error : "Could not stop the turn.");
@@ -141,7 +182,15 @@ export function DurableAgentConsole() {
         }
     };
 
-    const ask = async (goal: string) => {
+    const ask = async (goal: string, agentIdOverride?: string) => {
+        const targetAgentId = agentIdOverride ?? activeAgentId;
+        const targetName = targetAgentId === "dataclaw"
+            ? "DataClaw"
+            : snapshot?.roster.find((entry) => entry.id === targetAgentId)?.name ?? "the agent";
+        if (targetAgentId !== activeAgentId) {
+            setSelectedAgentId(targetAgentId);
+            if (typeof window !== "undefined") window.localStorage.setItem("dataclaw.activeAgent", targetAgentId);
+        }
         stopDuringAsk.current = false;
         askingRef.current = true;
         setAsking(true);
@@ -150,16 +199,19 @@ export function DurableAgentConsole() {
             const response = await fetch("/api/agent/ask", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ content: goal }),
+                body: JSON.stringify({
+                    content: goal,
+                    agentId: targetAgentId === "dataclaw" ? undefined : targetAgentId,
+                }),
             });
             const body = await readJson(response);
             if (!response.ok || !body.ok) {
-                throw new Error(typeof body.error === "string" ? body.error : "DataClaw could not start that turn.");
+                throw new Error(typeof body.error === "string" ? body.error : `${targetName} could not start that turn.`);
             }
             if (stopDuringAsk.current) await postAbort();
-            else notify("DataClaw picked up the turn. It is checkpointed in SQLite.");
-            setLocation("/prototype/agents");
-            await refresh();
+            else notify(`${targetName} picked up the turn. It is checkpointed in SQLite.`);
+            setLocation(agentPath(targetAgentId));
+            await refresh(targetAgentId);
         } catch (err) {
             notify(err instanceof Error ? err.message : String(err));
         } finally {
@@ -189,26 +241,97 @@ export function DurableAgentConsole() {
             return;
         }
         const run = runs.find((item) => item.id === id);
-        if (run) await ask(run.goal);
+        if (run) await ask(run.goal, run.agentId);
     };
 
-    const agents = snapshot ? [snapshot.agent, ...rosterAsAgents(snapshot.roster, snapshot.agent.model)] : [];
+    const agents = snapshot
+        ? [snapshot.agent, ...rosterAsAgents(snapshot.roster, snapshot.agent.model).filter((item) => item.id !== snapshot.agent.id)]
+        : [];
     const runs = snapshot?.runs ?? [];
     const sources = snapshot?.sources ?? [];
     const agent = snapshot?.agent;
 
+    const isAgentsView = location === "/prototype/agents" || location.startsWith("/prototype/agents");
+
     return (
-        <div className="app-shell">
-            {/* Sidebar */}
-            <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
-                <div className="brand">
-                    <div className="brand-mark">
-                        <Layers3 size={19} />
+        <div
+            className="app-shell"
+            style={isAgentsView ? { height: "100dvh", minHeight: "100dvh", overflow: "hidden" } : undefined}
+        >
+            {/* Backdrop for Stillwork slide-over drawer when on Agents view */}
+            {isAgentsView && menuOpen && (
+                <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Close navigation"
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(18, 46, 42, 0.55)",
+                        backdropFilter: "blur(4px)",
+                        zIndex: 9998,
+                        animation: "fade 0.16s ease",
+                    }}
+                    onClick={() => setMenuOpen(false)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") setMenuOpen(false);
+                    }}
+                />
+            )}
+
+            {/* Sidebar (Stillwork greenish console menu) */}
+            <aside
+                className={`sidebar ${menuOpen ? "open" : ""}`}
+                style={
+                    isAgentsView
+                        ? {
+                              transform: menuOpen ? "translateX(0)" : "translateX(-100%)",
+                              transition: "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+                              boxShadow: menuOpen ? "0 24px 60px rgba(10, 30, 26, 0.5)" : "none",
+                              zIndex: 9999,
+                          }
+                        : undefined
+                }
+            >
+                <div className="brand" style={{ justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                        <div className="brand-mark">
+                            <Layers3 size={19} />
+                        </div>
+                        <div>
+                            <div className="brand-name">Stillwork</div>
+                            <div className="brand-caption">DURABLE WORKSPACE</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="brand-name">Stillwork</div>
-                        <div className="brand-caption">DURABLE WORKSPACE</div>
-                    </div>
+                    {isAgentsView && (
+                        <button
+                            type="button"
+                            onClick={() => setMenuOpen(false)}
+                            aria-label="Close Stillwork Menu"
+                            style={{
+                                background: "transparent",
+                                border: "1px solid #35514e",
+                                color: "#b5c3bd",
+                                borderRadius: 7,
+                                width: 28,
+                                height: 28,
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                            }}
+                        >
+                            <X size={15} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="agent-picker-wrap">
+                    <div className="agent-picker-label">ACTIVE AGENT</div>
+                    <AgentPicker
+                        roster={snapshot?.roster ?? []}
+                        value={activeAgentId}
+                        onChange={selectAgent}
+                    />
                 </div>
 
                 <nav className="nav-group">
@@ -235,6 +358,7 @@ export function DurableAgentConsole() {
                 <div className="sidebar-bottom">
                     <Link
                         href="/prototype/settings"
+                        onClick={() => setMenuOpen(false)}
                         className={`nav-link ${location === "/prototype/settings" ? "active" : ""}`}
                     >
                         <Settings2 size={16} />
@@ -242,9 +366,9 @@ export function DurableAgentConsole() {
                     </Link>
 
                     <div className="profile">
-                        <span className="profile-avatar">DC</span>
+                        <span className="profile-avatar">{agentInitials(agent?.name ?? "DataClaw")}</span>
                         <span className="profile-info">
-                            <b>DataClaw</b>
+                            <b>{agent?.name ?? "DataClaw"}</b>
                             <span>{agent?.model ?? "Main agent"}</span>
                         </span>
                         <MoreHorizontal size={17} />
@@ -253,55 +377,70 @@ export function DurableAgentConsole() {
             </aside>
 
             {/* Main Area */}
-            <main className="main-area">
-                <header className="topbar">
-                    <button
-                        className="icon-button mobile-menu"
-                        aria-label="Open navigation"
-                        onClick={() => setMenuOpen(!menuOpen)}
-                    >
-                        {menuOpen ? <X size={16} /> : <Menu size={16} />}
-                    </button>
-                    <div className="crumb">
-                        <span>DataClaw Studio</span>
-                        <ArrowRight size={12} />
-                        <strong>
-                            {navItems.find((i) => i.href === location)?.label ??
-                                (location.includes("settings") ? "Settings" : "Overview")}
-                        </strong>
-                    </div>
-
-                    <div className="top-actions">
+            <main
+                className="main-area"
+                style={
+                    isAgentsView
+                        ? {
+                              marginLeft: 0,
+                              height: "100dvh",
+                              minHeight: "100dvh",
+                              overflow: "hidden",
+                              background: "transparent",
+                          }
+                        : undefined
+                }
+            >
+                {!isAgentsView && (
+                    <header className="topbar">
                         <button
-                            className="context-switch"
-                            onClick={() => setAuthOpen(true)}
-                            title={auth.status?.connected ? `Databricks connected: ${auth.status.host}` : "Connect Databricks via MCP"}
+                            className="icon-button mobile-menu"
+                            aria-label="Open navigation"
+                            onClick={() => setMenuOpen(!menuOpen)}
                         >
-                            <Database size={14} />
-                            <span>
-                                {auth.status?.connected
-                                    ? "Databricks connected"
-                                    : auth.loading
-                                        ? "Checking Databricks…"
-                                        : "Connect Databricks"}
-                            </span>
-                            <i className={`live-dot ${auth.status?.connected ? "" : "dbx-dot-off"}`} />
+                            {menuOpen ? <X size={16} /> : <Menu size={16} />}
                         </button>
+                        <div className="crumb">
+                            <span>DataClaw Studio</span>
+                            <ArrowRight size={12} />
+                            <strong>
+                                {navItems.find((i) => i.href === location)?.label ??
+                                    (location.includes("settings") ? "Settings" : "Overview")}
+                            </strong>
+                        </div>
 
-                        <button
-                            className="icon-button"
-                            aria-label="Notifications"
-                            onClick={() => notify(agent?.working ? "DataClaw is still working on the current turn." : "DataClaw is ready. No turn is in flight.")}
-                        >
-                            <Bell size={15} />
-                        </button>
-                    </div>
-                </header>
+                        <div className="top-actions">
+                            <button
+                                className="context-switch"
+                                onClick={() => setAuthOpen(true)}
+                                title={auth.status?.connected ? `Databricks connected: ${auth.status.host}` : "Connect Databricks via MCP"}
+                            >
+                                <Database size={14} />
+                                <span>
+                                    {auth.status?.connected
+                                        ? "Databricks connected"
+                                        : auth.loading
+                                            ? "Checking Databricks…"
+                                            : "Connect Databricks"}
+                                </span>
+                                <i className={`live-dot ${auth.status?.connected ? "" : "dbx-dot-off"}`} />
+                            </button>
+
+                            <button
+                                className="icon-button"
+                                aria-label="Notifications"
+                                onClick={() => notify(agent?.working ? `${agent?.name ?? "DataClaw"} is still working on the current turn.` : `${agent?.name ?? "DataClaw"} is ready. No turn is in flight.`)}
+                            >
+                                <Bell size={15} />
+                            </button>
+                        </div>
+                    </header>
+                )}
 
                 {loadError && <div className="workspace-banner">{loadError}</div>}
-                {snapshot?.agent.model.startsWith("faux") && (
+                {snapshot?.agent.model.startsWith("faux") && !isAgentsView && (
                     <div className="workspace-banner">
-                        DataClaw is on the offline model ({snapshot.agent.model}). Set the model in .pi/settings.json, or set OPENCODE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY.
+                        {snapshot.agent.name} is on the offline model ({snapshot.agent.model}). Set the model in .pi/settings.json, or set OPENCODE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY.
                     </div>
                 )}
 
@@ -336,6 +475,8 @@ export function DurableAgentConsole() {
                         <AgentsPage
                             agents={agents}
                             roster={snapshot?.roster ?? []}
+                            activeAgentId={activeAgentId}
+                            onSelectAgent={selectAgent}
                             transcript={snapshot?.transcript ?? []}
                             skills={snapshot?.home.skills ?? []}
                             workspacePath={snapshot?.home.path}
@@ -344,6 +485,9 @@ export function DurableAgentConsole() {
                             onStop={() => void stopAgent()}
                             ask={ask}
                             ops={ops}
+                            onToggleOps={() => setOps(!ops)}
+                            onOpenStillworkMenu={() => setMenuOpen(true)}
+                            onOpenSettings={() => setLocation("/prototype/settings")}
                         />
                     </Route>
                     <Route path="/prototype/runs">
@@ -382,6 +526,7 @@ export function DurableAgentConsole() {
 
             {launchOpen && (
                 <LaunchModal
+                    agentName={snapshot?.agent.name ?? "DataClaw"}
                     busy={asking}
                     onClose={() => setLaunchOpen(false)}
                     onLaunch={(goal) => void ask(goal)}
@@ -534,18 +679,19 @@ function Overview({
         day: "numeric",
     }).toUpperCase();
     const goal = snapshot?.plan.goal;
+    const agentName = snapshot?.agent.name ?? "DataClaw";
     const subtitle = !snapshot
         ? "Opening the durable agent…"
         : goal && goal !== "Pending goal definition"
             ? goal
-            : "Ask DataClaw to explore a local file or the Databricks workspace. Each turn is stored in SQLite.";
+            : `Ask ${agentName} to explore a local file or the Databricks workspace. Each turn is stored in SQLite.`;
     const activity = snapshot?.activity ?? [];
 
     return (
         <div className="page-wrap">
             <Header
-                eyebrow={`${today} · DATA CLAW`}
-                title={snapshot?.agent.working ? "DataClaw is working." : "DataClaw is ready."}
+                eyebrow={`${today} · ${agentName.toUpperCase()}`}
+                title={snapshot?.agent.working ? `${agentName} is working.` : `${agentName} is ready.`}
                 subtitle={subtitle}
                 action={
                     <button className="button-primary" onClick={openLaunch} disabled={!snapshot || asking}>
@@ -563,7 +709,7 @@ function Overview({
                         ? `<b>${specialists.slice(0, 3).map((agent) => agent.name).join(", ")}</b>`
                         : snapshot?.agent.working
                             ? "<b>Working</b> on the current turn"
-                            : "<b>DataClaw</b> can create specialists in chat"}
+                            : `<b>${agentName}</b> is the active agent`}
                 />
                 <Metric
                     icon={Workflow}
@@ -600,7 +746,7 @@ function Overview({
                             <div className="empty-state">
                                 <Workflow size={22} />
                                 <b>No turns yet</b>
-                                <span>Start a task and DataClaw will explore from here.</span>
+                                <span>Start a task and {agentName} will explore from here.</span>
                             </div>
                         ) : (
                             runs.slice(0, 4).map((run) => (
@@ -611,7 +757,7 @@ function Overview({
 
                     <Panel
                         title={ops ? "Connected sources" : "Your data"}
-                        note={ops ? "Live Databricks catalogs, local files, and durable documents." : "What DataClaw can read right now."}
+                        note={ops ? "Live Databricks catalogs, local files, and durable documents." : `What ${agentName} can read right now.`}
                         action={
                             <Link href="/prototype/data" className="text-link">
                                 Explore data <ArrowRight size={12} style={{ verticalAlign: "middle" }} />
@@ -655,7 +801,7 @@ function Overview({
                         })}
                     </Panel>
 
-                    <Panel title="A good place to start" note="These go straight to DataClaw.">
+                    <Panel title="A good place to start" note={`These go straight to ${agentName}.`}>
                         {STARTERS.map((prompt) => (
                             <div className="health-row" key={prompt}>
                                 <span className="run-glyph">
@@ -668,7 +814,7 @@ function Overview({
                                     className="icon-button"
                                     onClick={() => ask(prompt)}
                                     disabled={asking}
-                                    aria-label="Ask DataClaw"
+                                    aria-label={`Ask ${agentName}`}
                                 >
                                     <ArrowRight size={14} />
                                 </button>
@@ -682,6 +828,41 @@ function Overview({
     );
 }
 
+function AgentPicker({
+    roster,
+    value,
+    onChange,
+    variant = "sidebar",
+}: {
+    roster: RosterEntry[];
+    value: string;
+    onChange: (id: string) => void;
+    variant?: "sidebar" | "chat";
+}) {
+    const active = (roster ?? []).filter((entry) => entry.status === "active");
+    return (
+        <>
+            <select
+                className={`agent-picker ${variant === "chat" ? "agent-picker-chat" : ""}`}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                aria-label="Active agent"
+                title="Switch agent"
+            >
+                <option value="dataclaw">DataClaw · coordinator</option>
+                {active.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                        {entry.name} · {entry.role} · {entry.compute}
+                    </option>
+                ))}
+            </select>
+            {variant === "sidebar" && active.length === 0 && (
+                <div className="agent-picker-hint">No specialists yet · ask DataClaw to create one</div>
+            )}
+        </>
+    );
+}
+
 function rosterAsAgents(roster: RosterEntry[] | undefined, model: string): WorkspaceAgent[] {
     return (roster ?? []).map((entry) => ({
         id: entry.id,
@@ -689,208 +870,12 @@ function rosterAsAgents(roster: RosterEntry[] | undefined, model: string): Works
         description: entry.purpose,
         status: entry.working ? "Working" : "Ready",
         working: entry.working,
-        model,
-        sources: [entry.status === "archived" ? `${entry.role} · archived` : entry.role],
+        model: entry.model ?? model,
+        sources: [
+            entry.status === "archived" ? `${entry.role} · archived` : entry.role,
+            `compute: ${entry.compute}`,
+        ],
     }));
-}
-
-function AgentsPage({
-    agents,
-    roster,
-    transcript,
-    skills,
-    workspacePath,
-    working,
-    stopping,
-    onStop,
-    ask,
-    ops,
-}: {
-    agents: WorkspaceAgent[];
-    roster: RosterEntry[];
-    transcript: TranscriptItem[];
-    skills: WorkspaceSkillInfo[];
-    workspacePath?: string | undefined;
-    working: boolean;
-    stopping: boolean;
-    onStop: () => void;
-    ask: (goal: string) => void;
-    ops: boolean;
-}) {
-    const [draft, setDraft] = useState("");
-    const [showContext, setShowContext] = useState(false);
-    const agent = agents[0];
-    const entries = roster ?? [];
-    const specialists = entries.filter((entry) => entry.status === "active");
-    const endRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLTextAreaElement>(null);
-    const turns = useMemo(() => groupIntoTurns(transcript), [transcript]);
-    const lastIsUser = transcript[transcript.length - 1]?.role === "user";
-
-    useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }, [transcript.length, working]);
-
-    useEffect(() => {
-        const el = inputRef.current;
-        if (!el) return;
-        el.style.height = "auto";
-        el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
-    }, [draft]);
-
-    const submit = (text = draft) => {
-        const goal = text.trim();
-        if (!goal || working || stopping) return;
-        setDraft("");
-        ask(goal);
-    };
-
-    return (
-        <div className="chat-page">
-            <header className="chat-header">
-                <span className="agent-icon">
-                    <BrainCircuit size={17} />
-                </span>
-                <div className="chat-header-copy">
-                    <div className="agent-title">{agent?.name ?? "DataClaw"}</div>
-                    <div className="agent-owner">
-                        {agent ? `${agent.sources.join(" · ")}${ops ? ` · ${agent.model}` : ""}` : "Opening…"}
-                        {specialists.length > 0 ? ` · ${specialists.map((entry) => entry.name).join(", ")}` : ""}
-                    </div>
-                </div>
-                <span className={working ? "status-pill status-running" : "status-pill status-idle"}>
-                    {working ? "Working" : agent?.status ?? "Opening"}
-                </span>
-                <button
-                    className="button-quiet"
-                    onClick={() => setShowContext(!showContext)}
-                    aria-expanded={showContext}
-                >
-                    Context <ChevronDown size={13} className={showContext ? "chat-chevron open" : "chat-chevron"} />
-                </button>
-            </header>
-
-            {showContext && (
-                <div className="chat-context">
-                    {agent && <p>{agent.description}</p>}
-                    <div className="panel-note">{workspacePath ?? "Opening workspace…"} · AGENTS.md loads every turn</div>
-                    <div className="data-chips" style={{ marginTop: 10 }}>
-                        <span className="chip">DataClaw · coordinator</span>
-                        {entries.map((entry) => (
-                            <span className="chip" key={entry.id} title={entry.purpose}>
-                                {entry.name} · {entry.role}{entry.status === "archived" ? " · archived" : ""}
-                            </span>
-                        ))}
-                    </div>
-                    {skills.length > 0 && (
-                        <div className="data-chips" style={{ marginTop: 10 }}>
-                            {skills.map((skill) => (
-                                <span className="chip" key={skill.location} title={skill.description}>
-                                    {skill.name}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div className="chat-scroll">
-                <div className="chat-thread">
-                    {transcript.length === 0 ? (
-                        <div className="chat-empty">
-                            <Sparkles size={22} />
-                            <h2>What should DataClaw look at?</h2>
-                            <p>Ask about a catalog, a table, or a local file. Or ask DataClaw to create a specialist.</p>
-                            <div className="chat-starters">
-                                {STARTERS.map((prompt) => (
-                                    <button key={prompt} onClick={() => submit(prompt)} disabled={working}>
-                                        {prompt}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        turns.map((turn, i) => {
-                            const isLast = i === turns.length - 1;
-                            if (turn.role === "user") {
-                                return (
-                                    <div className="chat-msg chat-user" key={turn.id}>
-                                        <div className="chat-bubble">
-                                            <div className="chat-user-text">{turn.userText}</div>
-                                        </div>
-                                        <time>{turn.time}</time>
-                                    </div>
-                                );
-                            }
-                            return (
-                                <AssistantTurnView
-                                    key={turn.id}
-                                    turn={turn}
-                                    live={working && isLast}
-                                />
-                            );
-                        })
-                    )}
-                    {working && lastIsUser && (
-                        <div className="chat-msg chat-assistant">
-                            <span className="chat-avatar">
-                                <BrainCircuit size={13} />
-                            </span>
-                            <div className="chat-assistant-body">
-                                <div className="chat-typing-inline" aria-label="DataClaw is thinking">
-                                    <span>Thinking…</span>
-                                    <div className="chat-typing">
-                                        <i /><i /><i />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    <div ref={endRef} />
-                </div>
-            </div>
-
-            <div className="chat-composer-wrap">
-                <div className="chat-composer">
-                    <textarea
-                        ref={inputRef}
-                        rows={1}
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        placeholder="Ask DataClaw…"
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" && !event.shiftKey) {
-                                event.preventDefault();
-                                submit();
-                            }
-                        }}
-                    />
-                    {working || stopping ? (
-                        <button
-                            className="chat-send stop"
-                            type="button"
-                            onClick={onStop}
-                            disabled={stopping}
-                            aria-label={stopping ? "Stopping" : "Stop"}
-                            title={stopping ? "Stopping" : "Stop"}
-                        >
-                            {stopping ? <Loader2 size={14} className="animate-spin" /> : <Square size={12} />}
-                        </button>
-                    ) : (
-                        <button
-                            className="chat-send"
-                            onClick={() => submit()}
-                            disabled={!draft.trim()}
-                            aria-label="Send"
-                        >
-                            <ArrowUp size={15} />
-                        </button>
-                    )}
-                </div>
-                <div className="chat-hint">Enter to send · Shift+Enter for a new line · every turn is saved</div>
-            </div>
-        </div>
-    );
 }
 
 function RunsPage({
@@ -1552,10 +1537,12 @@ function PluginsCard({
 }
 
 function LaunchModal({
+    agentName,
     busy,
     onClose,
     onLaunch,
 }: {
+    agentName: string;
     busy: boolean;
     onClose: () => void;
     onLaunch: (goal: string) => void;
@@ -1571,8 +1558,8 @@ function LaunchModal({
             <div className="modal" role="dialog" aria-modal="true">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
-                        <div className="eyebrow">ASK DATACLAW</div>
-                        <h2>What should DataClaw explore?</h2>
+                        <div className="eyebrow">ASK {agentName.toUpperCase()}</div>
+                        <h2>What should {agentName} explore?</h2>
                         <p>The turn is admitted to the durable conversation and can resume after a restart.</p>
                     </div>
                     <button className="icon-button" onClick={onClose} aria-label="Close">
@@ -1599,7 +1586,7 @@ function LaunchModal({
                         disabled={busy}
                         onClick={() => (goal.trim() ? onLaunch(goal.trim()) : setError("Add a task to continue."))}
                     >
-                        <Play size={13} /> {busy ? "Sending…" : "Ask DataClaw"}
+                        <Play size={13} /> {busy ? "Sending…" : `Ask ${agentName}`}
                     </button>
                 </div>
             </div>

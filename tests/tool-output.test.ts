@@ -4,21 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { createAnalystHarness } from "../src/harness";
-import { SqliteDataAdapter } from "../src/adapters/sqlite-adapter";
-import { setSharedAdapter } from "../src/tools/analyst-tools";
 import { parseAuditVerdict } from "../src/subagents/auditor-subagent";
 import type { AnalystPlanDocument } from "../src/docs/plan";
 import type { FindingsDocument } from "../src/docs/findings";
 
 describe("tool results reach the model", () => {
     test("the model sees query rows, not just the progress line", async () => {
-        setSharedAdapter(await SqliteDataAdapter.create(":memory:"));
         const seen: string[] = [];
         const faux = fauxProvider({ provider: "faux", models: [{ id: "probe" }] });
         faux.setResponses([
-            fauxAssistantMessage(fauxToolCall("profile_dataset", { filePath: "sample-data/customer_churn.csv" }), { stopReason: "toolUse" }),
+            fauxAssistantMessage(fauxToolCall("load_dataset", { filePath: "sample-data/customer_churn.csv" }), { stopReason: "toolUse" }),
             fauxAssistantMessage(
-                fauxToolCall("run_analytical_query", {
+                fauxToolCall("query_data", {
                     sql: "SELECT plan_tier, COUNT(*) AS n FROM data GROUP BY plan_tier ORDER BY plan_tier",
                     rationale: "count accounts per tier",
                 }),
@@ -72,7 +69,6 @@ describe("parseAuditVerdict", () => {
 
 describe("optional tool arguments", () => {
     test("record_finding and manage_hypotheses accept a call without their optional fields", async () => {
-        setSharedAdapter(await SqliteDataAdapter.create(":memory:"));
         const faux = fauxProvider({ provider: "faux", models: [{ id: "probe" }] });
         faux.setResponses([
             fauxAssistantMessage(fauxToolCall("manage_hypotheses", { action: "propose", title: "Basic tier churns more" }), { stopReason: "toolUse" }),

@@ -29,7 +29,7 @@ export { AgentRosterDoc, AgentBindingDoc } from "./docs/agents";
 export type { AgentRosterDocument, AgentBindingDocument, RosterAgent, AgentRun } from "./docs/agents";
 
 // Extension
-export { AnalystExtension } from "./extensions/analyst-extension";
+export { createAnalystTools } from "./extensions/analyst-extension";
 
 // Tasks
 export { AnalysisWorkflowTask } from "./tasks/analysis-workflow";
@@ -39,14 +39,8 @@ export { AutoImprovementTask } from "./tasks/auto-improvement";
 export type { AutoImprovementInput, AutoImprovementState, CandidateRule } from "./tasks/auto-improvement";
 
 // Tools
-export {
-    profileDatasetTool,
-    runAnalyticalQueryTool,
-    calculateStatisticalMetricTool,
-    manageHypothesesTool,
-    recordFindingTool,
-    consultPlaybookTool,
-} from "./tools/analyst-tools";
+export { manageHypothesesTool, recordFindingTool, consultPlaybookTool } from "./tools/analyst-tools";
+export { createDataSourceTools } from "./tools/datasource-tools";
 
 export {
     recordReflectionTool,
@@ -55,16 +49,12 @@ export {
     triggerAutoImprovementTool,
 } from "./tools/auto-improve-tools";
 
-export {
-    connectDatabricksTool,
-    queryDatabricksTool,
-    listDatabricksAssetsTool,
-    profileDatabricksTableTool,
-    getDatabricksAdapter,
-    describeActiveDatabricks,
-} from "./tools/databricks-tools";
+export { createAuditorReviewTool } from "./subagents/auditor-subagent";
 
-export { requestAuditorReviewTool } from "./subagents/auditor-subagent";
+// Data sources
+export { DataSourceCatalog } from "./datasource/catalog";
+export { DataSourceRegistry } from "./datasource/session";
+export type { ProviderCatalog, ProviderDescriptor, SourceRecordStore } from "./datasource/session";
 
 export {
     agentsListTool,

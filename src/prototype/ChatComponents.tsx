@@ -638,17 +638,17 @@ export function ThinkingView({ text, active = false }: { text: string; active?: 
 // Tool Invocation Card (Tooling execution)
 // ============================================================================
 const TOOL_PHRASES: Record<string, { calling: string; called: string }> = {
-    query_databricks: { calling: "Querying Databricks", called: "Queried Databricks" },
-    list_databricks_assets: { calling: "Listing Databricks assets", called: "Listed Databricks assets" },
-    profile_databricks_table: { calling: "Profiling table", called: "Profiled table" },
-    connect_databricks: { calling: "Connecting to Databricks", called: "Connected to Databricks" },
+    query_data: { calling: "Querying the data source", called: "Queried the data source" },
+    discover_data: { calling: "Exploring the data source", called: "Explored the data source" },
+    profile_table: { calling: "Profiling table", called: "Profiled table" },
+    connect_data_source: { calling: "Connecting to a data source", called: "Connected to a data source" },
+    list_data_sources: { calling: "Listing data sources", called: "Listed data sources" },
     bash: { calling: "Running command", called: "Ran command" },
     read: { calling: "Reading file", called: "Read file" },
     write: { calling: "Writing file", called: "Wrote file" },
     edit: { calling: "Editing file", called: "Edited file" },
-    profile_dataset: { calling: "Profiling dataset", called: "Profiled dataset" },
-    run_analytical_query: { calling: "Querying dataset", called: "Queried dataset" },
-    calculate_statistical_metric: { calling: "Calculating metric", called: "Calculated metric" },
+    load_dataset: { calling: "Loading dataset", called: "Loaded dataset" },
+    calculate_metric: { calling: "Calculating metric", called: "Calculated metric" },
     manage_hypotheses: { calling: "Updating hypotheses", called: "Updated hypotheses" },
     record_finding: { calling: "Recording finding", called: "Recorded finding" },
     consult_playbook: { calling: "Consulting playbook", called: "Consulted playbook" },
@@ -677,7 +677,7 @@ export function toolCategory(name: string): {
         calling: `Calling ${n.replace(/_/g, " ")}`,
         called: n.replace(/_/g, " "),
     };
-    if (n.includes("databricks") || n.includes("sql") || n.includes("query") || n.includes("catalog")) {
+    if (n.includes("databricks") || n.includes("sql") || n.includes("query") || n.includes("catalog") || n.includes("discover")) {
         return { icon: <Database size={13} />, category: "db", colorClass: "tool-color-db", ...phrase };
     }
     if (n.includes("bash") || n.includes("shell") || n.includes("exec") || n.includes("terminal")) {
@@ -769,17 +769,19 @@ export function ToolInvocationCard({
     const path = argText(args, "path") ?? argText(args, "filePath");
     const instruction = argText(args, "instruction") ?? argText(args, "instructions") ?? argText(args, "rationale");
     const instructionFile = Boolean(path && isInstructionPath(path) && (tool.toolName === "read" || tool.toolName === "write" || tool.toolName === "edit"));
-    const failed = Boolean(tool.isError) || tool.status === "error" || Boolean(tool.resultText?.includes("<harness>\n[error]"));
-    const [open, setOpen] = useState(defaultOpen || tool.status === "running" || failed);
+    const isSyntheticUnavailable = Boolean(tool.resultText?.includes("Tool result unavailable: history ends before this call completed."));
+    const isRunning = tool.status === "running" || isSyntheticUnavailable;
+    const failed = !isSyntheticUnavailable && (Boolean(tool.isError) || tool.status === "error" || Boolean(tool.resultText?.includes("<harness>\n[error]")));
+    const [open, setOpen] = useState(defaultOpen || isRunning || failed);
     const previousStatus = useRef(tool.status);
 
     useEffect(() => {
         if (previousStatus.current === tool.status) return;
         const previous = previousStatus.current;
         previousStatus.current = tool.status;
-        if (tool.status === "running" || tool.status === "error") setOpen(true);
+        if (isRunning || tool.status === "error") setOpen(true);
         else if (previous === "running" && tool.status === "completed") setOpen(false);
-    }, [tool.status]);
+    }, [tool.status, isRunning]);
 
     const instructionPhrase = tool.toolName === "write"
         ? { calling: "Writing instructions", called: "Wrote instructions" }
@@ -787,7 +789,7 @@ export function ToolInvocationCard({
             ? { calling: "Editing instructions", called: "Edited instructions" }
             : { calling: "Reading instructions", called: "Read instructions" };
     const phrase = instructionFile ? instructionPhrase : meta;
-    const title = tool.status === "running" ? phrase.calling : phrase.called;
+    const title = isRunning ? phrase.calling : phrase.called;
     const summary = tool.summary && tool.summary !== tool.toolName ? tool.summary : "";
 
     const hiddenKeys = new Set(["sql", "command", "path", "filePath", "rationale", "instruction", "instructions"]);
@@ -796,7 +798,7 @@ export function ToolInvocationCard({
         : [];
 
     return (
-        <div className={`tool-card ${tool.status} ${meta.colorClass}${tool.status === "running" ? " is-running" : ""}${failed ? " is-error" : ""}`}>
+        <div className={`tool-card ${tool.status} ${meta.colorClass}${isRunning ? " is-running" : ""}${failed ? " is-error" : ""}`}>
             <div
                 className="tool-card-head"
                 onClick={() => setOpen(!open)}
@@ -822,10 +824,10 @@ export function ToolInvocationCard({
                 </div>
 
                 <div className="tool-card-right">
-                    {tool.durationMs !== undefined && tool.status !== "running" && (
+                    {tool.durationMs !== undefined && !isRunning && (
                         <span className="tool-duration">{formatDuration(tool.durationMs)}</span>
                     )}
-                    {tool.status === "running" && (
+                    {isRunning && (
                         <span className="tool-status-pill tool-status-running">
                             <Loader2 size={10} className="animate-spin" />
                             <span>Calling</span>
@@ -837,7 +839,7 @@ export function ToolInvocationCard({
                             <span>Failed</span>
                         </span>
                     )}
-                    {tool.status === "completed" && !failed && (
+                    {tool.status === "completed" && !failed && !isRunning && (
                         <Check size={13} className="tool-done-mark" />
                     )}
                     <ChevronRight
@@ -880,11 +882,11 @@ export function ToolInvocationCard({
                         </div>
                     )}
 
-                    {!sql && !command && !path && rest.length === 0 && !instruction && tool.status === "running" && (
+                    {!sql && !command && !path && rest.length === 0 && !instruction && isRunning && (
                         <div className="tool-waiting">Waiting for the call to finish…</div>
                     )}
 
-                    {tool.resultText && <ToolResultView text={tool.resultText} failed={failed} />}
+                    {tool.resultText && !isSyntheticUnavailable && <ToolResultView text={tool.resultText} failed={failed} />}
                 </div>
             )}
         </div>

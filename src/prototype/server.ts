@@ -55,9 +55,10 @@ const server = Bun.serve({
     idleTimeout: 60,
     routes: {
         "/api/workspace": {
-            GET: async () => {
+            GET: async (req) => {
                 try {
-                    return json(await consoleWorkspace());
+                    const agentId = new URL(req.url).searchParams.get("agentId") ?? undefined;
+                    return json(await consoleWorkspace(agentId));
                 } catch (err) {
                     return json({ ok: false, error: errorMessage(err) }, 500);
                 }
@@ -67,7 +68,10 @@ const server = Bun.serve({
             POST: async (req) => {
                 const input = await readBody(req);
                 try {
-                    const result = await askMainAgent(typeof input.content === "string" ? input.content : "");
+                    const result = await askMainAgent(
+                        typeof input.content === "string" ? input.content : "",
+                        typeof input.agentId === "string" ? input.agentId : undefined,
+                    );
                     return json({ ok: true, ...result });
                 } catch (err) {
                     return json({ ok: false, error: errorMessage(err) }, 400);
@@ -75,10 +79,12 @@ const server = Bun.serve({
             },
         },
         "/api/agent/abort": {
-            POST: async () => {
+            POST: async (req) => {
+                const input = await readBody(req);
+                const agentId = typeof input.agentId === "string" ? input.agentId : undefined;
                 try {
-                    await abortMainAgent();
-                    return json({ ok: true, workspace: await consoleWorkspace() });
+                    await abortMainAgent(agentId);
+                    return json({ ok: true, workspace: await consoleWorkspace(agentId) });
                 } catch (err) {
                     return json({ ok: false, error: errorMessage(err) }, 400);
                 }

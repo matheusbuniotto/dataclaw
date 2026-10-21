@@ -3,8 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { createAnalystHarness } from "../src/harness";
-import { SqliteDataAdapter } from "../src/adapters/sqlite-adapter";
-import { setSharedAdapter } from "../src/tools/analyst-tools";
 import type { FindingsDocument } from "../src/docs/findings";
 import { loadPiCredentialStore, providerConfigured, providerEnvNames } from "../src/pi-config";
 import { EVAL_TASKS, expectedAnswer, grade, answerLine, taskPrompt, type EvalTask } from "./tasks";
@@ -55,8 +53,6 @@ export async function runEpisode(task: EvalTask, options: EpisodeOptions): Promi
     const faults = scripted ? sampleFaults(rates!, hashSeed(`${options.variant}|${task.id}|${options.repeat}`)) : undefined;
     const model = options.model ?? { provider: "faux", modelId: "scripted-analyst" };
 
-    // A fresh SQLite adapter per episode, so one run's loaded table cannot leak into the next.
-    setSharedAdapter(await SqliteDataAdapter.create(":memory:"));
     const home = await mkdtemp(join(tmpdir(), "dataclaw-eval-"));
     const analyst = await createAnalystHarness({
         storagePath: ":memory:",

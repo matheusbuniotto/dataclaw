@@ -1,9 +1,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { AssistantEntry, configure, defineTool } from "@earendil-works/pi-durable";
+import { AssistantEntry, configure, defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
 import { FindingsDoc } from "../docs/findings";
-import { runAnalyticalQueryTool } from "../tools/analyst-tools";
-import { listDatabricksAssetsTool, queryDatabricksTool } from "../tools/databricks-tools";
 
 export type AuditVerdict = "confirmed" | "caution" | "rejected";
 
@@ -16,7 +14,13 @@ export function parseAuditVerdict(report: string): AuditVerdict {
     return (match?.[1]?.toLowerCase() as AuditVerdict | undefined) ?? "caution";
 }
 
-export const requestAuditorReviewTool = defineTool({
+export interface AuditorToolOptions {
+    /** The data tools the auditor may re-run the evidence with. */
+    tools: readonly ToolRegistration[];
+}
+
+export function createAuditorReviewTool(options: AuditorToolOptions) {
+    return defineTool({
     name: "request_auditor_review",
     description: "Spawns a dedicated Critic & Statistical Auditor Subagent to challenge a proposed finding, check for biases, and confirm validity.",
     parameters: Type.Object({
@@ -52,13 +56,13 @@ export const requestAuditorReviewTool = defineTool({
             });
 
             await configure(tx, created.id, {
-                tools: [runAnalyticalQueryTool, queryDatabricksTool, listDatabricksAssetsTool],
+                tools: [...options.tools],
                 instructions:
                     "You are a rigorous, skeptical statistician and data auditor.\n" +
                     "Your mandate is to challenge analytical claims, detect confirmation bias, identify small sample sizes, " +
                     "spot confounding variables, and warn of Simpson's paradox.\n" +
-                    "When data access is available, independently re-run or extend the evidence query (run_analytical_query " +
-                    "for local datasets, query_databricks for Unity Catalog) before issuing a verdict.\n" +
+                    "When data access is available, independently re-run or extend the evidence query (query_data, and " +
+                    "discover_data for the source's naming) before issuing a verdict.\n" +
                     "Evaluate the finding strictly and return:\n" +
                     "1. VERDICT: [CONFIRMED | CAUTION | REJECTED]\n" +
                     "2. AUDIT REASONING: Detailed breakdown of statistical integrity\n" +
@@ -132,3 +136,4 @@ export const requestAuditorReviewTool = defineTool({
         };
     },
 });
+}

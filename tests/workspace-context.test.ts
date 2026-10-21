@@ -40,11 +40,15 @@ test("workspace bootstrap and skills follow the OpenClaw load order", async () =
         const exploration = skills.find((skill) => skill.name === "data-exploration");
         expect(exploration?.source).toBe("workspace");
         expect(exploration?.location.endsWith(join("skills", "data-exploration", "SKILL.md"))).toBe(true);
+        const hypo = skills.find((skill) => skill.name === "hypothesis-testing-playbook");
+        expect(hypo?.source).toBe("workspace");
+        expect(hypo?.location.endsWith(join("skills", "hypothesis-testing-playbook", "SKILL.md"))).toBe(true);
         expect(skills.some((skill) => skill.name === "notes")).toBe(false);
 
         const catalog = formatSkillsForPrompt(skills);
         expect(catalog).toContain("<available_skills>");
         expect(catalog).toContain("<name>data-exploration</name>");
+        expect(catalog).toContain("<name>hypothesis-testing-playbook</name>");
         expect(catalog).toContain("read its SKILL.md");
         expect(catalog).toContain(exploration?.location ?? "");
 

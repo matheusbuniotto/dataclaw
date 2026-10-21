@@ -173,7 +173,7 @@ describe("offline episodes", () => {
         expect(r.success).toBe(true);
         expect(r.answer).toBe("2310");
         expect(r.stuck.stuck).toBe(false);
-        expect(r.tools).toEqual(["consult_playbook", "profile_dataset", "run_analytical_query", "record_finding", "request_auditor_review"]);
+        expect(r.tools).toEqual(["consult_playbook", "load_dataset", "query_data", "record_finding", "request_auditor_review"]);
         expect(r.findings[0]!.auditVerdict).toBe("confirmed");
         expect(r.tokens.total).toBeGreaterThan(0);
     });

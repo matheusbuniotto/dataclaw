@@ -31,7 +31,7 @@ test("the root conversation is the main data exploration agent", async () => {
     try {
         const configured = await analyst.conversation.agent(analyst.context);
         expect(configured.instructions).toContain("catalog.schema.table");
-        expect(configured.instructions).toContain("connect_databricks");
+        expect(configured.instructions).toContain("connect_data_source");
         expect(configured.instructions).toBe(MAIN_AGENT_INSTRUCTIONS);
 
         const before = await readWorkspace(analyst);

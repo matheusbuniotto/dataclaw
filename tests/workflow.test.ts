@@ -5,7 +5,7 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxProvider, fauxAssistantMessage } from "@earendil-works/pi-ai/providers/faux";
-import { AnalystExtension } from "../src/extensions/analyst-extension";
+import { createAnalystTools } from "../src/extensions/analyst-extension";
 import { AnalysisWorkflowTask } from "../src/tasks/analysis-workflow";
 import { AnalystPlanDoc } from "../src/docs/plan";
 import { FindingsDoc } from "../src/docs/findings";
@@ -23,7 +23,11 @@ describe("AnalysisWorkflowTask", () => {
         models.setProvider(faux.provider);
 
         const registry = createRegistry();
-        registry.install(AnalystExtension);
+        registry.install(createAnalystTools({
+            sessions: () => {
+                throw new Error("the workflow test does not use data tools");
+            },
+        }));
 
         const env = () => new NodeExecutionEnv({ cwd: process.cwd() });
         const storage = await openNodeSqliteStorage(":memory:");

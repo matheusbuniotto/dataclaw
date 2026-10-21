@@ -41,6 +41,12 @@ export interface RosterEntry {
     status: "active" | "archived";
     canManage: boolean;
     working: boolean;
+    capabilities: string[];
+    contextFiles: string[];
+    skills: string[];
+    hasBackground: boolean;
+    compute: string;
+    model?: string;
 }
 
 export interface WorkspaceAgent {

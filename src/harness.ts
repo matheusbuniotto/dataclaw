@@ -6,13 +6,12 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import type { FauxProviderHandle } from "@earendil-works/pi-ai/providers/faux";
 import { getDefaultModelRef, setupModelsRegistry } from "./config";
-import { DatabricksDataAdapter } from "./adapters/databricks-adapter";
-import { databricksRecord } from "./datasource/providers/databricks";
 import type { DatabricksConfigOverrides } from "./mcp/databricks-config";
 import { MAIN_AGENT_INSTRUCTIONS } from "./agent/instructions";
-import { setSharedAdapter } from "./tools/analyst-tools";
-import { noteDatabricksAdapter } from "./tools/databricks-tools";
-import { AnalystExtension } from "./extensions/analyst-extension";
+import { createAnalystTools } from "./extensions/analyst-extension";
+import { DataSourceCatalog } from "./datasource/catalog";
+import { DataSourceRegistry, type ProviderCatalog } from "./datasource/session";
+import { planSourceStore } from "./docs/source-store";
 import { AnalystPlanDoc } from "./docs/plan";
 import { FindingsDoc } from "./docs/findings";
 import { PlaybookDoc } from "./docs/playbook";
@@ -48,6 +47,11 @@ export interface CreateAnalystHarnessOptions {
      * Set DATABRICKS_AUTO_CONNECT=true to do this implicitly in the CLI.
      */
     databricks?: DatabricksConfigOverrides | boolean;
+    /**
+     * Override the provider catalog. Tests inject the fake warehouse; production discovers the
+     * installed manifests.
+     */
+    datasources?: { catalog?: ProviderCatalog };
 }
 
 export async function createAnalystHarness(options: CreateAnalystHarnessOptions = {}) {
@@ -82,8 +86,15 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
 
     // 2. Configure Tool & Extension Registry
     const registry = createRegistry();
-    // Core analyst tools always load: the console, the docs, and the audit flow depend on them.
-    registry.install(AnalystExtension); // Domain profiling, SQL, hypotheses, audit, auto-improve
+    // The data tools need the harness's session registry, which exists only after open. The getter
+    // is late-bound so the extension can be installed before the harness starts.
+    let dataSources!: DataSourceRegistry;
+    registry.install(createAnalystTools({
+        sessions: () => {
+            if (!dataSources) throw new Error("The data-source registry is not ready yet.");
+            return dataSources;
+        },
+    }));
     if (!disabled.includes("tool:coding")) registry.install(CodingTools); // read, write, edit, bash
 
     // Installed data plugins become agent tools: one per MCP tool, named <plugin>__<tool>.
@@ -190,26 +201,28 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         if (!binding.agentId) binding.origin = "roster";
     }, context);
 
-    // 8. Optionally attach Databricks as the data source via its managed SQL MCP server.
-    // A failed connect leaves the agent up; the console can retry from the auth panel.
+    // 8. Data sources: one session per conversation, over the installed manifests.
+    dataSources = new DataSourceRegistry({
+        catalog: options.datasources?.catalog ?? new DataSourceCatalog({
+            projectRoot,
+            disabled: disabledPlugins,
+            ...(pluginsEnabled ? {} : { plugins: [] }),
+        }),
+        storeFor: (conversationId) => planSourceStore(harness, context, conversationId),
+    });
+
+    // Optionally connect Databricks on startup. A failed connect leaves the agent up; the console
+    // can retry from the auth panel.
     const databricksRequested = options.databricks ?? (process.env.DATABRICKS_AUTO_CONNECT === "true");
     let databricksError: string | undefined;
     if (databricksRequested) {
         try {
             const overrides = typeof databricksRequested === "object" ? databricksRequested : {};
-            const adapter = await DatabricksDataAdapter.connect(overrides);
-            setSharedAdapter(adapter);
-            noteDatabricksAdapter(adapter);
-
-            await conversation.commit(async (tx) => {
-                const plan = await tx.doc(AnalystPlanDoc, conversation.id);
-                plan.dataSource = databricksRecord({
-                    host: adapter.options.host ?? "unknown",
-                    ...(adapter.options.mcpUrl ? { mcpUrl: adapter.options.mcpUrl } : {}),
-                    ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
-                });
-                plan.updatedAt = Date.now();
-            }, context);
+            await dataSources.for(conversation.id).connect({
+                provider: "databricks",
+                ...(overrides.host ? { host: overrides.host } : {}),
+                ...(overrides.profile ? { credential: { kind: "cli-profile" as const, profile: overrides.profile } } : {}),
+            });
         } catch (err) {
             databricksError = err instanceof Error ? err.message : String(err);
             console.error(`Databricks MCP connect failed: ${databricksError}`);
@@ -287,6 +300,7 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         workspaceDir,
         projectRoot,
         databricksError,
+        dataSources,
         get pluginTools(): PluginAgentTools | undefined {
             return activePluginTools;
         },
@@ -319,6 +333,7 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
 
         async close() {
             setFeatureRuntime(undefined);
+            await dataSources.close().catch(() => undefined);
             await activePluginTools?.close();
             for (const retired of retiredPluginTools) {
                 await retired.close().catch(() => undefined);

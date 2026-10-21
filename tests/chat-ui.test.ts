@@ -9,6 +9,7 @@ import {
     AssistantTurnView,
     ToolInvocationCard,
 } from "../src/prototype/ChatComponents";
+import { transcriptFrom, buildTurns } from "../src/prototype/workspace";
 import type { TranscriptItem } from "../src/prototype/workspace-types";
 
 describe("Chat UI Improvements", () => {
@@ -24,7 +25,7 @@ describe("Chat UI Improvements", () => {
                     {
                         id: "call-1",
                         callId: "call-1",
-                        toolName: "query_databricks",
+                        toolName: "query_data",
                         summary: "SELECT * FROM sales",
                         args: { sql: "SELECT * FROM sales" },
                         status: "completed",
@@ -52,7 +53,7 @@ describe("Chat UI Improvements", () => {
         expect(turns[1]!.role).toBe("assistant");
         expect(turns[1]!.thinking).toContain("I should run a SQL query first.");
         expect(turns[1]!.tools.length).toBe(1);
-        expect(turns[1]!.tools[0]!.toolName).toBe("query_databricks");
+        expect(turns[1]!.tools[0]!.toolName).toBe("query_data");
         expect(turns[1]!.assistantText).toContain("Here is the **sales** analysis:");
         expect(turns[1]!.segments?.map((segment) => segment.kind)).toEqual(["thinking", "tools", "text"]);
     });
@@ -76,8 +77,8 @@ Australia   | 6     | 12%
     });
 
     it("categorizes tools with matching icons and color themes", () => {
-        expect(toolCategory("query_databricks").category).toBe("db");
-        expect(toolCategory("list_databricks_assets").category).toBe("db");
+        expect(toolCategory("query_data").category).toBe("db");
+        expect(toolCategory("discover_data").category).toBe("db");
         expect(toolCategory("bash").category).toBe("terminal");
         expect(toolCategory("read").category).toBe("file");
         expect(toolCategory("write").category).toBe("file");
@@ -175,7 +176,7 @@ This is **important** and uses \`SELECT 1\`.
                 tools: [{
                     id: "t2",
                     callId: "t2",
-                    toolName: "query_databricks",
+                    toolName: "query_data",
                     summary: "SELECT 1",
                     args: { sql: "SELECT 1", rationale: "Confirm the warehouse answers." },
                     status: "completed",
@@ -198,7 +199,7 @@ This is **important** and uses \`SELECT 1\`.
         const thought = html.indexOf("Profile the file first.");
         const skill = html.indexOf("Read instructions");
         const followup = html.indexOf("The skill says to explore before claiming.");
-        const query = html.indexOf("Queried Databricks");
+        const query = html.indexOf("Queried the data source");
         const answer = html.indexOf("Warehouse is up.");
         expect(thought).toBeGreaterThan(-1);
         expect(thought).toBeLessThan(skill);
@@ -212,5 +213,87 @@ This is **important** and uses \`SELECT 1\`.
         expect(queryCard).toContain("Instruction");
         expect(queryCard).toContain("Confirm the warehouse answers.");
         expect(queryCard).toContain("Call · SQL");
+    });
+
+    it("does not report in-flight Databricks calls as unavailable error before result arrives", () => {
+        const messagesWithSyntheticMissing = [
+            { role: "user", content: "Count trips", timestamp: 1000 },
+            {
+                role: "assistant",
+                content: [
+                    {
+                        type: "toolCall",
+                        id: "call-db-1",
+                        name: "query_data",
+                        arguments: { sql: "SELECT COUNT(*) FROM samples.nyctaxi.trips", rationale: "Get trip count" },
+                    },
+                ],
+                timestamp: 1001,
+            },
+            {
+                role: "toolResult",
+                toolCallId: "call-db-1",
+                toolName: "query_data",
+                content: [{ type: "text", text: "Tool result unavailable: history ends before this call completed." }],
+                isError: true,
+                details: { reason: "missing_result" },
+                timestamp: 1001,
+            },
+        ];
+
+        // 1. transcriptFrom should treat the tool as running and omit the unavailable error
+        const items = transcriptFrom(messagesWithSyntheticMissing);
+        expect(items.length).toBe(2); // user and assistant, no standalone synthetic toolResult item
+        const assistantItem = items[1]!;
+        expect(assistantItem.tools).toBeDefined();
+        expect(assistantItem.tools!.length).toBe(1);
+        const toolInvocation = assistantItem.tools![0]!;
+        expect(toolInvocation.toolName).toBe("query_data");
+        expect(toolInvocation.status).toBe("running");
+        expect(toolInvocation.isError).toBeUndefined();
+        expect(toolInvocation.resultText).toBeUndefined();
+
+        // 2. buildTurns should not set turn.error or overwrite checkpoint summary with missing result text
+        const turns = buildTurns(messagesWithSyntheticMissing);
+        expect(turns.length).toBe(1);
+        expect(turns[0]!.error).toBeUndefined();
+        const checkpoint = turns[0]!.checkpoints.find((c) => c.label === "query_data");
+        expect(checkpoint).toBeDefined();
+        expect(checkpoint!.summary).not.toContain("Tool result unavailable");
+
+        // 3. ToolInvocationCard should render with Calling and no Failed error badge or box
+        const cardHtml = renderToString(
+            React.createElement(ToolInvocationCard, { tool: toolInvocation, defaultOpen: true })
+        );
+        expect(cardHtml).toContain("Calling");
+        expect(cardHtml).toContain("Querying the data source");
+        expect(cardHtml).not.toContain("Failed");
+        expect(cardHtml).not.toContain("Tool result unavailable: history ends before this call completed.");
+
+        // 4. When real result arrives, it replaces the running state with completed result
+        const messagesWithRealResult = [
+            messagesWithSyntheticMissing[0]!,
+            messagesWithSyntheticMissing[1]!,
+            {
+                role: "toolResult",
+                toolCallId: "call-db-1",
+                toolName: "query_data",
+                content: [{ type: "text", text: "count\n-----\n1000000" }],
+                isError: false,
+                timestamp: 1005,
+            },
+        ];
+
+        const updatedItems = transcriptFrom(messagesWithRealResult);
+        const updatedTool = updatedItems[1]!.tools![0]!;
+        expect(updatedTool.status).toBe("completed");
+        expect(updatedTool.resultText).toBe("count\n-----\n1000000");
+
+        const completedCardHtml = renderToString(
+            React.createElement(ToolInvocationCard, { tool: updatedTool, defaultOpen: true })
+        );
+        expect(completedCardHtml).not.toContain("Calling");
+        expect(completedCardHtml).toContain("Queried the data source");
+        expect(completedCardHtml).toContain("1000000");
     });
 });

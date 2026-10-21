@@ -184,10 +184,10 @@ export async function capabilityCatalog(options: CatalogOptions): Promise<Capabi
             source: "src/extensions/analyst-extension.ts",
             details: {
                 tools: [
-                    "profile_dataset", "run_analytical_query", "calculate_statistical_metric",
+                    "list_data_sources", "connect_data_source", "discover_data", "profile_table",
+                    "query_data", "calculate_metric", "load_dataset",
                     "manage_hypotheses", "record_finding", "consult_playbook",
-                    "connect_databricks", "query_databricks", "list_databricks_assets",
-                    "profile_databricks_table", "request_auditor_review",
+                    "request_auditor_review",
                 ],
             },
         },

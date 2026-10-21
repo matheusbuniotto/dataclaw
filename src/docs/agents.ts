@@ -1,4 +1,16 @@
 import { defineDoc } from "@earendil-works/pi-durable";
+import {
+    capabilitiesCanManage,
+    DEFAULT_SPECIALIST_CAPABILITIES,
+    defaultCapabilitiesForRole,
+    formatCapabilities,
+} from "./agent-capabilities";
+import {
+    formatCompute,
+    normalizedCompute,
+    parseAgentCompute,
+    type AgentCompute,
+} from "../compute/agent-compute";
 
 /** Active specialists the coordinator may keep. Archived agents do not count. */
 export const MAX_ROSTER_AGENTS = 24;
@@ -9,6 +21,8 @@ export interface AgentRoleTemplate {
     title: string;
     purpose: string;
     canManage: boolean;
+    /** Capabilities a freshly created agent of this role starts with. */
+    capabilities: readonly string[];
     instructions: string;
 }
 
@@ -17,9 +31,11 @@ export const AGENT_ROLES = {
         title: "Coordinator",
         purpose: "Single point of contact. Create specialists and delegate work.",
         canManage: true,
+        capabilities: ["all"],
         instructions: [
             "You are a coordinator for DataClaw, the user's point of contact for a team of specialists.",
             "Create and update agents with the agents_* tools. Delegate with spawn_agent.",
+            "Give each specialist only the capabilities and compute its work needs. Prefer the smallest set; use docker compute for untrusted code.",
             "Use mode run when the user wants the answer in this chat. Use mode session when they want that agent's own ongoing conversation.",
             "Do small tasks yourself. Delegate research, drafting, and review when the user asks for a separate agent.",
             "Record durable findings on this conversation after a specialist returns evidence.",
@@ -29,6 +45,7 @@ export const AGENT_ROLES = {
         title: "Researcher",
         purpose: "Gather evidence and return a cited brief.",
         canManage: false,
+        capabilities: ["analyst", "databricks", "coding", "plugins"],
         instructions: [
             "You are a researcher for DataClaw. Gather evidence and return a cited brief.",
             "Explore before you claim. Profile and query local files or Databricks, and use read for workspace files.",
@@ -40,6 +57,7 @@ export const AGENT_ROLES = {
         title: "Writer",
         purpose: "Turn a brief and source material into a usable draft.",
         canManage: false,
+        capabilities: ["analyst", "databricks", "coding", "plugins"],
         instructions: [
             "You are a writer for DataClaw. Turn the task's brief and source material into a usable draft.",
             "Do not invent measurements. If a number is not in the task or a file you read, say it is missing.",
@@ -50,6 +68,7 @@ export const AGENT_ROLES = {
         title: "Reviewer",
         purpose: "Check a claim against the evidence and return actionable findings.",
         canManage: false,
+        capabilities: ["analyst", "databricks", "coding", "plugins"],
         instructions: [
             "You are a reviewer for DataClaw. Check the task's claim against evidence and return actionable findings.",
             "Name what holds, what is weak, and what to measure next.",
@@ -66,9 +85,23 @@ export interface RosterAgent {
     name: string;
     role: string;
     purpose: string;
+    /** Persona and operating rules. The profile background and knowledge files are added at prompt time. */
     instructions: string;
     status: "active" | "archived";
     canManage: boolean;
+    /** Capability names: groups (`analyst`, `databricks`, `coding`, `plugins`, `roster`, `features`, `all`),
+     * `plugin:<name>`, or explicit tool names. Resolved against the live registry per turn. */
+    capabilities: string[];
+    /** Workspace- or project-relative files whose content is injected into this agent's prompt. */
+    contextFiles: string[];
+    /** Inline knowledge, for context that does not deserve a file. */
+    background: string;
+    /** Skill names to keep; empty means every available skill. */
+    skills: string[];
+    /** Optional model override. Unset means inherit the coordinator's model. */
+    model?: { provider: string; modelId: string };
+    /** Where this agent's files and shell live. Old agents default to the shared workspace. */
+    compute: AgentCompute;
     /** Ownerless conversation that holds this agent's own session. */
     conversationId: number;
     /** Tool task that created the agent, so a replay does not create a second one. */
@@ -104,9 +137,28 @@ export interface AgentBindingDocument {
 
 export const AgentRosterDoc = defineDoc<AgentRosterDocument>({
     kind: "analyst.agent_roster",
-    version: 1,
+    version: 3,
     scope: "session",
     initial: () => ({ agents: [], runs: [] }),
+    migrate: (value, fromVersion) => {
+        if (fromVersion < 2) {
+            const roster = value as unknown as AgentRosterDocument;
+            for (const agent of roster.agents ?? []) {
+                agent.capabilities ??= [...defaultCapabilitiesForRole(agent.role)];
+                agent.contextFiles ??= [];
+                agent.background ??= "";
+                agent.skills ??= [];
+            }
+        }
+        if (fromVersion < 3) {
+            const roster = value as unknown as AgentRosterDocument;
+            for (const agent of roster.agents ?? []) {
+                // Existing agents ran in the workspace root. Keep that until the user asks for isolation.
+                agent.compute ??= { kind: "shared" };
+            }
+        }
+        return value as AgentRosterDocument;
+    },
 });
 
 export const AgentBindingDoc = defineDoc<AgentBindingDocument>({
@@ -123,6 +175,12 @@ export interface AgentDraftInput {
     role: string;
     instructions?: string | undefined;
     purpose?: string | undefined;
+    capabilities?: readonly string[] | undefined;
+    contextFiles?: readonly string[] | undefined;
+    background?: string | undefined;
+    skills?: readonly string[] | undefined;
+    model?: string | undefined;
+    compute?: unknown;
 }
 
 export interface AgentPatch {
@@ -131,6 +189,13 @@ export interface AgentPatch {
     instructions?: string | undefined;
     purpose?: string | undefined;
     status?: string | undefined;
+    capabilities?: readonly string[] | undefined;
+    contextFiles?: readonly string[] | undefined;
+    background?: string | undefined;
+    skills?: readonly string[] | undefined;
+    /** `provider/modelId`, or an empty string to inherit the coordinator's model again. */
+    model?: string | undefined;
+    compute?: unknown;
 }
 
 export type AgentChangeResult =
@@ -205,6 +270,19 @@ export function prepareAgent(
     const resolved = resolveRole(input.role, input.instructions, input.purpose);
     if (!resolved.ok) return resolved;
 
+    const capabilities = normalizeCapabilities(input.capabilities, resolved.roleCapabilities);
+    if (!capabilities.ok) return capabilities;
+    const contextFiles = normalizeContextFiles(input.contextFiles);
+    if (!contextFiles.ok) return contextFiles;
+    const background = cleanBackground(input.background);
+    if (!background.ok) return background;
+    const skills = normalizeSkills(input.skills);
+    if (!skills.ok) return skills;
+    const model = parseModel(input.model);
+    if (!model.ok) return model;
+    const compute = parseAgentCompute(input.compute);
+    if (!compute.ok) return compute;
+
     return {
         ok: true,
         agent: {
@@ -214,7 +292,13 @@ export function prepareAgent(
             purpose: resolved.purpose,
             instructions: resolved.instructions,
             status: "active",
-            canManage: resolved.canManage,
+            canManage: roleAllowsManagement(resolved.role) && capabilitiesCanManage(capabilities.value),
+            capabilities: capabilities.value,
+            contextFiles: contextFiles.value,
+            background: background.value,
+            skills: skills.value,
+            ...(model.value ? { model: model.value } : {}),
+            compute: compute.value,
             conversationId: 0,
             createdByTask: "",
             createdAt: now,
@@ -236,8 +320,14 @@ export function applyAgentUpdate(
         || patch.role !== undefined
         || patch.instructions !== undefined
         || patch.purpose !== undefined
-        || patch.status !== undefined;
-    if (!hasPatch) return { ok: false, error: "Nothing to update. Pass a name, role, instructions, purpose, or status." };
+        || patch.status !== undefined
+        || patch.capabilities !== undefined
+        || patch.contextFiles !== undefined
+        || patch.background !== undefined
+        || patch.skills !== undefined
+        || patch.model !== undefined
+        || patch.compute !== undefined;
+    if (!hasPatch) return { ok: false, error: "Nothing to update. Pass a name, role, instructions, purpose, capabilities, contextFiles, background, skills, model, compute, or status." };
 
     if (patch.name !== undefined) {
         const name = cleanName(patch.name);
@@ -251,6 +341,9 @@ export function applyAgentUpdate(
 
     const couldManage = agent.canManage;
     let instructionsChanged = patch.instructions !== undefined;
+    let managementAllowed = roleAllowsManagement(agent.role);
+    let capabilities = agent.capabilities ?? defaultCapabilitiesForRole(agent.role);
+    let resetCapabilities = false;
     if (patch.role !== undefined) {
         const switching = patch.role.trim().toLowerCase() !== agent.role;
         const resolved = resolveRole(
@@ -259,15 +352,55 @@ export function applyAgentUpdate(
             patch.purpose ?? agent.purpose,
         );
         if (!resolved.ok) return resolved;
-        instructionsChanged = instructionsChanged || resolved.instructions !== agent.instructions || couldManage !== resolved.canManage;
+        instructionsChanged = instructionsChanged || resolved.instructions !== agent.instructions;
         agent.role = resolved.role;
-        agent.canManage = resolved.canManage;
         agent.instructions = resolved.instructions;
+        managementAllowed = roleAllowsManagement(resolved.role);
+        resetCapabilities = switching;
+        if (switching) capabilities = [...resolved.roleCapabilities];
     } else if (patch.instructions !== undefined) {
         const text = patch.instructions.trim();
         if (text.length < 12) return { ok: false, error: "Instructions need at least a sentence." };
         if (text.length > 6_000) return { ok: false, error: "Instructions are too long." };
         agent.instructions = text;
+    }
+
+    if (patch.capabilities !== undefined) {
+        const normalized = normalizeCapabilities(patch.capabilities, capabilities);
+        if (!normalized.ok) return normalized;
+        capabilities = normalized.value;
+    } else if (resetCapabilities) {
+        capabilities = [...capabilities];
+    }
+    agent.capabilities = [...capabilities];
+    agent.canManage = managementAllowed && capabilitiesCanManage(capabilities);
+    instructionsChanged = instructionsChanged || couldManage !== agent.canManage;
+
+    if (patch.contextFiles !== undefined) {
+        const files = normalizeContextFiles(patch.contextFiles);
+        if (!files.ok) return files;
+        agent.contextFiles = files.value;
+    }
+    if (patch.background !== undefined) {
+        const background = cleanBackground(patch.background);
+        if (!background.ok) return background;
+        agent.background = background.value;
+    }
+    if (patch.skills !== undefined) {
+        const skills = normalizeSkills(patch.skills);
+        if (!skills.ok) return skills;
+        agent.skills = skills.value;
+    }
+    if (patch.model !== undefined) {
+        const model = parseModel(patch.model);
+        if (!model.ok) return model;
+        if (model.value) agent.model = model.value;
+        else delete agent.model;
+    }
+    if (patch.compute !== undefined) {
+        const compute = parseAgentCompute(patch.compute);
+        if (!compute.ok) return compute;
+        agent.compute = compute.value;
     }
 
     if (patch.purpose !== undefined) {
@@ -319,16 +452,25 @@ export function formatRosterPrompt(roster: AgentRosterDocument | undefined): str
     const lines = [
         "### Agent roster",
         "You are the meta-agent. The user creates and manages specialists by talking to you.",
-        "agents_list shows this roster. agents_create adds one (coordinator, researcher, writer, reviewer, or custom with instructions).",
-        "agents_update changes name, role, instructions, purpose, or status. agents_archive retires an agent. DataClaw itself stays.",
+        "agents_list shows this roster. agents_inspect shows one agent's full profile (instructions, knowledge, capabilities).",
+        "agents_create adds one. Roles: coordinator, researcher, writer, reviewer, or custom with instructions.",
+        "Each agent can carry its own context (background, contextFiles) and capabilities (analyst, databricks, coding, plugins, roster, features, all, plugin:<name>, or explicit tool names).",
+        "agents_update changes the profile or status. agents_archive retires an agent. DataClaw itself stays.",
         'spawn_agent delegates a task. mode "run" (default) isolates the work and returns the result here. mode "session" continues that agent\'s own conversation.',
-        "subagents_list shows delegated runs. A spawned run cannot create further agents.",
+        "subagents_list shows delegated runs. A spawned run cannot create further agents or extend DataClaw.",
     ];
     if (agents.length === 0) {
         lines.push("No specialists yet. Create a researcher, writer, or reviewer when the user wants a separate agent.");
     } else {
         for (const agent of agents) {
+            const ready = normalizedAgentProfile(agent);
+            const context = [
+                ready.background ? "notes" : "",
+                ready.contextFiles.length > 0 ? `${ready.contextFiles.length} file(s)` : "",
+                ready.skills.length > 0 ? `skills: ${ready.skills.join(", ")}` : "",
+            ].filter(Boolean).join(", ");
             lines.push(`- [${agent.id}] ${agent.name} · ${agent.role} · ${agent.status} — ${agent.purpose}`);
+            lines.push(`  capabilities: ${formatCapabilities(ready.capabilities)}${context ? ` · context: ${context}` : ""} · compute: ${formatCompute(ready.compute)}${agent.model ? ` · model: ${agent.model.provider}/${agent.model.modelId}` : ""}`);
         }
     }
     const recent = (roster?.runs ?? []).slice(-5);
@@ -342,7 +484,27 @@ export function formatRosterPrompt(roster: AgentRosterDocument | undefined): str
 }
 
 export function copyAgent(agent: RosterAgent): RosterAgent {
-    return { ...agent };
+    const ready = normalizedAgentProfile(agent);
+    return {
+        ...agent,
+        capabilities: [...ready.capabilities],
+        contextFiles: [...ready.contextFiles],
+        skills: [...ready.skills],
+        background: ready.background,
+        compute: { ...ready.compute },
+        ...(agent.model ? { model: { ...agent.model } } : {}),
+    };
+}
+
+/** Old rosters may omit profile fields; read them through one normalizer. */
+export function normalizedAgentProfile(agent: RosterAgent): Pick<RosterAgent, "capabilities" | "contextFiles" | "skills" | "background" | "compute"> {
+    return {
+        capabilities: agent.capabilities ?? defaultCapabilitiesForRole(agent.role),
+        contextFiles: agent.contextFiles ?? [],
+        skills: agent.skills ?? [],
+        background: agent.background ?? "",
+        compute: normalizedCompute(agent.compute),
+    };
 }
 
 function cleanName(name: string): { ok: true; value: string } | { ok: false; error: string } {
@@ -356,7 +518,13 @@ function resolveRole(
     role: string,
     instructions: string | undefined,
     purpose: string | undefined,
-): { ok: true; role: string; purpose: string; instructions: string; canManage: boolean } | { ok: false; error: string } {
+): {
+    ok: true;
+    role: string;
+    purpose: string;
+    instructions: string;
+    roleCapabilities: string[];
+} | { ok: false; error: string } {
     const normalized = role.trim().toLowerCase();
     const customInstructions = instructions?.trim() ?? "";
     const customPurpose = purpose?.trim() ?? "";
@@ -372,7 +540,7 @@ function resolveRole(
             role: "custom",
             purpose: customPurpose || "Custom specialist",
             instructions: customInstructions,
-            canManage: false,
+            roleCapabilities: [...DEFAULT_SPECIALIST_CAPABILITIES],
         };
     }
 
@@ -392,8 +560,96 @@ function resolveRole(
         role: normalized,
         purpose: customPurpose || template.purpose,
         instructions: customInstructions || template.instructions,
-        canManage: template.canManage,
+        roleCapabilities: [...template.capabilities],
     };
+}
+
+/** Fixed specialists cannot be widened into managers; a custom agent can ask for the roster. */
+function roleAllowsManagement(role: string): boolean {
+    return role === "coordinator" || role === "custom";
+}
+
+function normalizeCapabilities(
+    capabilities: readonly string[] | undefined,
+    fallback: readonly string[],
+): { ok: true; value: string[] } | { ok: false; error: string } {
+    const list = capabilities === undefined ? fallback : capabilities;
+    if (capabilities !== undefined && list.length === 0) {
+        return { ok: false, error: "An agent needs at least one capability, or omit capabilities for the role default." };
+    }
+    if (list.length > 40) return { ok: false, error: "Too many capabilities." };
+
+    const value: string[] = [];
+    for (const raw of list) {
+        if (typeof raw !== "string") return { ok: false, error: "Capabilities must be strings." };
+        const capability = raw.trim();
+        if (!capability) continue;
+        if (capability.length > 120) return { ok: false, error: `Capability "${capability.slice(0, 40)}…" is too long.` };
+        if (!/^(all|[a-z][a-z0-9_]*|plugin:[a-z0-9][a-z0-9_.-]*|tool:[a-zA-Z0-9_.:-]+|[a-zA-Z0-9_.:-]+)$/.test(capability)) {
+            return { ok: false, error: `Invalid capability "${capability}".` };
+        }
+        if (!value.includes(capability)) value.push(capability);
+    }
+    if (value.length === 0) return { ok: false, error: "An agent needs at least one capability." };
+    return { ok: true, value };
+}
+
+function normalizeContextFiles(
+    files: readonly string[] | undefined,
+): { ok: true; value: string[] } | { ok: false; error: string } {
+    if (!files || files.length === 0) return { ok: true, value: [] };
+    if (files.length > 32) return { ok: false, error: "An agent can read at most 32 context files." };
+    const value: string[] = [];
+    for (const raw of files) {
+        if (typeof raw !== "string") return { ok: false, error: "Context files must be strings." };
+        const file = raw.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+        if (!file) continue;
+        if (file.length > 400) return { ok: false, error: "A context file path is too long." };
+        if (file.startsWith("/") || file.split("/").includes("..")) {
+            return { ok: false, error: `Context file "${file}" must be relative and stay inside the workspace.` };
+        }
+        if (!/\.(md|txt|json|csv|tsv|ya?ml|sql|ts|tsx|js|jsx)$/i.test(file)) {
+            return { ok: false, error: `Context file "${file}" must be text (md, txt, json, csv, yaml, sql, ts, js).` };
+        }
+        if (!value.includes(file)) value.push(file);
+    }
+    return { ok: true, value };
+}
+
+function cleanBackground(background: string | undefined): { ok: true; value: string } | { ok: false; error: string } {
+    const value = (background ?? "").trim();
+    if (value.length > 8_000) return { ok: false, error: "Background notes are limited to 8000 characters." };
+    return { ok: true, value };
+}
+
+function normalizeSkills(skills: readonly string[] | undefined): { ok: true; value: string[] } | { ok: false; error: string } {
+    if (!skills || skills.length === 0) return { ok: true, value: [] };
+    if (skills.length > 32) return { ok: false, error: "An agent can select at most 32 skills." };
+    const value: string[] = [];
+    for (const raw of skills) {
+        if (typeof raw !== "string") return { ok: false, error: "Skills must be strings." };
+        const name = raw.trim();
+        if (!name) continue;
+        if (!/^[a-z0-9][a-z0-9_.-]*$/.test(name)) return { ok: false, error: `Invalid skill name "${name}".` };
+        if (!value.includes(name)) value.push(name);
+    }
+    return { ok: true, value };
+}
+
+function parseModel(model: string | undefined): {
+    ok: true;
+    value?: { provider: string; modelId: string };
+} | { ok: false; error: string } {
+    const raw = (model ?? "").trim();
+    if (!raw) return { ok: true };
+    const slash = raw.indexOf("/");
+    if (slash <= 0 || slash === raw.length - 1) {
+        return { ok: false, error: 'Model must be "provider/modelId" (for example "opencode-go/deepseek-v4.1-flash").' };
+    }
+    const provider = raw.slice(0, slash).trim();
+    const modelId = raw.slice(slash + 1).trim();
+    if (!provider || !modelId) return { ok: false, error: 'Model must be "provider/modelId".' };
+    return { ok: true, value: { provider, modelId } };
 }
 
 function isRoleName(role: string): role is AgentRoleName {

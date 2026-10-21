@@ -69,7 +69,11 @@ Two constraints shape the order:
   one are equal. `bun run cli plan` on a copy of the repo's SQLite prints the migrated source.
   The document types became type aliases so they satisfy `JsonObject`; that removed the last
   `defineDoc` type error for the plan.
-- [ ] 9. Tools: the factory and the seven  ← next
+- [x] **9. Tools: the factory and the seven** — `createDataSourceTools({ sessions })` in
+  `src/tools/datasource-tools.ts`: `list_data_sources`, `connect_data_source`, `discover_data`,
+  `profile_table`, `query_data`, `calculate_metric`, `load_dataset`. One row and one profile
+  renderer. `createAnalystTools()` builds the extension per harness with a late-bound registry, and
+  the auditor subagent receives its data tools from the same factory.
 
 ## Stage 0 · Groundwork (no behaviour change)
 
