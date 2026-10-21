@@ -182,22 +182,6 @@ bun run evals:calibrate score labels.csv evals/results/model-openai_gpt-4o.jsonl
 (rejected if the finding has no query or a wrong number) and are marked `EXAMPLE`. The score command prints a
 warning when it sees them.
 
-## What I'd measure at Lovable
-
-The setup here is small, but it maps onto a coding agent:
-
-- **Stuck, from traces.** The same four signals (repeated identical tool calls, error streaks, budget overruns, runs
-  with no result), computed from OTEL spans in BigQuery. I'd add signals that only users produce: repeating or
-  rephrasing the same prompt, undoing the agent's change, or leaving mid-generation. I'd check the detector against
-  a hand-labeled sample of sessions before reporting it as a rate.
-- **Judges calibrated before they're trusted.** Kappa against human labels on a stratified sample, recomputed
-  whenever the judge prompt or model changes. Report kappa and the confusion matrix rather than raw accuracy,
-  because rejections are rare.
-- **Offline and online together.** Offline evals gate releases. Repeat runs and task-clustered intervals show
-  whether a difference is larger than run-to-run noise. Online A/B tests decide, with an SRM check before reading any
-  metric. I'd define success as the user keeping the change or publishing, with cost per successful outcome as a
-  guardrail.
-
 ## Limitations
 
 - The task set is nine questions on two toy datasets, which is too small for any claim about a model.
