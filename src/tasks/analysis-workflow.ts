@@ -112,9 +112,17 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                 colB: "churned",
             });
 
+            // Titles and observations are computed from the query results, never typed in.
+            const r = Number((correlation as { correlation?: number }).correlation);
+            const tierRate = (tier: string) => {
+                const row = churnByTier.rows.find((x) => x.plan_tier === tier);
+                return row ? Number(row.churn_rate) : NaN;
+            };
+            const basic = tierRate("Basic");
+            const enterprise = tierRate("Enterprise");
             const findingTitles = [
-                "Support Ticket Spikes Drive 87% Churn Correlation",
-                "Basic Tier Shows 71.4% Churn vs 0% for Enterprise",
+                `Support tickets in the last 30 days correlate with churn (r = ${r.toFixed(2)})`,
+                `Basic tier churns at ${basic}% vs ${enterprise}% for Enterprise`,
             ];
 
             await runtime.commit(async (tx) => {
@@ -126,7 +134,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                         id: "find-1",
                         hypothesisId: "hyp-1",
                         title: findingTitles[0],
-                        observation: `Pearson correlation between support_tickets_30d and churned is ${(correlation as any).correlation} (strong positive).`,
+                        observation: `Pearson correlation between support_tickets_30d and churned is ${r.toFixed(3)} over ${churnByTier.rows.reduce((n, x) => n + Number(x.count), 0)} accounts.`,
                         impact: "critical",
                         confidence: 0.95,
                         evidence: {
@@ -146,7 +154,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                         id: "find-2",
                         hypothesisId: "hyp-2",
                         title: findingTitles[1],
-                        observation: `Basic tier accounts suffer 71.4% churn rate while Enterprise tier exhibits 0% churn in current window.`,
+                        observation: `Basic tier accounts churn at ${basic}% while Enterprise accounts churn at ${enterprise}%.`,
                         impact: "high",
                         confidence: 0.92,
                         evidence: {
@@ -195,7 +203,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                     for (const f of findings.findings) {
                         f.audited = true;
                         f.auditVerdict = "confirmed";
-                        f.auditNotes = "Statistical backing verified against raw database rows; no Simpson's paradox detected.";
+                        f.auditNotes = "Scripted workflow: the verdict is set by this saga, not by the auditor subagent. Use request_auditor_review for a real audit.";
                     }
 
                     findings.keyTakeaways = [
