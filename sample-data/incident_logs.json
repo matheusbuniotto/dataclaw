@@ -1,0 +1,7 @@
+[
+  { "id": "INC-101", "service": "billing-api", "severity": "CRITICAL", "duration_min": 45, "error_code": "DB_TIMEOUT", "affected_users": 1420, "root_cause": "Unindexed connection pool saturation during peak billing batch" },
+  { "id": "INC-102", "service": "auth-proxy", "severity": "HIGH", "duration_min": 15, "error_code": "REDIS_EVICTION", "affected_users": 350, "root_cause": "OOM due to uncapped session token payload cache" },
+  { "id": "INC-103", "service": "data-sync", "severity": "MEDIUM", "duration_min": 120, "error_code": "RATE_LIMIT", "affected_users": 80, "root_cause": "Third-party CRM webhook 429 backoff missing jitter" },
+  { "id": "INC-104", "service": "billing-api", "severity": "HIGH", "duration_min": 30, "error_code": "DB_TIMEOUT", "affected_users": 890, "root_cause": "Replication lag on secondary read replica" },
+  { "id": "INC-105", "service": "reporting-engine", "severity": "LOW", "duration_min": 180, "error_code": "OUT_OF_MEMORY", "affected_users": 25, "root_cause": "User requested 5-year unaggregated CSV export without pagination" }
+]

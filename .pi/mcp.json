@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "databricks": {
+      "url": "https://dbc-0000000000000000.cloud.databricks.com/api/2.0/mcp/sql",
+      "headers": {
+        "Authorization": "!echo Bearer $(databricks auth token --profile DEFAULT | jq -r .access_token)"
+      },
+      "description": "Databricks SQL over Unity Catalog: read-only SQL, catalogs, schemas, tables, and column discovery.",
+      "exposure": "codemode",
+      "timeout": 120
+    }
+  }
+}
