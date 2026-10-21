@@ -10,7 +10,7 @@ import {
     recordDatabricksAuthError,
     startBrowserOAuth,
 } from "./databricks-api";
-import { abortMainAgent, askMainAgent, consoleWorkspace } from "./workspace";
+import { abortMainAgent, askMainAgent, consoleDataSources, consoleWorkspace } from "./workspace";
 import { checkPlugins, pluginsSummary } from "./plugins-api";
 import {
     applyCapabilities,
@@ -61,6 +61,16 @@ const server = Bun.serve({
                     return json(await consoleWorkspace(agentId));
                 } catch (err) {
                     return json({ ok: false, error: errorMessage(err) }, 500);
+                }
+            },
+        },
+        "/api/datasources": {
+            GET: async (req) => {
+                try {
+                    const agentId = new URL(req.url).searchParams.get("agentId") ?? undefined;
+                    return json(await consoleDataSources(agentId));
+                } catch (err) {
+                    return jsonError(err);
                 }
             },
         },

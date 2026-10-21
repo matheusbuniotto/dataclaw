@@ -269,14 +269,47 @@ flowchart TD
 - **Durable `AutoImprovementTask`**: A multi-phase state machine that scans past telemetry, identifies recurring failure modes (e.g., small sample sizes, Simpson's paradox, unsegmented cohorts), and synthesizes new domain heuristics into `PlaybookDoc`.
 - **Dynamic System Prompt Injection**: Upgraded playbook rules (e.g. Version 2, Version 3) are injected directly into the LLM system prompt via `section("auto_improving_playbook")` on every subsequent turn!
 
-### 🤖 4. Meta-agent roster
+### 🤖 4. Meta-agent roster and agent profiles
 DataClaw is the coordinator. From the same chat the user can create, update, archive, and delegate specialists. The roster is a session-scoped durable document, so it survives restarts.
 
 - `agents_create` adds a persistent agent. Roles: `coordinator`, `researcher`, `writer`, `reviewer`, or `custom` with instructions. Each agent gets its own conversation.
-- `agents_update` and `agents_archive` change or retire one. Archiving keeps the conversation; restoring sets status back to `active`.
+- A profile is more than a role: `instructions` (persona), `background` (inline knowledge), `contextFiles` (workspace/project text files), `skills` (a subset of the available list), `capabilities`, an optional `model`, and `compute`. This is the Grokbot-style “bot with its own context, tools, and computer” shape.
+- Capabilities are names, resolved against the live registry per turn: `analyst`, `databricks`, `coding`, `plugins`, `roster`, `features`, `all`, `plugin:<name>`, or an explicit tool name. The smallest set wins: a writer with `analyst` + `coding` gets neither Databricks nor roster tools.
+- The `agent_profile` prompt section injects the specialist's background and the contents of its knowledge files; `available_skills` is filtered to the profile's skills. Both are read each turn, so editing a file or a skill does not need a new agent.
+- `agents_inspect` shows the full profile. `agents_update` changes persona, knowledge, capabilities, skills, model, or status. `agents_archive` retires one; restoring sets status back to `active`.
 - `spawn_agent` delegates a task and waits. `mode: run` (the default) is an isolated subagent whose answer comes back into this chat. `mode: session` continues that agent's own conversation.
-- A spawned run cannot create further agents. Specialists other than a coordinator cannot manage the roster.
-- `bun run cli agents` lists the roster. The console shows specialists on the overview and in the chat context panel.
+- A spawned run cannot create further agents or extend DataClaw. Fixed specialists (researcher, writer, reviewer) cannot be widened into managers; a custom agent may ask for `roster`.
+- `bun run cli agents` lists the roster with each profile's capabilities and context. The console's sidebar and chat header have an **active-agent picker**: selecting a specialist switches the transcript, plan, findings, and the `/api/agent/ask` target to that conversation. The context chips are clickable too; the picker choice is kept in the URL (`?agent=<id>`) and remembered in `localStorage`.
+
+### 🧩 4.1 Self-extension: DataClaw creates its own features
+A skill is instructions; a plugin is executable capability. The meta-agent can build both and install them without a restart.
+
+- `features_list` shows the tool groups, installed plugins, workspace skills, and plugin errors. It is the first call before building anything.
+- `features_create_skill` writes `workspace/skills/<name>/SKILL.md`. Skills are visible on the next turn and can be assigned to an agent with `agents_update skills`.
+- `features_create_plugin` writes `plugins/<name>/plugin.json` plus optional source files (`files: [{ path, content }]`). The plugin is an MCP server over stdio, or a script transport for a single capability. It is not started yet.
+- `features_apply` starts newly installed plugins, installs their tools as `<plugin>__<tool>`, removes plugins that are gone, and reconfigures every roster agent against the new registry. A plugin that cannot start is reported; it does not take the agent down.
+- `features_remove_skill` and `features_remove_plugin` retire what DataClaw installed. The plugin path is confined to `plugins/<name>/`; a manifest from `dataclaw.plugins.json` or `DATACLAW_PLUGIN_PATH` is never deleted by the agent.
+- Nothing is claimed as installed until `features_apply` returns its tools. This is the difference between writing a manifest and having a capability.
+
+### 🖥️ 4.2 Per-agent compute
+Each specialist can have its own compute instead of sharing DataClaw's workspace:
+
+- `compute: "local"` is the default for new specialists. The agent gets `workspace/agents/<id>/`, created on first use with a `memory/` folder. `read`, `write`, `edit` and `bash` operate there, so two specialists do not overwrite each other's files. The shell is still the host process: files are isolated, but this is not a security boundary.
+- `compute: "docker"` uses the same private home, bind-mounted into a per-agent container. `bash` runs inside the container; file tools use the bind mount. The project root is mounted read-only so agents can still read `sample-data/`. The container gets `--cap-drop ALL`, `no-new-privileges`, memory/CPU/pid limits, and `--network none` by default (set `network: "bridge"` when the agent needs the internet).
+- `compute: "shared"` keeps the old behavior (the workspace root). Existing agents migrate to `shared`; only new agents default to `local`.
+- The conversation cwd is the compute home, so paths are identical on the host and inside a Docker container. The `agent_profile` prompt section states the compute and its path on every turn.
+- Docker is opt-in and fails soft: if the daemon is unavailable, DataClaw logs the reason and runs the agent in its private local home. Configure the image and ceilings with `DATACLAW_COMPUTE_IMAGE` (default `oven/bun:1`), `DATACLAW_COMPUTE_MEMORY` (default `2g`), `DATACLAW_COMPUTE_CPUS` (default `2`), and `DATACLAW_COMPUTE_PIDS` (default `2048`).
+- **Scale to zero:** a Docker container is stopped after 15 idle minutes (`DATACLAW_COMPUTE_IDLE_MS`, `0` disables). The home stays on disk, and the next `bash` call wakes the container with `docker start` before executing, so the stop is invisible except for a short first-command delay. On startup, once per project per process, DataClaw stops containers left running by a previous process (`DATACLAW_COMPUTE_SWEEP=off` disables this on a shared host). Containers carry a `dataclaw.project` label and a project hash in their name, so sweeping one checkout cannot stop another checkout's agents. Archived agents and agents moved off Docker are removed immediately.
+- `src/compute/agent-compute.ts` owns the profile and home; `src/compute/docker-env.ts` is a small `ExecutionEnv` provider. E2B, Daytona, or a Kubernetes pod would implement the same contract: an `ExecutionEnv` whose `exec` runs remotely and whose file namespace matches the mounted home.
+
+Example from chat:
+
+```
+Create a custom specialist called Sandbox Analyst.
+Give it compute docker with network none, and capabilities analyst, coding.
+```
+
+Its files live in `workspace/agents/sandbox-analyst/`; `bash` runs in a container with that directory mounted writable and the rest of the project read-only.
 
 ### 🕵️ 5. Task-Owned Auditor Subagent
 - Spawns a dedicated, skeptical statistical auditor subagent (`request_auditor_review`) owned by `api.taskId`.
@@ -286,7 +319,7 @@ DataClaw is the coordinator. From the same chat the user can create, update, arc
 - Connects to the **Databricks-managed SQL MCP server** at `https://<workspace>/api/2.0/mcp/sql` over streamable HTTP.
 - Authenticates with `DATABRICKS_HOST`/`DATABRICKS_TOKEN`, the local **Databricks CLI profile** (OAuth token refresh
   included), **browser OAuth** (authorization code + PKCE), or a **service principal** (client credentials).
-- Exposes durable tools to the analyst team: `connect_databricks`, `query_databricks`, `list_databricks_assets`, and `profile_databricks_table`.
+- Exposes the source-neutral data tools: `connect_data_source` (with `provider: "databricks"`), `query_data`, `discover_data`, and `profile_table`. The same four work against any installed data source.
 - **Read-only by construction**: the adapter selects `execute_sql_read_only`, rejects mutating SQL, and blocks multi-statement writes before anything reaches the warehouse.
 - Profiles Unity Catalog tables with `DESCRIBE TABLE` plus one aggregate query (nulls, distincts, min/max/mean/median), and uses native `corr` / `percentile_approx` for statistics.
 - The active connection is recorded in `AnalystPlanDoc.databricks` (host, MCP URL, profile, warehouse) so resumed runs know where the data came from. Tokens are never persisted.
@@ -341,6 +374,16 @@ bun run evals          # offline, synthetic; see "Results" above
    bun run demo:databricks samples.nyctaxi.trips
    ```
 
+### 🗄️ 7. Data sources: one session, many providers
+The agent reaches data through one module, not through per-warehouse tools.
+
+- One live source per conversation, recorded in `AnalystPlanDoc.dataSource` (host, endpoint, credential source — never a token). A restart reconnects from it.
+- Seven source-neutral tools: `list_data_sources`, `connect_data_source`, `discover_data`, `profile_table`, `query_data`, `calculate_metric`, `load_dataset`. Adding a source adds no tool.
+- Built-in providers: local CSV/JSON (with `load_dataset`) and Databricks. Every installed plugin with a `dataSource` manifest is a provider too.
+- A dialect owns the SQL: `ansi`, `databricks`, `snowflake`, `bigquery`. Discovery, describe, the profile aggregate, percentiles and correlation all come from it, and every profile and metric reports `derivation` (`native` or `dialect:<name>`).
+- Read-only fails closed: a manifest that names no read-only mode is refused at connect, and every statement is checked before it reaches the transport.
+- **Adding Snowflake is a manifest plus an MCP server.** `tests/fixtures/plugins/fake-snowflake-mcp/` is the proof: it connects, discovers, profiles and queries with no change under `src/datasource/`. See [docs/specs-roadmap/01-data-source-session.md](docs/specs-roadmap/01-data-source-session.md).
+
 ---
 
 ## CLI
@@ -385,7 +428,7 @@ bun run cli databricks-query "SELECT pickup_zip, COUNT(*) FROM samples.nyctaxi.t
 ```
 
 The durable agent can attach Databricks on startup with `DATABRICKS_AUTO_CONNECT=true`, or at runtime by calling the
-`connect_databricks` tool. In this repo, `.pi/mcp.json` also registers the same endpoint for pi sessions and subagents;
+`connect_data_source` tool. In this repo, `.pi/mcp.json` also registers the same endpoint for pi sessions and subagents;
 its bearer token is minted from `databricks auth token` at connect time, so run `/mcp reconnect databricks` if a long
 session outlives the token.
 
@@ -452,12 +495,19 @@ dataclaw/
 │   │   ├── findings.ts              # FindingsDoc (verified insights, evidence, audit verdicts)
 │   │   ├── playbook.ts              # PlaybookDoc (learned heuristics, anti-patterns, templates)
 │   │   ├── telemetry.ts             # TelemetryDoc (feedback ratings, error logs, reflections)
-│   │   └── agents.ts                # AgentRosterDoc (specialists and delegated runs)
+│   │   ├── agents.ts                # AgentRosterDoc (specialists, profiles, delegated runs)
+│   │   └── agent-capabilities.ts   # Capability groups -> extensions and tool allowlists
 │   ├── tools/                       # Replayable agent tools
-│   │   ├── analyst-tools.ts         # profile_dataset, run_analytical_query, calculate_metric, etc.
+│   │   ├── datasource-tools.ts      # query_data, discover_data, profile_table, etc.
 │   │   ├── databricks-tools.ts      # connect/query/discover/profile Databricks via MCP
 │   │   ├── auto-improve-tools.ts    # record_reflection, record_feedback, promote_rule, etc.
-│   │   └── agent-tools.ts           # agents_create, spawn_agent, subagents_list, and the rest of the roster
+│   │   ├── agent-tools.ts           # agents_create, spawn_agent, subagents_list, profile configuration
+│   │   └── feature-tools.ts         # features_create_skill, features_create_plugin, features_apply
+│   ├── features/
+│   │   └── runtime.ts               # Live plugin reload + roster reconfiguration for features_apply
+│   ├── compute/
+│   │   ├── agent-compute.ts         # Per-agent compute profile and private home
+│   │   └── docker-env.ts            # ExecutionEnv backed by a per-agent container
 │   ├── mcp/                         # MCP transport & auth
 │   │   ├── databricks-config.ts     # DATABRICKS_* / ~/.databrickscfg / CLI token resolution
 │   │   ├── databricks-oauth.ts      # PKCE browser flow + service-principal client credentials

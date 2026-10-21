@@ -74,7 +74,6 @@ export class DatabricksDataAdapter implements DataAdapter {
     readonly source = "databricks" as const;
 
     private activeTableName?: string;
-    private callSignal?: AbortSignal;
 
     constructor(
         private readonly executor: SqlExecutor,
@@ -112,20 +111,8 @@ export class DatabricksDataAdapter implements DataAdapter {
         this.activeTableName = tableName;
     }
 
-    /** Run SQL for this callback with the conversation abort signal attached. */
-    bindSignal<T>(signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
-        const previous = this.callSignal;
-        this.callSignal = signal;
-        return run().finally(() => {
-            this.callSignal = previous;
-        });
-    }
-
     private sql(statement: string, options: ExecuteSqlOptions = {}): Promise<SqlExecutionResult> {
-        return this.executor.execute(statement, {
-            ...options,
-            ...(this.callSignal ? { signal: this.callSignal } : {}),
-        });
+        return this.executor.execute(statement, options);
     }
 
     async loadCsv(_tableName: string, _csvContent: string): Promise<DatasetProfile> {

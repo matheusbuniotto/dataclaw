@@ -188,18 +188,18 @@ provider seam is wrong and stage 1 is not done.
 `derivation: "dialect:snowflake"`, query, and a refused mutation. No file under `src/datasource/`
 was touched for it.
 
-**13. Console.**
+**13. Console.** — *done*: `GET /api/datasources` (providers + live status for the active agent) and a `DataSourcesCard` on the Settings page. The Databricks auth panel stays as provider #1's panel.
 `GET /api/datasources` (status for the active conversation plus installed providers), and a status
 card driven by `status()`. The Databricks auth panel stays as provider #1's panel.
 *Gate:* with no source connected the page renders `idle`; with Databricks live it renders the record.
 
 ## Stage 3 · Cleanup, docs, deletion
 
-**14. Remove the leftovers.** `getSharedAdapter` (unused), the duplicate row/profile renderers, the
+**14. Remove the leftovers.** — *done*: the adapter's mutable `bindSignal` (no callers left), the old tool modules, `getSharedAdapter`, `describeActiveDatabricks`, and the duplicate row/profile renderers are gone; the SQL guard reads `call.arguments` and delegates to `isReadOnlySql`. `getSharedAdapter` (unused), the duplicate row/profile renderers, the
 `beforeTool` SQL regex (the provider's read-only mode replaces it), and the dead `logger`-style
 helpers left in the old adapter.
 
-**15. Documentation.** `README.md` data-source section, `docs/plugins.md` `dataSource` block,
+**15. Documentation.** — *done for the parts this change owns*: README's data-source section and tool names, `CLAUDE.md`'s data-source bullets, `docs/plugins.md`, the AGENTS.md template and the data-exploration skill. The workspace's own AGENTS.md is runtime data and was not rewritten. `README.md` data-source section, `docs/plugins.md` `dataSource` block,
 `CLAUDE.md` data-sources bullet, `AGENTS.md` template and `MAIN_AGENT_INSTRUCTIONS` with the new tool
 names, `ChatComponents` labels, `evals/scripted-agent.ts` steps. This step is last because it is the
 only one that is tedious in proportion to the rename, and candidate 03 makes most of it mechanical.

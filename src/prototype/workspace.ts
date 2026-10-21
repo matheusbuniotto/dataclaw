@@ -354,6 +354,19 @@ async function resolveConsoleTarget(
     return { conversation, agentId: agent.id, rosterAgent: agent };
 }
 
+/** The console's data-source card: what can be connected, and what is live for this agent. */
+export async function consoleDataSources(agentId?: string): Promise<{
+    providers: import("../datasource/session").ProviderDescriptor[];
+    status: import("../datasource/types").SourceStatus;
+}> {
+    const analyst = await consoleHarness();
+    const target = await resolveConsoleTarget(analyst, agentId);
+    return {
+        providers: analyst.dataSources.providers(),
+        status: analyst.dataSources.for(target.conversation.id).status(),
+    };
+}
+
 export async function consoleWorkspace(agentId?: string): Promise<WorkspaceSnapshot> {
     try {
         return await readWorkspace(await consoleHarness(), { agentId });

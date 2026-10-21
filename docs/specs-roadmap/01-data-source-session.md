@@ -1,6 +1,6 @@
 # 01 · Put the live data source behind one seam
 
-**Status:** `in progress` · **Strength:** Strong · **Seam:** ports & adapters · **Size:** L
+**Status:** `done` · **Strength:** Strong · **Seam:** ports & adapters · **Size:** L
 
 Explored with the design-it-twice pass on 2026-10-21, extended to cover adding new data MCPs
 (Snowflake, BigQuery, and later sources). Accepted 2026-10-21; implementation steps are in

@@ -1330,6 +1330,49 @@ function DataPage({
     );
 }
 
+function DataSourcesCard({ agentId }: { agentId: string }) {
+    const [summary, setSummary] = useState<{
+        providers: Array<{ id: string; kind: string; dialect: string; label: string }>;
+        status: { state: string; record?: { provider: string; host?: string; dataset?: string }; error?: { message: string } };
+    } | null>(null);
+
+    useEffect(() => {
+        let live = true;
+        fetch(`/api/datasources?agentId=${encodeURIComponent(agentId)}`)
+            .then((response) => response.json())
+            .then((body) => { if (live) setSummary(body); })
+            .catch(() => undefined);
+        return () => { live = false; };
+    }, [agentId]);
+
+    const status = summary?.status;
+    const detail = status?.state === "live"
+        ? [status.record?.host, status.record?.dataset].filter(Boolean).join(" · ") || "Connected"
+        : status?.state === "failed"
+            ? status.error?.message ?? "Connect failed"
+            : "Not connected";
+
+    return (
+        <section className="panel settings-card">
+            <h3>Data sources</h3>
+            <p>One live source per conversation. The agent reaches it with query_data, discover_data, and profile_table.</p>
+            <div className="form-row">
+                <div>
+                    <label>{status?.state === "live" ? status.record?.provider ?? "Live" : status?.state ?? "Loading…"}</label>
+                    <small>{detail}</small>
+                </div>
+            </div>
+            <div className="data-chips">
+                {(summary?.providers ?? []).map((provider) => (
+                    <span className="chip" key={provider.id} title={provider.label}>
+                        {provider.id} · {provider.kind}
+                    </span>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 function SettingsPage({
     snapshot,
     ops,
@@ -1384,6 +1427,8 @@ function SettingsPage({
                             </button>
                         </div>
                     </section>
+
+                    <DataSourcesCard agentId={snapshot?.agent.id ?? "dataclaw"} />
 
                     <DatabricksAuthCard auth={auth} onManage={onManageDatabricks} />
 
