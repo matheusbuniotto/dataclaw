@@ -56,3 +56,5 @@ workspace/memory/*
 # Locally installed data plugins (docs/plugins.md); manifests can hold machine-specific paths.
 /plugins/
 /dataclaw.plugins.json
+# What the Capabilities page switched off (src/capabilities/catalog.ts).
+/dataclaw.capabilities.json

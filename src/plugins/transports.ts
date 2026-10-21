@@ -35,12 +35,20 @@ export function toolResultValue(result: Record<string, unknown>, plugin: string)
     }
 }
 
+/** One tool an MCP server lists: its name, description and JSON-Schema parameters. */
+export interface McpToolDefinition {
+    name: string;
+    description?: string;
+    inputSchema: unknown;
+}
+
 /** Model Context Protocol over stdio, using the official TypeScript SDK client. */
 export class McpPluginClient implements PluginClient {
     private client?: Client;
     private transport?: StdioClientTransport;
     private stderr = "";
     private tools?: Set<string>;
+    private definitions?: McpToolDefinition[];
 
     constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = DEFAULT_TIMEOUT_MS) {}
 
@@ -66,6 +74,11 @@ export class McpPluginClient implements PluginClient {
             await client.connect(this.transport, { timeout: this.timeoutMs });
             const listed = await client.listTools(undefined, { timeout: this.timeoutMs });
             this.tools = new Set(listed.tools.map((t) => t.name));
+            this.definitions = listed.tools.map((t) => ({
+                name: t.name,
+                ...(t.description ? { description: t.description } : {}),
+                inputSchema: t.inputSchema,
+            }));
         } catch (err) {
             await this.close();
             throw new PluginError(`could not start MCP server "${cfg.command}": ${err instanceof Error ? err.message : String(err)}${this.stderrHint()}`, this.plugin.manifest.name);
@@ -95,13 +108,35 @@ export class McpPluginClient implements PluginClient {
         return [...this.tools!].sort();
     }
 
+    /** Every tool the server lists, with the schema it publishes (after connecting). */
+    async listToolDefinitions(): Promise<McpToolDefinition[]> {
+        await this.connect();
+        return [...(this.definitions ?? [])];
+    }
+
+    /**
+     * Call any tool the server lists, by the server's own tool name. Unlike `invoke()`, the
+     * name does not have to map to a declared capability, so a plugin can offer tools that
+     * DataClaw hands to the agent through `<plugin>__<tool>` (see `agent-tools.ts`).
+     */
+    async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+        const client = await this.connect();
+        if (!this.tools?.has(name)) {
+            throw new PluginError(`has no tool "${name}" (tools: ${[...(this.tools ?? [])].sort().join(", ") || "none"})`, this.plugin.manifest.name);
+        }
+        const result = await client.callTool({ name, arguments: args }, undefined, { timeout: this.timeoutMs })
+            .catch((err: unknown) => {
+                // Attribute transport-level failures (a throwing server, a killed process) to the plugin.
+                throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), this.plugin.manifest.name);
+            });
+        return toolResultValue(result, this.plugin.manifest.name);
+    }
+
     async invoke(capability: CapabilityId, input: Record<string, unknown>): Promise<unknown> {
         if (!this.plugin.manifest.capabilities.includes(capability)) {
             throw new PluginError(`does not provide ${capability}`, this.plugin.manifest.name);
         }
-        const client = await this.connect();
-        const result = await client.callTool({ name: this.toolFor(capability), arguments: input }, undefined, { timeout: this.timeoutMs });
-        return toolResultValue(result, this.plugin.manifest.name);
+        return this.callTool(this.toolFor(capability), input);
     }
 
     async close(): Promise<void> {
@@ -109,6 +144,7 @@ export class McpPluginClient implements PluginClient {
         const transport = this.transport;
         this.client = undefined;
         this.transport = undefined;
+        this.definitions = undefined;
         if (client) await client.close().catch(() => {});
         else if (transport) await transport.close().catch(() => {});
     }

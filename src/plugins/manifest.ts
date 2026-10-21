@@ -26,7 +26,7 @@ export function validateManifest(raw: unknown, source: string): PluginManifest {
         if (typeof m[key] !== "string" || !(m[key] as string).trim()) fail(`"${key}" must be a non-empty string`);
     }
     if (!NAME.test(m.name as string)) fail(`"name" must match ${NAME}`);
-    if (!Array.isArray(m.capabilities) || m.capabilities.length === 0) fail(`"capabilities" must be a non-empty array`);
+    if (!Array.isArray(m.capabilities)) fail(`"capabilities" must be an array`);
     for (const c of m.capabilities as unknown[]) {
         if (typeof c !== "string") fail("capability ids must be strings");
         parseCapability(c as string);
@@ -35,6 +35,10 @@ export function validateManifest(raw: unknown, source: string): PluginManifest {
     const t = m.transport as Record<string, unknown> | undefined;
     if (typeof t !== "object" || t === null) fail(`"transport" must be an object`);
     if (t!.type !== "mcp" && t!.type !== "script") fail(`transport.type must be "mcp" or "script"`);
+    // An MCP plugin may contribute agent tools alone; a script plugin is only reachable by capability.
+    if (t!.type === "script" && (m.capabilities as unknown[]).length === 0) {
+        fail(`"capabilities" must be non-empty for a script transport: nothing else can call it`);
+    }
     if (typeof t!.command !== "string" || !t!.command) fail("transport.command must be a non-empty string");
     if (t!.args !== undefined && !(Array.isArray(t!.args) && t!.args.every((a) => typeof a === "string"))) fail("transport.args must be an array of strings");
     if (t!.env !== undefined && !isStringRecord(t!.env)) fail("transport.env must map strings to strings");

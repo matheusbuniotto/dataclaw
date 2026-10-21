@@ -14,6 +14,10 @@ look the same from the inside.
 ## How it fits together
 
 ```
+agent ──► teatools__analyze        (one harness tool per MCP tool, docs below)
+         │
+         └─► PluginClient.callTool("analyze", input)
+
 evals:compare ──► resolveCapability("stats.compare_eval_runs@1")
                         │  picks the best installed provider
                         ▼
@@ -162,12 +166,82 @@ if (cap) {
 `tests/plugins.test.ts` covers discovery, validation and resolution. It also runs a real MCP
 handshake against a test-only server (`tests/fixtures/plugins/fake-stats-mcp/`, official SDK,
 plain arithmetic, no inference), the example script plugin, contract rejection, the
-built-in fallback, and eval shaping.
+built-in fallback, and eval shaping. `tests/plugin-agent-tools.test.ts` covers the agent
+bridge: namespaced tool names, the published schema, calls and errors, a plugin that cannot
+start, and the harness installing `data-plugins` plus `tool_search`.
 
-## Next step: plugin capabilities as agent tools
+## Agent tools
 
-Today plugins serve the eval pipeline (`evals:compare`, `evals:calibrate`). Exposing
-capabilities to the analyst agent itself would mean registering one tool per installed
-capability with the harness (`src/harness.ts`, `src/tools/*`), with a JSON schema taken from
-the capability contract. It would also need durable replay of plugin calls so a resumed
-session sees the same results. That is a separate change.
+An installed plugin's tools are also available to the analyst agent itself: one harness tool per
+MCP tool, named `<plugin>__<tool>` (`teatools__analyze`, `teatools__power`, …). When the harness
+opens, DataClaw connects to each MCP plugin once, reads the tool list and the JSON Schema each
+tool publishes, and registers a durable tool per entry with that schema
+(`src/plugins/agent-tools.ts`, `src/harness.ts`). Adding a tool to a plugin therefore needs no
+DataClaw change: restart the process and the tool exists.
+
+- **Deferred by default.** The tools are not in every request. A `data_plugins` prompt section
+  lists the installed plugins and their tools, and `tool_search`
+  (`@earendil-works/pi-durable/tool-search`) loads the ones the model picks; loaded tools stay
+  offered for the rest of the conversation, including after a compaction. Pass
+  `deferred: false` to offer them all up front.
+- **`replay: "unsafe"`.** A plugin call is not a pure function of its arguments: `design` writes
+  a pre-registration plan to disk, `report` reads one back. A call a crash interrupted is never
+  rerun on recovery, so a resumed session cannot create the same plan twice.
+- **Failures stay in the transcript.** A dead server, a timeout, or an `isError` result becomes an
+  ordinary tool error naming the plugin; the model can retry or report it. A plugin that will not
+  start at all is logged (`onError`) and skipped — the agent still opens.
+- **One connection per plugin**, opened when the harness opens and closed with it. A Python
+  server started through `uv run` costs a second or two there, not per call.
+- **Script plugins contribute no agent tools**: a script answers one capability per invocation and
+  publishes no tool inventory.
+- Turn the whole thing off with `pluginTools: false` in `createAnalystHarness`; discovery is
+  skipped and no plugin process starts.
+
+### In the console
+
+**Capabilities** (`/prototype/capabilities`) is the management page: plugins, skills, built-in
+tool groups and the Databricks MCP connection in one list, each with a switch. From there you
+can also install a plugin (name, transport, command, args, env, capabilities — written to
+`plugins/<name>/plugin.json`) and write a skill (`workspace/skills/<name>/SKILL.md`), or remove
+one the page installed.
+
+Switches are saved immediately in `dataclaw.capabilities.json` (gitignored):
+
+```json
+{ "disabled": ["plugin:teatools", "skill:data-exploration"] }
+```
+
+…and reach the agent on **Apply**, which closes the harness and opens it again, resuming the
+same durable conversation from SQLite. A turn in flight blocks Apply (409), so nothing is lost.
+A disabled plugin is skipped before its process starts; a disabled skill leaves the prompt but
+stays on disk.
+
+`src/capabilities/catalog.ts` builds the list (the harness reads the same file, so the page and
+the running agent cannot disagree), and `src/prototype/capabilities-api.ts` adds the mutations:
+`GET /api/capabilities`, `POST /api/capabilities/{toggle,apply,plugin,plugin/remove,skill,skill/remove}`.
+
+Settings → **Data plugins** is the read-only view of the same manifests: version, domain,
+transport, priority, the capabilities each plugin serves (struck through when another wins it
+by `priority`), and the tools it contributed. **Check** runs the `plugins:list --check`
+handshake, so it starts the servers, and only when the button is pressed. The workspace
+snapshot (`GET /api/workspace` → `plugins`) carries it, built by `src/prototype/plugins-api.ts`.
+
+Per-agent selection is the same mechanism one level up: a conversation stores which extensions
+and tools it runs with, so a later change can switch a capability for one agent without
+touching the workspace default.
+
+```bash
+# plugins/<name>/plugin.json (gitignored, so machine paths stay local) or DATACLAW_PLUGIN_PATH
+bun run plugins:list --check     # confirms the server starts and lists its tools
+```
+
+A real one to point at: [`tea-tasting-tools`](https://github.com/matheusbuniotto/tea-tasting-tools)
+(`teatools-mcp`, ten tools for experiment design, power, A/B analysis, SRM, pre-registration
+reports and eval comparison), which also declares the two `stats.*` capabilities above.
+
+## Next step: typed capability tools
+
+Agent tools above use the plugin's own tool schemas, so their output is not checked. A domain
+that earns it should graduate to a capability contract (`src/plugins/capabilities/<domain>.ts` +
+`docs/capabilities/<domain>.md`) and a tool whose parameters come from that contract, so
+`method` and `warnings` are validated and surfaced verbatim next to every number.

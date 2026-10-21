@@ -184,8 +184,12 @@ runs = repeats) through whichever installed plugin provides `stats.compare_eval_
 `evals:calibrate score` also asks a `stats.agreement_kappa@1` plugin. Without one, both use the
 built-in code above. Plugins are declared by a small manifest and speak MCP over stdio or plain
 JSON on stdin/stdout. Stats is the first domain; ML, forecasting or FP&A plugins use the same
-mechanism. See [docs/plugins.md](docs/plugins.md) and
-[docs/capabilities/stats.md](docs/capabilities/stats.md).
+mechanism.
+
+An installed MCP plugin also hands its tools to the analyst agent: each MCP tool becomes a
+durable agent tool named `<plugin>__<tool>`, deferred behind `tool_search`, with the schema the
+server publishes. Adding a tool to a plugin needs no DataClaw change. See
+[docs/plugins.md](docs/plugins.md) and [docs/capabilities/stats.md](docs/capabilities/stats.md).
 
 `evals/labels/auditor-labels.example.csv` shows the label format. Its labels are placeholders produced by a rule
 (rejected if the finding has no query or a wrong number) and are marked `EXAMPLE`. The score command prints a
