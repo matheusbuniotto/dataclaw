@@ -266,6 +266,7 @@ export function fakeHarness(scenario: ProviderScenario = "healthy", options: Fak
     return {
         provider,
         executed,
+        capabilities: { describe: tools.includes("describe_table"), inventory: tools.includes("list_objects") },
         setScenario(next: ProviderScenario) {
             active = next;
         },

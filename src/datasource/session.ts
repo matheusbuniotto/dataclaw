@@ -161,7 +161,7 @@ class Session implements DataSourceSession {
                 provider: next.id,
                 dialect: next.dialect.id,
                 connectedAt: this.now(),
-                ...(intent.endpoint ? { endpoint: intent.endpoint } : {}),
+                ...(intent.endpoint ?? next.endpoint ? { endpoint: intent.endpoint ?? next.endpoint } : {}),
                 ...(intent.credential ? { credential: intent.credential } : {}),
                 ...(intent.dataset ? { dataset: intent.dataset } : {}),
             };

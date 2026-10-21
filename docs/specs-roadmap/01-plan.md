@@ -52,7 +52,17 @@ Two constraints shape the order:
   from describe + the dialect's aggregate (or a native one) and carries `derivation`; reconnect from
   the record has a cooldown. 23 tests in `tests/datasource-session.test.ts`, including every
   provider failure arriving through the session unchanged.
-- [ ] 7. The Databricks provider
+- [x] **7. The Databricks provider** — `src/datasource/providers/databricks.ts` behind the provider
+  port (lazy connect, `probe()` proves a read-only tool, errors translated to the closed taxonomy),
+  and `src/datasource/catalog.ts` resolving Databricks plus every manifest with a `dataSource` block.
+  `providers/manifest.ts` is the manifest provider: declared tools verified against `listTools()` at
+  connect, argument names from `dataSource.arguments` with defaults, results decoded fail-closed,
+  native describe/inventory/profile used when published. Deviation: Databricks stays built in rather
+  than becoming a manifest, because OAuth refresh and host-derived endpoints are not expressible
+  there yet. `McpToolClient.callTool` gained a `signal`. 35 tests across the two provider files; the
+  Databricks provider passes the same conformance suite over a local MCP server, and
+  `bun run demo:databricks samples.nyctaxi.trips` still profiles and queries a real workspace.
+- [ ] 8. Plan record v2
 
 ## Stage 0 · Groundwork (no behaviour change)
 

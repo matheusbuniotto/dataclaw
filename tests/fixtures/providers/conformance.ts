@@ -20,6 +20,8 @@ export interface ProviderHarness {
     executed: string[];
     /** Change the scripted scenario mid-test. The fake implements it; a real provider may not. */
     setScenario?(scenario: ProviderScenario): void;
+    /** What the server publishes, so the suite checks the right branch. */
+    capabilities?: { describe?: boolean; inventory?: boolean; profile?: boolean };
     close(): Promise<void>;
 }
 
@@ -185,15 +187,17 @@ export function providerConformance(
             }
         });
 
-        test("exposes describe when the server publishes it", async () => {
-            const { provider, close } = await create("healthy");
+        test("exposes describe exactly when the server publishes it", async () => {
+            const harness = await create("healthy");
             try {
-                expect(typeof provider.describe).toBe("function");
-                const columns = await provider.describe!("main.default.orders");
+                const expected = harness.capabilities?.describe !== false;
+                expect(typeof harness.provider.describe === "function").toBe(expected);
+                if (!expected) return;
+                const columns = await harness.provider.describe!("main.default.orders");
                 expect(columns.length).toBeGreaterThan(0);
                 expect(["INTEGER", "REAL", "TEXT"]).toContain(columns[0]!.kind);
             } finally {
-                await close();
+                await harness.close();
             }
         });
 

@@ -42,7 +42,7 @@ export function toolResultValue(result: Record<string, unknown>, plugin: string)
 export interface McpToolClient extends PluginClient {
     listTools(): Promise<string[]>;
     listToolDefinitions(): Promise<McpToolDefinition[]>;
-    callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+    callTool(name: string, args: Record<string, unknown>, options?: { signal?: AbortSignal }): Promise<unknown>;
     close(): Promise<void>;
 }
 
@@ -137,16 +137,19 @@ export class McpPluginClient implements PluginClient, McpToolClient {
      * name does not have to map to a declared capability, so a plugin can offer tools that
      * DataClaw hands to the agent through `<plugin>__<tool>` (see `agent-tools.ts`).
      */
-    async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    async callTool(name: string, args: Record<string, unknown>, options: { signal?: AbortSignal } = {}): Promise<unknown> {
         const client = await this.connect();
         if (!this.tools?.has(name)) {
             throw new PluginError(`has no tool "${name}" (tools: ${[...(this.tools ?? [])].sort().join(", ") || "none"})`, this.plugin.manifest.name);
         }
-        const result = await client.callTool({ name, arguments: args }, undefined, { timeout: this.timeoutMs })
-            .catch((err: unknown) => {
-                // Attribute transport-level failures (a throwing server, a killed process) to the plugin.
-                throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), this.plugin.manifest.name);
-            });
+        const result = await client.callTool(
+            { name, arguments: args },
+            undefined,
+            { timeout: this.timeoutMs, ...(options.signal ? { signal: options.signal } : {}) },
+        ).catch((err: unknown) => {
+            // Attribute transport-level failures (a throwing server, a killed process) to the plugin.
+            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), this.plugin.manifest.name);
+        });
         return toolResultValue(result, this.plugin.manifest.name);
     }
 
@@ -311,9 +314,9 @@ export class McpHttpPluginClient implements PluginClient, McpToolClient {
         return (await this.connect()).listToolDefinitions();
     }
 
-    async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    async callTool(name: string, args: Record<string, unknown>, options: { signal?: AbortSignal } = {}): Promise<unknown> {
         const http = await this.connect();
-        const result = await http.callTool(name, args).catch((err: unknown) => {
+        const result = await http.callTool(name, args, { ...(options.signal ? { signal: options.signal } : {}) }).catch((err: unknown) => {
             throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), this.plugin.manifest.name);
         });
         return toolResultValue(result as Record<string, unknown>, this.plugin.manifest.name);

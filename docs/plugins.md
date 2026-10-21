@@ -152,11 +152,31 @@ the block is validated and the plugin is left unopened.
 | `dataSource.tools.inventory` | no | The server tool that lists catalogs, schemas or tables. |
 | `dataSource.readOnly` | yes | `{ mode: "tool", tool?, argument?, value? }`, `{ mode: "role", note? }` or `{ mode: "checked" }`. A source declaring none is refused at connect. |
 | `dataSource.auth` | no | Credential sources in order: `env` (with `vars`), `cli-profile` (with optional `default`), `oauth`, `service-principal`. Names only. |
-| `dataSource.arguments` | no | Argument name each tool expects for its statement, when it is not `sql`. |
+| `dataSource.arguments` | no | Argument name each tool expects. Defaults: `query` → `sql`, `describe` → `table`, `inventory` → `namespace`, `profile` → `table`. |
 
 A `dataSource` requires an MCP transport (`mcp` or `mcp-http`), never a script. The tool bridge does
 not open it: listing its tools at harness open would reach the warehouse before a conversation
 connects.
+
+Every declared tool is checked against what the server actually lists when a conversation connects.
+A name the server does not publish fails with the real list, so a typo cannot bind to the wrong tool:
+
+```
+the snowfake server does not publish describe tool "describe_table".
+Available tools: run_sql, list_objects
+```
+
+Discovery and profiling fall back to the dialect when a tool is absent: omit `tools.describe`,
+`tools.inventory` or `tools.profile` and the session runs `dataSource.dialect`'s SQL instead. A
+declared `tools.profile` must return `{ rowCount, columns: [{ name, type, nullCount, nullPct,
+distinctCount, sampleValues }] }`; anything else is refused, and the message says to drop the entry
+and let the dialect profile the table.
+
+The read-only mode decides how mutations are blocked. `{ "mode": "tool", "tool": "run_sql_read_only" }`
+calls that tool instead of `tools.query`; `{ "mode": "tool", "argument": "read_only", "value": true }`
+sets the flag on every call; `{ "mode": "role", "note": "..." }` records a server-enforced role; and
+`{ "mode": "checked" }` relies on the dialect's statement check. Every query is also checked
+client-side; a mutating statement is refused before the transport.
 
 ## Capabilities and versions
 

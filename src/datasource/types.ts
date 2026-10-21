@@ -170,6 +170,8 @@ export interface ProviderProbe {
 export interface DataProvider {
     readonly id: string;
     readonly dialect: Dialect;
+    /** The endpoint this provider reached, for the durable record. Never a secret. */
+    readonly endpoint?: string;
     /** A local provider always has `intake`; a remote one never does. */
     readonly kind: "local" | "remote";
     probe(): Promise<ProviderProbe>;
