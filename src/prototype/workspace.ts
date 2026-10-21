@@ -13,6 +13,7 @@ import {
 } from "./databricks-api";
 import { loadSkills } from "../workspace/context";
 import type { AgentRosterDocument, AgentRun } from "../docs/agents";
+import { pluginsSummary } from "./plugins-api";
 import type {
     ActivityItem,
     Checkpoint,
@@ -40,20 +41,53 @@ const CAPABILITIES = [
 ];
 
 let opening: Promise<AnalystHarness> | undefined;
+/** The open harness, so a capability change can close and reopen it. */
+let open: AnalystHarness | undefined;
+/** Detaches this harness from the Databricks session listeners before it closes. */
+let detachDatabricks: (() => void) | undefined;
 /** Set while Stop is in flight so an ask that has not been submitted yet is aborted after submit. */
 let cancelAsk = false;
 
 /** The console's single root conversation. Later calls share the same harness. */
 export function consoleHarness(): Promise<AnalystHarness> {
-    opening ??= startConsoleHarness().catch((err) => {
-        opening = undefined;
-        throw err;
-    });
+    opening ??= startConsoleHarness()
+        .then((analyst) => {
+            open = analyst;
+            return analyst;
+        })
+        .catch((err) => {
+            opening = undefined;
+            throw err;
+        });
     return opening;
 }
 
 export function resetConsoleHarness(): void {
     opening = undefined;
+    open = undefined;
+    detachDatabricks?.();
+    detachDatabricks = undefined;
+}
+
+/**
+ * Close the harness and open it again so a capability change (a plugin enabled, a skill
+ * added) takes effect. The conversation resumes from SQLite; nothing in flight is lost
+ * because a busy agent refuses the change first.
+ */
+export async function reloadConsoleHarness(): Promise<WorkspaceSnapshot> {
+    const analyst = open ?? await consoleHarness();
+    const inspection = await analyst.harness.inspect(analyst.context);
+    const live = new Set(inspection.tasks.map((task) => String(task.record.conversationId)));
+    if (inspection.tasks.length > 0 || inspection.submissions.some((submission) => submissionKeepsAgentBusy(submission, live))) {
+        throw new Error("DataClaw is working. Stop the turn before applying capability changes.");
+    }
+    // Stop listening before closing: an adapter that connects mid-reload would otherwise
+    // commit to a closed session and take the process down.
+    detachDatabricks?.();
+    detachDatabricks = undefined;
+    await analyst.close();
+    resetConsoleHarness();
+    return consoleWorkspace();
 }
 
 async function startConsoleHarness(): Promise<AnalystHarness> {
@@ -66,7 +100,7 @@ async function startConsoleHarness(): Promise<AnalystHarness> {
     });
 
     let attached = false;
-    subscribeDatabricks((adapter) => {
+    detachDatabricks = subscribeDatabricks((adapter) => {
         if (adapter) {
             attached = true;
             void rememberDatabricks(analyst, adapter);
@@ -93,6 +127,13 @@ async function startConsoleHarness(): Promise<AnalystHarness> {
 async function rememberDatabricks(analyst: AnalystHarness, adapter: DatabricksDataAdapter): Promise<void> {
     setSharedAdapter(adapter);
     noteDatabricksAdapter(adapter);
+    // The adapter may finish connecting after a capability reload closed this harness.
+    await rememberDatabricksPlan(analyst, adapter).catch((err: unknown) => {
+        console.error(`could not record the Databricks session: ${err instanceof Error ? err.message : String(err)}`);
+    });
+}
+
+async function rememberDatabricksPlan(analyst: AnalystHarness, adapter: DatabricksDataAdapter): Promise<void> {
     const host = adapter.options.host ?? "unknown";
     await analyst.conversation.commit(async (tx) => {
         const plan = await tx.doc(AnalystPlanDoc, analyst.conversation.id);
@@ -111,6 +152,12 @@ async function rememberDatabricks(analyst: AnalystHarness, adapter: DatabricksDa
 async function forgetDatabricks(analyst: AnalystHarness): Promise<void> {
     noteDatabricksAdapter(null);
     releaseSharedAdapter();
+    await forgetDatabricksPlan(analyst).catch((err: unknown) => {
+        console.error(`could not clear the Databricks session: ${err instanceof Error ? err.message : String(err)}`);
+    });
+}
+
+async function forgetDatabricksPlan(analyst: AnalystHarness): Promise<void> {
     await analyst.conversation.commit(async (tx) => {
         const plan = await tx.doc(AnalystPlanDoc, analyst.conversation.id);
         delete plan.databricks;
@@ -245,6 +292,7 @@ export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceS
         runs,
         transcript,
         activity,
+        plugins: pluginsSummary(analyst.pluginTools, analyst.projectRoot),
     };
 }
 

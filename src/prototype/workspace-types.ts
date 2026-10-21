@@ -1,3 +1,5 @@
+import type { PluginsSummary } from "./plugins-api";
+
 export interface Checkpoint {
     id: string;
     label: string;
@@ -98,7 +100,6 @@ export interface WorkspaceHome {
     projectRoot: string;
     skills: WorkspaceSkillInfo[];
 }
-
 export interface WorkspacePlan {
     goal: string;
     status: string;
@@ -120,4 +121,5 @@ export interface WorkspaceSnapshot {
     runs: Run[];
     transcript: TranscriptItem[];
     activity: ActivityItem[];
+    plugins: PluginsSummary;
 }

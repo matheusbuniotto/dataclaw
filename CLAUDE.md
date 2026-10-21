@@ -53,6 +53,29 @@ read-only data source through its managed SQL MCP server:
 - Run `bun run cli databricks-status` to check the resolved workspace, and
   `bun run demo:databricks samples.nyctaxi.trips` for a live smoke test.
 
+## Data plugins
+
+External programs provide versioned capabilities over MCP (stdio) or a JSON script; see
+`docs/plugins.md` for the manifest, transports and contracts.
+
+- Manifests live in `plugins/<name>/plugin.json` (gitignored), `dataclaw.plugins.json`, or
+  `DATACLAW_PLUGIN_PATH`. `bun run plugins:list --check` shows them and starts each MCP server.
+- `stats.compare_eval_runs@1` and `stats.agreement_kappa@1` feed `evals:compare` and
+  `evals:calibrate score` through `resolveCapability()` in `src/plugins/registry.ts`.
+- Every MCP plugin tool is also an agent tool named `<plugin>__<tool>`, registered in
+  `src/plugins/agent-tools.ts` and installed by `src/harness.ts`. They are deferred behind
+  `tool_search` and use `replay: "unsafe"`; a plugin that fails to start is skipped, not fatal.
+  `createAnalystHarness({ pluginTools: false })` turns the bridge off.
+- Report a plugin's `method` and `warnings` verbatim next to any number it produced.
+- The console's Settings page lists them (`src/prototype/plugins-api.ts`, `GET /api/plugins`,
+  `POST /api/plugins/check`); the snapshot field is `WorkspaceSnapshot.plugins`.
+- `/prototype/capabilities` is the management page for plugins, skills, built-in tool groups and
+  the Databricks MCP connection. Toggles persist to `dataclaw.capabilities.json` (gitignored,
+  `src/capabilities/catalog.ts`), which the harness reads at startup, so the page and the agent
+  agree; **Apply** closes and reopens the harness (`reloadConsoleHarness`) and is refused while a
+  turn runs. Detach Databricks session listeners before closing a harness, or a late adapter
+  connect commits to a closed session and kills the process.
+
 ## Frontend
 
 Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.

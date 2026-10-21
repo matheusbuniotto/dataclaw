@@ -16,6 +16,8 @@ import {
     useDatabricksAuth,
 } from "./DatabricksAuth";
 import { AssistantTurnView, groupIntoTurns } from "./ChatComponents";
+import type { PluginCheck, PluginsSummary } from "./plugins-api";
+import { CapabilitiesPage } from "./CapabilitiesPage";
 import {
     ArrowRight,
     Bell,
@@ -34,7 +36,9 @@ import {
     Menu,
     MoreHorizontal,
     Play,
+    PlugZap,
     Plus,
+    Puzzle,
     RefreshCw,
     Search,
     Settings2,
@@ -58,6 +62,7 @@ const navItems = [
     { href: "/prototype/agents", label: "Agent", icon: Bot },
     { href: "/prototype/runs", label: "Durable runs", icon: Workflow },
     { href: "/prototype/data", label: "Data health", icon: Database },
+    { href: "/prototype/capabilities", label: "Capabilities", icon: Puzzle },
 ];
 
 const agentById = (id: string, agents: WorkspaceAgent[]) => agents.find((agent) => agent.id === id);
@@ -353,12 +358,19 @@ export function DurableAgentConsole() {
                             inspect={(id) => setLocation("/prototype/runs?selected=" + id)}
                         />
                     </Route>
+                    <Route path="/prototype/capabilities">
+                        <CapabilitiesPage
+                            notify={notify}
+                            onApplied={(workspace) => setSnapshot(workspace)}
+                        />
+                    </Route>
                     <Route path="/prototype/settings">
                         <SettingsPage
                             snapshot={snapshot}
                             ops={ops}
                             setOps={setOps}
                             auth={auth}
+                            notify={notify}
                             onManageDatabricks={() => setAuthOpen(true)}
                         />
                     </Route>
@@ -1338,12 +1350,14 @@ function SettingsPage({
     ops,
     setOps,
     auth,
+    notify,
     onManageDatabricks,
 }: {
     snapshot: WorkspaceSnapshot | null;
     ops: boolean;
     setOps: (value: boolean) => void;
     auth: ReturnType<typeof useDatabricksAuth>;
+    notify: (message: string) => void;
     onManageDatabricks: () => void;
 }) {
     return (
@@ -1388,6 +1402,8 @@ function SettingsPage({
 
                     <DatabricksAuthCard auth={auth} onManage={onManageDatabricks} />
 
+                    <PluginsCard plugins={snapshot?.plugins} notify={notify} />
+
                     <section className="panel settings-card">
                         <h3>Workspace</h3>
                         <p>AGENTS.md, SOUL.md, IDENTITY.md, and USER.md load every turn. Skills stay listed until DataClaw reads the SKILL.md.</p>
@@ -1424,6 +1440,114 @@ function SettingsPage({
                 </div>
             </div>
         </div>
+    );
+}
+
+function PluginsCard({
+    plugins,
+    notify,
+}: {
+    plugins?: PluginsSummary;
+    notify: (message: string) => void;
+}) {
+    const [checking, setChecking] = useState(false);
+    const [checks, setChecks] = useState<PluginCheck[] | undefined>();
+    const installed = plugins?.plugins ?? [];
+
+    const runCheck = async () => {
+        setChecking(true);
+        try {
+            const response = await fetch("/api/plugins/check", { method: "POST" });
+            const body = await response.json() as { ok?: boolean; checks?: PluginCheck[]; error?: string };
+            if (!response.ok || body.ok === false) throw new Error(body.error ?? "The plugin check failed.");
+            const results = body.checks ?? [];
+            setChecks(results);
+            const failed = results.filter((check) => !check.ok);
+            notify(failed.length
+                ? `${failed.length} plugin${failed.length === 1 ? "" : "s"} failed: ${failed.map((check) => check.name).join(", ")}`
+                : `${results.length} plugin${results.length === 1 ? "" : "s"} answered`);
+        } catch (err) {
+            notify(err instanceof Error ? err.message : String(err));
+        } finally {
+            setChecking(false);
+        }
+    };
+
+    return (
+        <section className="panel settings-card">
+            <h3>Data plugins</h3>
+            <p>
+                External programs that answer named capabilities over MCP and hand their tools to
+                DataClaw as <span className="mono">&lt;plugin&gt;__&lt;tool&gt;</span>, loaded through tool_search.
+            </p>
+
+            {installed.length === 0 ? (
+                <div className="empty-state" style={{ padding: "22px 10px" }}>
+                    <Puzzle size={22} />
+                    <b>No plugins installed</b>
+                    <span>Drop a manifest in {plugins?.searchPaths.join(", ") ?? "plugins/<name>/plugin.json"}.</span>
+                </div>
+            ) : (
+                installed.map((plugin) => {
+                    const check = checks?.find((result) => result.name === plugin.name);
+                    return (
+                        <div className="form-row" key={plugin.name} style={{ alignItems: "flex-start" }}>
+                            <div style={{ minWidth: 0 }}>
+                                <label>{plugin.name} {plugin.version}</label>
+                                <small>{plugin.description}</small>
+                                <div className="data-chips" style={{ marginTop: 8 }}>
+                                    <span className="chip" title={`${plugin.transport} transport · priority ${plugin.priority}`}>
+                                        {plugin.domain} · {plugin.transport}
+                                    </span>
+                                    {plugin.capabilities.map((capability) => (
+                                        <span
+                                            className="chip"
+                                            key={capability.id}
+                                            title={capability.winner
+                                                ? "this plugin serves it"
+                                                : `shadowed by ${capability.shadowedBy ?? "another plugin"}`}
+                                            style={capability.winner ? undefined : { opacity: 0.55, textDecoration: "line-through" }}
+                                        >
+                                            {capability.id}
+                                        </span>
+                                    ))}
+                                    {plugin.tools.map((tool) => (
+                                        <span className="chip" key={tool.name} title={`agent tool ${tool.name} · MCP tool ${tool.tool}`}>
+                                            {tool.tool}
+                                        </span>
+                                    ))}
+                                </div>
+                                <small style={{ marginTop: 6 }}>
+                                    {plugin.status === "ready"
+                                        ? `${plugin.tools.length} agent tool${plugin.tools.length === 1 ? "" : "s"}${
+                                            plugins?.deferred ? " · deferred behind tool_search" : ""
+                                        }`
+                                        : plugin.error ?? "manifest only"}
+                                    {check && (
+                                        <> · {check.ok ? `answered: ${check.tools?.join(", ") || "no tools"}` : `failed: ${check.error}`}</>
+                                    )}
+                                </small>
+                            </div>
+                        </div>
+                    );
+                })
+            )}
+
+            {(plugins?.errors.length ?? 0) > 0 && (
+                <div style={{ marginTop: 10 }}>
+                    {plugins?.errors.map((error) => (
+                        <small key={error} style={{ display: "block", color: "#b15449" }}>{error}</small>
+                    ))}
+                </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 14 }}>
+                <small>Check starts each MCP plugin once, like <span className="mono">plugins:list --check</span>.</small>
+                <button className="button-secondary" onClick={() => void runCheck()} disabled={checking || installed.length === 0}>
+                    <PlugZap size={13} /> {checking ? "Checking…" : "Check"}
+                </button>
+            </div>
+        </section>
     );
 }
 

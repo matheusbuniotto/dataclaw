@@ -42,7 +42,7 @@ export const recordReflectionTool = defineTool({
         }, context);
 
         return {
-            content: [{
+            output: [{
                 type: "text",
                 text: `Reflection recorded in telemetry [${recordId}]. Proposed ${args.proposedRules?.length ?? 0} rules for future playbook distillation.`,
             }],
@@ -95,7 +95,7 @@ export const recordHumanFeedbackTool = defineTool({
         api.output(`Received human feedback (Rating: ${args.rating}/5): "${args.feedback}"\n`);
 
         return {
-            content: [{
+            output: [{
                 type: "text",
                 text: `Recorded feedback (Rating: ${args.rating}/5, Global Avg: ${avgRating.toFixed(2)}). Feedback will be ingested during the next auto-improvement cycle.`,
             }],
@@ -154,7 +154,7 @@ export const promotePlaybookRuleTool = defineTool({
         api.output(`Playbook upgraded to v${newVersion}! New rule [${ruleId}] in domain "${args.domain}" active.\n`);
 
         return {
-            content: [{
+            output: [{
                 type: "text",
                 text: `Playbook upgraded to Version ${newVersion}. Rule [${ruleId}] is now active and injected into future prompt turns!`,
             }],
@@ -177,7 +177,7 @@ export const triggerAutoImprovementTool = defineTool({
 
         const taskId = await api.createTask(
             AutoImprovementTask,
-            { focusDomain: args.focusDomain },
+            args.focusDomain ? { focusDomain: args.focusDomain } : {},
             { ownership: { kind: "task", taskId: api.taskId } },
             context,
         );
@@ -190,7 +190,7 @@ export const triggerAutoImprovementTool = defineTool({
             : `Auto-improvement task failed: ${(state.outcome as any).error?.message}`;
 
         return {
-            content: [{ type: "text", text: resultText }],
+            output: [{ type: "text", text: resultText }],
         };
     },
 });

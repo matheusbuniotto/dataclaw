@@ -24,6 +24,8 @@ export interface AgentSkill {
 export interface WorkspaceBinding {
     workspaceDir: string;
     projectRoot: string;
+    /** Skills switched off in `dataclaw.capabilities.json`; they stay on disk but leave the prompt. */
+    disabledSkills?: readonly string[];
 }
 
 let binding: WorkspaceBinding | undefined;
@@ -32,6 +34,7 @@ export function bindAgentWorkspace(next: WorkspaceBinding): void {
     binding = {
         workspaceDir: resolve(next.workspaceDir),
         projectRoot: resolve(next.projectRoot),
+        ...(next.disabledSkills?.length ? { disabledSkills: [...new Set(next.disabledSkills)] } : {}),
     };
 }
 
@@ -86,12 +89,13 @@ export async function loadSkills(workspace: WorkspaceBinding): Promise<AgentSkil
         { source: "personal", root: join(homedir(), ".agents", "skills") },
     ];
 
+    const off = new Set(workspace.disabledSkills ?? []);
     const byName = new Map<string, AgentSkill>();
     for (const entry of roots) {
         const files = await findSkillFiles(entry.root, 0);
         for (const location of files) {
             const skill = await readSkill(location, entry.source);
-            if (!skill || byName.has(skill.name)) continue;
+            if (!skill || byName.has(skill.name) || off.has(skill.name)) continue;
             byName.set(skill.name, skill);
         }
     }
@@ -135,7 +139,7 @@ export async function workspacePrompt(workspace: WorkspaceBinding = currentWorks
     skillsPrompt?: string;
     skills: AgentSkill[];
 }> {
-    const key = `${workspace.workspaceDir}\0${workspace.projectRoot}`;
+    const key = `${workspace.workspaceDir}\0${workspace.projectRoot}\0${(workspace.disabledSkills ?? []).join(",")}`;
     if (promptInflight && promptKey === key) return promptInflight;
     promptKey = key;
     const pending = assembleWorkspacePrompt(workspace);

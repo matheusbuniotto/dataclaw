@@ -1,5 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createRegistry, Harness } from "@earendil-works/pi-durable";
+import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
@@ -17,6 +18,8 @@ import { PlaybookDoc } from "./docs/playbook";
 import { TelemetryDoc } from "./docs/telemetry";
 import { AgentBindingDoc, AgentRosterDoc } from "./docs/agents";
 import { bindAgentWorkspace, ensureWorkspace, resolveWorkspaceDir } from "./workspace/context";
+import { createPluginAgentTools } from "./plugins/agent-tools";
+import { disabledPluginNames, readDisabled } from "./capabilities/catalog";
 
 export interface CreateAnalystHarnessOptions {
     storagePath?: string;
@@ -28,6 +31,12 @@ export interface CreateAnalystHarnessOptions {
     fauxHandle?: FauxProviderHandle;
     model?: { provider: string; modelId: string };
     resume?: boolean;
+    /**
+     * Give the agent the tools of installed data plugins (docs/plugins.md). Default true;
+     * `false` skips discovery entirely, so no plugin process starts. A plugin that fails to
+     * start is reported and left out; it never keeps the harness from opening.
+     */
+    pluginTools?: boolean;
     /**
      * Connect a Databricks workspace through the managed SQL MCP server before
      * the first turn. `{}` uses env vars / the Databricks CLI profile.
@@ -45,7 +54,12 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         projectRoot,
     });
     await ensureWorkspace(workspaceDir);
-    bindAgentWorkspace({ workspaceDir, projectRoot });
+
+    // What the console switched off: `dataclaw.capabilities.json` at the project root.
+    const disabled = readDisabled(projectRoot).disabled;
+    const disabledPlugins = disabledPluginNames(disabled);
+    const disabledSkills = disabled.filter((id) => id.startsWith("skill:")).map((id) => id.slice("skill:".length));
+    bindAgentWorkspace({ workspaceDir, projectRoot, disabledSkills });
 
     // 1. Configure Model Providers. Pi project settings override ~/.pi/agent.
     const pi = { projectRoot };
@@ -55,8 +69,21 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
 
     // 2. Configure Tool & Extension Registry
     const registry = createRegistry();
-    registry.install(CodingTools);      // Built-in read, write, edit, bash
+    // Core analyst tools always load: the console, the docs, and the audit flow depend on them.
     registry.install(AnalystExtension); // Domain profiling, SQL, hypotheses, audit, auto-improve
+    if (!disabled.includes("tool:coding")) registry.install(CodingTools); // read, write, edit, bash
+
+    // Installed data plugins become agent tools: one per MCP tool, named <plugin>__<tool>.
+    // Deferred by default, so the model loads them through tool_search when a task needs them.
+    const pluginTools = options.pluginTools === false
+        ? undefined
+        : await createPluginAgentTools({
+            root: projectRoot,
+            disabled: disabledPlugins,
+            onError: (message) => console.error(`data plugins: ${message}`),
+        });
+    for (const extension of pluginTools?.extensions ?? []) registry.install(extension);
+    if (pluginTools?.toolNames.length && pluginTools.deferred) registry.install(createToolSearchExtension());
 
     // 3. Execution Environment
     const env = ({ cwd }: { cwd?: string }) =>
@@ -163,6 +190,7 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         workspaceDir,
         projectRoot,
         databricksError,
+        pluginTools,
 
         // Reactive document observation helpers
         async getPlan() {
@@ -187,6 +215,7 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         },
 
         async close() {
+            await pluginTools?.close();
             await harness.close(context);
         },
     };

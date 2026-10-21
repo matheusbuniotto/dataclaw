@@ -167,11 +167,11 @@ export const connectDatabricksTool = defineTool({
             ].join("\n");
 
             api.output(`Databricks MCP connection established.\n`);
-            return { content: [{ type: "text", text: summary }] };
+            return { output: [{ type: "text", text: summary }] };
         } catch (err: any) {
             if (context.abortSignal?.aborted || isStoppedError(err)) throw err;
             return {
-                content: [{
+                output: [{
                     type: "text",
                     text: `Failed to connect to Databricks via MCP: ${err?.message ?? String(err)}`,
                 }],
@@ -210,10 +210,10 @@ export const queryDatabricksTool = defineTool({
                 result.rowCount > result.rows.length ? `...showing ${result.rows.length} of ${result.rowCount} rows.` : "",
             ].filter(Boolean).join("\n");
 
-            return { content: [{ type: "text", text }] };
+            return { output: [{ type: "text", text }] };
         } catch (err: any) {
             if (context.abortSignal?.aborted || isStoppedError(err)) throw err;
-            return { content: [{ type: "text", text: `Databricks Query Error: ${err?.message ?? String(err)}` }] };
+            return { output: [{ type: "text", text: `Databricks Query Error: ${err?.message ?? String(err)}` }], isError: true };
         }
     },
 });
@@ -245,7 +245,7 @@ export const listDatabricksAssetsTool = defineTool({
             if (args.action === "catalogs") {
                 const catalogs = await adapter.listCatalogs();
                 return {
-                    content: [{
+                    output: [{
                         type: "text",
                         text: catalogs.length
                             ? `Catalogs:\n${catalogs.map((catalog) => `- ${catalog}`).join("\n")}`
@@ -258,7 +258,7 @@ export const listDatabricksAssetsTool = defineTool({
                 if (!args.catalog) throw new Error("catalog is required for action=schemas.");
                 const schemas = await adapter.listSchemas(args.catalog);
                 return {
-                    content: [{
+                    output: [{
                         type: "text",
                         text: schemas.length
                             ? `Schemas in ${args.catalog}:\n${schemas.map((schema) => `- ${schema}`).join("\n")}`
@@ -271,7 +271,7 @@ export const listDatabricksAssetsTool = defineTool({
                 if (!args.catalog || !args.schema) throw new Error("catalog and schema are required for action=tables.");
                 const tables = await adapter.listTables(args.catalog, args.schema);
                 return {
-                    content: [{
+                    output: [{
                         type: "text",
                         text: tables.length
                             ? `Tables in ${args.catalog}.${args.schema}:\n` +
@@ -284,7 +284,7 @@ export const listDatabricksAssetsTool = defineTool({
             if (!args.table) throw new Error("table is required for action=describe.");
             const columns = await adapter.describeTable(args.table);
             return {
-                content: [{
+                output: [{
                     type: "text",
                     text: `Columns in ${args.table}:\n` +
                         columns.map((column) => `- ${column.name}: ${column.dataType}`).join("\n"),
@@ -293,7 +293,7 @@ export const listDatabricksAssetsTool = defineTool({
             });
         } catch (err: any) {
             if (context.abortSignal?.aborted || isStoppedError(err)) throw err;
-            return { content: [{ type: "text", text: `Databricks Discovery Error: ${err?.message ?? String(err)}` }] };
+            return { output: [{ type: "text", text: `Databricks Discovery Error: ${err?.message ?? String(err)}` }], isError: true };
         }
     },
 });
@@ -339,10 +339,10 @@ export const profileDatabricksTableTool = defineTool({
             }, context);
 
             api.output(`Profiled ${profile.rowCount} rows across ${profile.columnCount} columns.\n`);
-            return { content: [{ type: "text", text: profileText }] };
+            return { output: [{ type: "text", text: profileText }] };
         } catch (err: any) {
             if (context.abortSignal?.aborted || isStoppedError(err)) throw err;
-            return { content: [{ type: "text", text: `Databricks Profiling Error: ${err?.message ?? String(err)}` }] };
+            return { output: [{ type: "text", text: `Databricks Profiling Error: ${err?.message ?? String(err)}` }], isError: true };
         }
     },
 });

@@ -11,6 +11,16 @@ import {
     startBrowserOAuth,
 } from "./databricks-api";
 import { abortMainAgent, askMainAgent, consoleWorkspace } from "./workspace";
+import { checkPlugins, pluginsSummary } from "./plugins-api";
+import {
+    applyCapabilities,
+    capabilitiesCatalog,
+    installPlugin,
+    installSkill,
+    toggleCapability,
+    uninstallPlugin,
+    uninstallSkill,
+} from "./capabilities-api";
 
 const port = Number(process.env.PORT) || 3000;
 // Local-only by default: the auth endpoints can mint Databricks sessions.
@@ -76,6 +86,88 @@ const server = Bun.serve({
         },
         "/api/databricks/status": {
             GET: () => json(getDatabricksUiStatus()),
+        },
+        "/api/plugins": {
+            GET: () => json(pluginsSummary()),
+        },
+        "/api/capabilities": {
+            GET: async () => {
+                try {
+                    return json(await capabilitiesCatalog());
+                } catch (err) {
+                    return jsonError(err, 500);
+                }
+            },
+        },
+        "/api/capabilities/toggle": {
+            POST: async (req) => {
+                try {
+                    return json({ ok: true, capabilities: await toggleCapability(await readBody(req)) });
+                } catch (err) {
+                    return jsonError(err, 400);
+                }
+            },
+        },
+        "/api/capabilities/plugin": {
+            POST: async (req) => {
+                const body = await readBody(req);
+                try {
+                    const result = await installPlugin(body.manifest ?? body);
+                    return json({ ok: true, name: result.name, path: result.path, capabilities: result.catalog });
+                } catch (err) {
+                    return jsonError(err, 400);
+                }
+            },
+        },
+        "/api/capabilities/plugin/remove": {
+            POST: async (req) => {
+                const body = await readBody(req);
+                try {
+                    return json({ ok: true, capabilities: await uninstallPlugin(typeof body.name === "string" ? body.name : "") });
+                } catch (err) {
+                    return jsonError(err, 400);
+                }
+            },
+        },
+        "/api/capabilities/skill": {
+            POST: async (req) => {
+                try {
+                    const result = await installSkill(await readBody(req));
+                    return json({ ok: true, name: result.name, path: result.path, capabilities: result.catalog });
+                } catch (err) {
+                    return jsonError(err, 400);
+                }
+            },
+        },
+        "/api/capabilities/skill/remove": {
+            POST: async (req) => {
+                const body = await readBody(req);
+                try {
+                    return json({ ok: true, capabilities: await uninstallSkill(typeof body.name === "string" ? body.name : "") });
+                } catch (err) {
+                    return jsonError(err, 400);
+                }
+            },
+        },
+        "/api/capabilities/apply": {
+            POST: async () => {
+                try {
+                    return json({ ok: true, ...await applyCapabilities() });
+                } catch (err) {
+                    return jsonError(err, 409);
+                }
+            },
+        },
+        // The console's twin of `bun run plugins:list --check`. It starts each MCP plugin, so
+        // it runs only when asked, never on page load.
+        "/api/plugins/check": {
+            POST: async () => {
+                try {
+                    return json({ ok: true, checks: await checkPlugins() });
+                } catch (err) {
+                    return json({ ok: false, error: errorMessage(err) }, 400);
+                }
+            },
         },
         "/api/databricks/connect": {
             POST: async (req) => {
@@ -151,6 +243,7 @@ const server = Bun.serve({
         "/prototype/agents": indexHtml,
         "/prototype/runs": indexHtml,
         "/prototype/data": indexHtml,
+        "/prototype/capabilities": indexHtml,
         "/prototype/settings": indexHtml,
         "/": indexHtml,
     },
@@ -172,6 +265,7 @@ console.log(`  - Overview:     http://localhost:${server.port}/prototype`);
 console.log(`  - Agents:       http://localhost:${server.port}/prototype/agents`);
 console.log(`  - Durable runs: http://localhost:${server.port}/prototype/runs`);
 console.log(`  - Data health:  http://localhost:${server.port}/prototype/data`);
+console.log(`  - Capabilities: http://localhost:${server.port}/prototype/capabilities`);
 console.log(`  - Settings:     http://localhost:${server.port}/prototype/settings`);
 console.log(`  - Databricks:   http://localhost:${server.port}/api/databricks/status`);
 console.log(`  - Main agent:   http://localhost:${server.port}/api/workspace`);

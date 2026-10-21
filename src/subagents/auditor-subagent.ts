@@ -5,6 +5,17 @@ import { FindingsDoc } from "../docs/findings";
 import { runAnalyticalQueryTool } from "../tools/analyst-tools";
 import { listDatabricksAssetsTool, queryDatabricksTool } from "../tools/databricks-tools";
 
+export type AuditVerdict = "confirmed" | "caution" | "rejected";
+
+/**
+ * Read the verdict from the auditor's "VERDICT: X" line.
+ * A reply without one is "caution": an unreadable audit must not confirm a finding.
+ */
+export function parseAuditVerdict(report: string): AuditVerdict {
+    const match = /VERDICT\W*(CONFIRMED|CAUTION|REJECTED)\b/i.exec(report);
+    return (match?.[1]?.toLowerCase() as AuditVerdict | undefined) ?? "caution";
+}
+
 export const requestAuditorReviewTool = defineTool({
     name: "request_auditor_review",
     description: "Spawns a dedicated Critic & Statistical Auditor Subagent to challenge a proposed finding, check for biases, and confirm validity.",
@@ -26,7 +37,7 @@ export const requestAuditorReviewTool = defineTool({
                 : undefined;
         }, context);
         if (!finding) {
-            return { content: [{ type: "text", text: `Error: Finding with ID "${args.findingId}" not found.` }] };
+            return { output: [{ type: "text", text: `Error: Finding with ID "${args.findingId}" not found.` }], isError: true };
         }
 
         api.output(`Spawning Auditor Subagent for finding [${args.findingId}]: "${finding.title}"...\n`);
@@ -93,15 +104,9 @@ export const requestAuditorReviewTool = defineTool({
         const message = entry?.model?.[0] as AssistantMessage | undefined;
         const auditReportText = message?.content
             ?.flatMap((c) => (c.type === "text" ? [c.text] : []))
-            .join("") ?? "Audit complete: no issues detected.";
+            .join("") ?? "";
 
-        // Determine verdict from response
-        let verdict: "confirmed" | "caution" | "rejected" = "confirmed";
-        if (/REJECTED/i.test(auditReportText)) {
-            verdict = "rejected";
-        } else if (/CAUTION/i.test(auditReportText)) {
-            verdict = "caution";
-        }
+        const verdict = parseAuditVerdict(auditReportText);
 
         // 6. Update FindingsDoc atomically
         await api.commit(async (tx) => {
@@ -118,7 +123,7 @@ export const requestAuditorReviewTool = defineTool({
         api.output(`Auditor completed review: Verdict is ${verdict.toUpperCase()}.\n`);
 
         return {
-            content: [
+            output: [
                 {
                     type: "text",
                     text: `### Auditor Review Report for [${args.findingId}]\n**Verdict**: ${verdict.toUpperCase()}\n\n${auditReportText}`,
