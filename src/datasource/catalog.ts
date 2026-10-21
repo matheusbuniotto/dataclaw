@@ -12,6 +12,7 @@ import type { LoadedPlugin } from "../plugins/types";
 import { dialectFor } from "./dialects";
 import { translateProviderError } from "./providers/errors";
 import { openDatabricksProvider, type DatabricksProviderOptions } from "./providers/databricks";
+import { openLocalProvider } from "./providers/local";
 import { manifestProvider, verifyProviderTools } from "./providers/manifest";
 import { SourceError, type ConnectIntent, type DataProvider } from "./types";
 import type { ProviderCatalog, ProviderDescriptor } from "./session";
@@ -24,6 +25,13 @@ export interface DataSourceCatalogOptions {
     plugins?: readonly LoadedPlugin[];
     databricks?: DatabricksProviderOptions;
 }
+
+export const LOCAL_PROVIDER: ProviderDescriptor = {
+    id: "local",
+    kind: "local",
+    dialect: "ansi",
+    label: "Local files (CSV/JSON)",
+};
 
 export const DATABRICKS_PROVIDER: ProviderDescriptor = {
     id: "databricks",
@@ -76,10 +84,13 @@ export class DataSourceCatalog implements ProviderCatalog {
                     ...(spec.auth ? { auth: spec.auth.map((entry) => entry.kind) } : {}),
                 };
             });
-        return [DATABRICKS_PROVIDER, ...manifestProviders];
+        return [LOCAL_PROVIDER, DATABRICKS_PROVIDER, ...manifestProviders];
     }
 
     async open(intent: ConnectIntent): Promise<DataProvider> {
+        if (intent.provider === LOCAL_PROVIDER.id) {
+            return openLocalProvider();
+        }
         if (intent.provider === DATABRICKS_PROVIDER.id) {
             return openDatabricksProvider(intent, this.options.databricks);
         }

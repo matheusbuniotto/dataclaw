@@ -5,11 +5,15 @@
 import type { DialectName } from "../../plugins/types";
 import { SourceError, type Dialect } from "../types";
 import { ansiDialect } from "./ansi";
+import { bigqueryDialect } from "./bigquery";
 import { databricksDialect } from "./databricks";
+import { snowflakeDialect } from "./snowflake";
 
 const INSTALLED: Partial<Record<DialectName, Dialect>> = {
     ansi: ansiDialect,
     databricks: databricksDialect,
+    snowflake: snowflakeDialect,
+    bigquery: bigqueryDialect,
 };
 
 export function dialectFor(name: DialectName): Dialect {
@@ -26,4 +30,4 @@ export function installedDialects(): DialectName[] {
     return Object.keys(INSTALLED) as DialectName[];
 }
 
-export { ansiDialect, databricksDialect };
+export { ansiDialect, bigqueryDialect, databricksDialect, snowflakeDialect };

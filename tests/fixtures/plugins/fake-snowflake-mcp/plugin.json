@@ -1,0 +1,15 @@
+{
+    "name": "fake-snowflake",
+    "version": "0.1.0",
+    "description": "Test-only Snowflake-shaped data MCP: two columns, one nullable",
+    "domain": "data",
+    "capabilities": [],
+    "transport": { "type": "mcp", "command": "bun", "args": ["server.ts"] },
+    "dataSource": {
+        "dialect": "snowflake",
+        "tools": { "query": "run_sql", "describe": "describe_table", "inventory": "list_objects" },
+        "readOnly": { "mode": "tool", "argument": "read_only", "value": true },
+        "arguments": { "query": "statement" },
+        "auth": [{ "kind": "env", "vars": ["SNOWFLAKE_ACCOUNT"] }]
+    }
+}

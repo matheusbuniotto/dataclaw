@@ -157,7 +157,7 @@ describe("Databricks through the catalog and the session", () => {
 
     test("the catalog lists Databricks and opens it", async () => {
         const { catalog } = session();
-        expect(catalog.list().map((provider) => provider.id)).toEqual(["databricks"]);
+        expect(catalog.list().map((provider) => provider.id)).toEqual(["local", "databricks"]);
         const provider = await catalog.open({ provider: "databricks" });
         expect(provider.dialect.id).toBe("databricks");
         expect(provider.kind).toBe("remote");

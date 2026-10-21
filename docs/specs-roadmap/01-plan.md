@@ -69,7 +69,7 @@ Two constraints shape the order:
   one are equal. `bun run cli plan` on a copy of the repo's SQLite prints the migrated source.
   The document types became type aliases so they satisfy `JsonObject`; that removed the last
   `defineDoc` type error for the plan.
-- [ ] 9. Tools: the factory and the seven
+- [ ] 9. Tools: the factory and the seven  ← next
 
 ## Stage 0 · Groundwork (no behaviour change)
 
@@ -168,6 +168,10 @@ green, `bun run evals` deterministic, `bun run demo` and `bun run demo:resilienc
 Pure modules with the same surface and golden-SQL tests: quoting and case folding, discovery,
 describe, profile aggregate, `PERCENTILE_CONT` / `APPROX_QUANTILES`, `CORR`, read-only check.
 *Gate:* no provider code imports either; they are reached only through a manifest's dialect name.
+*Done:* `snowflake.ts` (SHOW, `DESCRIBE TABLE`, `PERCENTILE_CONT`, `NUMBER` scale classification) and
+`bigquery.ts` (`INFORMATION_SCHEMA`, `APPROX_QUANTILES`, `FLOAT64`). `providers/local.ts` landed with
+them: CSV/JSON as a provider with `intake`, native discovery and profile, listed by the catalog next
+to Databricks.
 
 **12. The fixture that proves the claim.**
 `tests/fixtures/plugins/fake-snowflake-mcp/` (an MCP server over stdio, modelled on
@@ -175,6 +179,10 @@ describe, profile aggregate, `PERCENTILE_CONT` / `APPROX_QUANTILES`, `CORR`, rea
 manifest, profiles a table, runs a query and passes the conformance suite.
 *Gate:* **zero changes under `src/datasource/`** accompany this step. If a change is needed, the
 provider seam is wrong and stage 1 is not done.
+*Done:* `tests/fixtures/plugins/fake-snowflake-mcp/` (manifest + stdio server) and
+`tests/datasource-snowflake-fixture.test.ts`: connect, discover, describe, profile with
+`derivation: "dialect:snowflake"`, query, and a refused mutation. No file under `src/datasource/`
+was touched for it.
 
 **13. Console.**
 `GET /api/datasources` (status for the active conversation plus installed providers), and a status

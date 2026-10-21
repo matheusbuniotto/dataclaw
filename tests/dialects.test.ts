@@ -3,7 +3,14 @@
  * profile back by the aliases they emit, and a change here changes what every provider sends.
  */
 import { describe, expect, test } from "bun:test";
-import { ansiDialect, databricksDialect, dialectFor, installedDialects } from "../src/datasource/dialects";
+import {
+    ansiDialect,
+    bigqueryDialect,
+    databricksDialect,
+    dialectFor,
+    installedDialects,
+    snowflakeDialect,
+} from "../src/datasource/dialects";
 import { quotePart, quoteQualifiedName, splitQuotedName } from "../src/datasource/identifiers";
 import { SourceError, type DescribedColumn } from "../src/datasource/types";
 
@@ -126,20 +133,90 @@ describe("ansi dialect", () => {
     });
 });
 
-describe("dialect registry", () => {
-    test("installs ansi and databricks", () => {
-        expect(installedDialects().sort()).toEqual(["ansi", "databricks"]);
-        expect(dialectFor("databricks")).toBe(databricksDialect);
-        expect(dialectFor("ansi")).toBe(ansiDialect);
+describe("snowflake dialect", () => {
+    test("discovers with SHOW and double quotes", () => {
+        expect(snowflakeDialect.listChildrenSql()).toBe("SHOW DATABASES");
+        expect(snowflakeDialect.listChildrenSql({ namespace: ["ANALYTICS"] }))
+            .toBe('SHOW SCHEMAS IN DATABASE "ANALYTICS"');
+        expect(snowflakeDialect.listChildrenSql({ namespace: ["ANALYTICS", "PUBLIC"] }))
+            .toBe('SHOW TABLES IN SCHEMA "ANALYTICS"."PUBLIC"');
+        expect(snowflakeDialect.describeSql("ANALYTICS.PUBLIC.ORDERS"))
+            .toBe('DESCRIBE TABLE "ANALYTICS"."PUBLIC"."ORDERS"');
     });
 
-    test("fails closed for a dialect that has no module yet", () => {
-        expect(() => dialectFor("snowflake")).toThrow(SourceError);
+    test("computes an exact median and a correlation", () => {
+        expect(snowflakeDialect.percentile('"AMOUNT"', 0.5))
+            .toBe('PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CAST("AMOUNT" AS DOUBLE))');
+        expect(snowflakeDialect.correlation('"A"', '"B"'))
+            .toBe('CORR(CAST("A" AS DOUBLE), CAST("B" AS DOUBLE))');
+    });
+
+    test("classifies Snowflake numbers by scale", () => {
+        expect(snowflakeDialect.classify("NUMBER(38,0)")).toEqual({ kind: "INTEGER", numeric: true, temporal: false });
+        expect(snowflakeDialect.classify("NUMBER(10,2)")).toEqual({ kind: "REAL", numeric: true, temporal: false });
+        expect(snowflakeDialect.classify("NUMBER")).toEqual({ kind: "INTEGER", numeric: true, temporal: false });
+        expect(snowflakeDialect.classify("TIMESTAMP_NTZ")).toEqual({ kind: "TEXT", numeric: false, temporal: true });
+    });
+
+    test("builds the shared profile aggregate", () => {
+        const amount = { name: "AMOUNT", dataType: "NUMBER(10,2)", ...snowflakeDialect.classify("NUMBER(10,2)") };
+        const sql = snowflakeDialect.profileSql([amount], "ANALYTICS.PUBLIC.ORDERS");
+        expect(sql).toContain('COUNT(*) AS "__row_count"');
+        expect(sql).toContain('PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CAST("AMOUNT" AS DOUBLE)) AS "c0__median"');
+        expect(sql).toContain('FROM "ANALYTICS"."PUBLIC"."ORDERS"');
+    });
+});
+
+describe("bigquery dialect", () => {
+    test("discovers through INFORMATION_SCHEMA with backticks", () => {
+        expect(bigqueryDialect.listChildrenSql())
+            .toBe("SELECT DISTINCT table_catalog AS name FROM `region-us`.INFORMATION_SCHEMA.TABLES ORDER BY name");
+        expect(bigqueryDialect.listChildrenSql({ namespace: ["acme"] }))
+            .toBe("SELECT schema_name AS name FROM `acme`.INFORMATION_SCHEMA.SCHEMATA ORDER BY name");
+        expect(bigqueryDialect.listChildrenSql({ namespace: ["acme", "analytics"] }))
+            .toBe("SELECT table_name AS name, table_type FROM `acme`.INFORMATION_SCHEMA.TABLES WHERE table_schema = 'analytics' ORDER BY name");
+    });
+
+    test("describes a three-part name", () => {
+        expect(bigqueryDialect.describeSql("acme.analytics.orders")).toBe(
+            "SELECT column_name, data_type FROM `acme`.INFORMATION_SCHEMA.COLUMNS " +
+            "WHERE table_name = 'orders' AND table_schema = 'analytics' ORDER BY ordinal_position",
+        );
+        expect(bigqueryDialect.qualify("acme.analytics.orders")).toBe("`acme`.`analytics`.`orders`");
+    });
+
+    test("uses APPROX_QUANTILES and FLOAT64", () => {
+        expect(bigqueryDialect.percentile("`amount`", 0.5))
+            .toBe("APPROX_QUANTILES(CAST(`amount` AS FLOAT64), 100)[OFFSET(50)]");
+        expect(bigqueryDialect.correlation("`a`", "`b`"))
+            .toBe("CORR(CAST(`a` AS FLOAT64), CAST(`b` AS FLOAT64))");
+    });
+
+    test("classifies BigQuery types", () => {
+        expect(bigqueryDialect.classify("INT64")).toEqual({ kind: "INTEGER", numeric: true, temporal: false });
+        expect(bigqueryDialect.classify("BIGNUMERIC")).toEqual({ kind: "REAL", numeric: true, temporal: false });
+        expect(bigqueryDialect.classify("TIMESTAMP")).toEqual({ kind: "TEXT", numeric: false, temporal: true });
+    });
+});
+
+describe("dialect registry", () => {
+    test("installs all four dialects", () => {
+        expect(installedDialects().sort()).toEqual(["ansi", "bigquery", "databricks", "snowflake"]);
+        expect(dialectFor("databricks")).toBe(databricksDialect);
+        expect(dialectFor("ansi")).toBe(ansiDialect);
+        expect(dialectFor("snowflake")).toBe(snowflakeDialect);
+        expect(dialectFor("bigquery")).toBe(bigqueryDialect);
+    });
+
+    test("fails closed for a dialect that has no module", () => {
+        // Every declared name has one today; a future name must still fail closed.
+        const missing = "postgres" as Parameters<typeof dialectFor>[0];
+        expect(() => dialectFor(missing)).toThrow(SourceError);
         try {
-            dialectFor("snowflake");
+            dialectFor(missing);
         } catch (err) {
             expect((err as SourceError).code).toBe("dialect-missing");
-            expect((err as SourceError).hint).toContain("snowflake.ts");
+            expect((err as SourceError).hint).toContain("postgres.ts");
         }
     });
 });
