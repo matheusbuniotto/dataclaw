@@ -58,3 +58,5 @@ workspace/memory/*
 /dataclaw.plugins.json
 # What the Capabilities page switched off (src/capabilities/catalog.ts).
 /dataclaw.capabilities.json
+# Pre-registration plans a plugin wrote into the workspace (TEATOOLS_PLAN_DIR).
+/workspace/plans/
