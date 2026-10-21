@@ -1,0 +1,8 @@
+{
+    "name": "fake-stats-mcp",
+    "version": "0.0.1",
+    "description": "Test-only MCP stats server: returns means and their difference, no inference.",
+    "domain": "stats",
+    "capabilities": ["stats.compare_eval_runs@1", "stats.agreement_kappa@1"],
+    "transport": { "type": "mcp", "command": "bun", "args": ["server.ts"] }
+}

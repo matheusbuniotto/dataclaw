@@ -52,3 +52,7 @@ workspace/memory/*
 *.sqlite-wal
 *.sqlite-shm
 *.db
+
+# Locally installed data plugins (docs/plugins.md); manifests can hold machine-specific paths.
+/plugins/
+/dataclaw.plugins.json

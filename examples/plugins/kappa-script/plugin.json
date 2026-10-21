@@ -1,0 +1,8 @@
+{
+    "name": "kappa-script",
+    "version": "0.1.0",
+    "description": "Example script plugin: Cohen's kappa with a percentile bootstrap CI, using DataClaw's own evals/stats.ts.",
+    "domain": "stats",
+    "capabilities": ["stats.agreement_kappa@1"],
+    "transport": { "type": "script", "command": "bun", "args": ["plugin.ts"] }
+}

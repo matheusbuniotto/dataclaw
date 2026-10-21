@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import type { EpisodeResult } from "./run";
 import { cohensKappa, confusion, rng, quantile } from "./stats";
+import { resolveCapability, type ResolveOptions } from "../src/plugins";
+import { agreementKappa, type AgreementKappaOutput } from "../src/plugins/capabilities/stats";
 
 /**
  * Calibrate the auditor (DataClaw's LLM judge of findings) against human labels.
@@ -86,8 +88,15 @@ export interface CalibrationReport {
     unmatched: string[];
 }
 
-/** Human label is rater A (rows), auditor is rater B (columns). */
-export function score(labels: readonly Record<string, string>[], items: readonly AuditedItem[], seed = 3): CalibrationReport {
+export interface LabelPairs {
+    human: string[];
+    auditor: string[];
+    unmatched: string[];
+    exampleLabels: number;
+}
+
+/** Join labeled rows to audited items by item_id. Unlabeled rows are skipped. */
+export function labelPairs(labels: readonly Record<string, string>[], items: readonly AuditedItem[]): LabelPairs {
     const byId = new Map(items.map((item) => [item.itemId, item]));
     const human: string[] = [];
     const auditor: string[] = [];
@@ -103,6 +112,12 @@ export function score(labels: readonly Record<string, string>[], items: readonly
         human.push(label);
         auditor.push(item.auditorVerdict);
     }
+    return { human, auditor, unmatched, exampleLabels };
+}
+
+/** Human label is rater A (rows), auditor is rater B (columns). */
+export function score(labels: readonly Record<string, string>[], items: readonly AuditedItem[], seed = 3): CalibrationReport {
+    const { human, auditor, unmatched, exampleLabels } = labelPairs(labels, items);
     const { matrix } = confusion(human, auditor, VERDICTS);
     const next = rng(seed);
     const draws: number[] = [];
@@ -146,6 +161,38 @@ export function renderCalibration(report: CalibrationReport): string {
     return lines.join("\n") + "\n";
 }
 
+/**
+ * Kappa from whichever installed plugin provides `stats.agreement_kappa@1`, or undefined
+ * when none is installed (the built-in numbers above are then the only ones shown).
+ */
+export async function pluginKappa(pairs: LabelPairs, options: ResolveOptions = {}): Promise<{ plugin: string; version: string; result: AgreementKappaOutput } | undefined> {
+    if (pairs.human.length === 0) return undefined;
+    const capability = resolveCapability(agreementKappa, options);
+    if (!capability) return undefined;
+    try {
+        const result = await capability.call({ rater_a: pairs.human, rater_b: pairs.auditor, labels: [...VERDICTS], alpha: 0.05 });
+        return { plugin: capability.plugin.manifest.name, version: capability.plugin.manifest.version, result };
+    } finally {
+        await capability.close();
+    }
+}
+
+export function renderPluginKappa(p: { plugin: string; version: string; result: AgreementKappaOutput }): string {
+    const f = (x: number | null) => (x === null ? "n/a" : x.toFixed(2));
+    const r = p.result;
+    const lines = [
+        "",
+        `## From plugin \`${p.plugin}\` ${p.version} (stats.agreement_kappa@1)`,
+        "",
+        `Labeled items: ${r.n}`,
+        `Raw agreement: ${(r.agreement * 100).toFixed(1)}%`,
+        `Cohen's kappa: ${f(r.kappa)} [CI ${f(r.ci[0])}, ${f(r.ci[1])}]`,
+        `Method: ${r.method}`,
+    ];
+    if (r.warnings.length) lines.push("", "Warnings:", ...r.warnings.map((w) => `- ${w}`));
+    return lines.join("\n") + "\n";
+}
+
 function readResults(paths: readonly string[]): EpisodeResult[] {
     return paths.flatMap((path) => readFileSync(path, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as EpisodeResult));
 }
@@ -154,12 +201,16 @@ if (import.meta.main) {
     const [command, ...args] = process.argv.slice(2);
     if (command === "export" && args.length > 0) {
         process.stdout.write(toCsv(auditedItems(readResults(args))));
-    } else if (command === "score" && args.length > 1) {
-        const [labelsPath, ...results] = args;
-        const report = score(parseCsv(readFileSync(labelsPath!, "utf-8")), auditedItems(readResults(results)));
-        process.stdout.write(renderCalibration(report));
+    } else if (command === "score" && args.filter((a) => !a.startsWith("--")).length > 1) {
+        const builtin = args.includes("--builtin");
+        const [labelsPath, ...results] = args.filter((a) => !a.startsWith("--"));
+        const labels = parseCsv(readFileSync(labelsPath!, "utf-8"));
+        const items = auditedItems(readResults(results));
+        process.stdout.write(renderCalibration(score(labels, items)));
+        const fromPlugin = builtin ? undefined : await pluginKappa(labelPairs(labels, items));
+        if (fromPlugin) process.stdout.write(renderPluginKappa(fromPlugin));
     } else {
-        console.error("Usage:\n  bun run evals:calibrate export <results.jsonl...> > labels.csv\n  bun run evals:calibrate score <labels.csv> <results.jsonl...>");
+        console.error("Usage:\n  bun run evals:calibrate export <results.jsonl...> > labels.csv\n  bun run evals:calibrate score <labels.csv> <results.jsonl...> [--builtin]\n\nscore also asks an installed stats.agreement_kappa@1 plugin, if any (docs/plugins.md); --builtin skips it.");
         process.exit(1);
     }
 }
