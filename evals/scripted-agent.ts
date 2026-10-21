@@ -1,5 +1,6 @@
 import { fauxAssistantMessage, fauxProvider, fauxToolCall, type FauxProviderHandle } from "@earendil-works/pi-ai/providers/faux";
 import type { AssistantMessage, JsonObject } from "@earendil-works/pi-ai";
+import { textFromContent } from "../src/transcript";
 import { rng } from "./stats";
 import type { EvalTask } from "./tasks";
 
@@ -68,19 +69,12 @@ function plan(task: EvalTask, faults: ScriptedFaults): Step[] {
 
 type Message = { role: string; content?: unknown; isError?: boolean; toolName?: string };
 
-const text = (content: unknown): string =>
-    typeof content === "string"
-        ? content
-        : Array.isArray(content)
-            ? content.map((p: any) => (p?.type === "text" ? p.text : "")).join("")
-            : "";
-
 /** First data cell of the last successful query result's markdown table. */
 function lastQueryAnswer(messages: readonly Message[]): string | undefined {
     for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i]!;
         if (m.role !== "toolResult" || m.toolName !== "query_data" || m.isError) continue;
-        const row = text(m.content).split("\n").find((line, idx, lines) => idx > 0 && lines[idx - 1]!.includes("---"));
+        const row = textFromContent(m.content).split("\n").find((line, idx, lines) => idx > 0 && lines[idx - 1]!.includes("---"));
         return row?.split("|")[1]?.trim();
     }
     return undefined;
@@ -100,7 +94,7 @@ export function scriptedProvider(task: EvalTask, faults: ScriptedFaults, modelId
         const system = JSON.stringify(messages.filter((m) => m.role === "system"));
         if (system.includes("skeptical statistician")) {
             // Auditor stub: reject a finding that cites no query, confirm the rest.
-            const prompt = text(messages.filter((m) => m.role === "user").at(-1)?.content);
+            const prompt = textFromContent(messages.filter((m) => m.role === "user").at(-1)?.content);
             return /Evidence Query: N\/A/.test(prompt)
                 ? fauxAssistantMessage("VERDICT: REJECTED\nAUDIT REASONING: The finding cites no query, so it cannot be reproduced.")
                 : fauxAssistantMessage("VERDICT: CONFIRMED\nAUDIT REASONING: The cited query supports the observation.");

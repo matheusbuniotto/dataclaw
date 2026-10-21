@@ -960,7 +960,11 @@ export function segmentsOf(turn: ChatTurn): TurnSegment[] {
     return segments;
 }
 
-export function groupIntoTurns(items: TranscriptItem[]): ChatTurn[] {
+/**
+ * Group the module's paired projection (`transcriptFrom`) into chat turns. Tool pairing and status
+ * come from `src/transcript`; this only decides segment boundaries and what the view shows.
+ */
+export function groupIntoTurns(items: readonly TranscriptItem[]): ChatTurn[] {
     const turns: ChatTurn[] = [];
     let currentAssistant: ChatTurn | null = null;
 
@@ -1003,13 +1007,14 @@ export function groupIntoTurns(items: TranscriptItem[]): ChatTurn[] {
                 currentAssistant = blankAssistant(item);
                 turns.push(currentAssistant);
             }
+            // The projection decided the status; isError covers items built by hand.
             const tool: ToolInvocation = {
                 id: item.id,
                 callId: item.toolCallId || item.id,
                 toolName: item.toolName || "tool",
                 summary: item.toolSummary || item.text.slice(0, 80),
                 args: item.toolArgs,
-                status: item.isError ? "error" : "completed",
+                status: item.toolStatus ?? (item.isError ? "error" : "completed"),
                 resultText: item.text,
                 isError: item.isError,
                 durationMs: item.durationMs,

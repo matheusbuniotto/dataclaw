@@ -19,6 +19,15 @@ import type { AgentRosterDocument, AgentRun, RosterAgent } from "../docs/agents"
 import { normalizedAgentProfile } from "../docs/agents";
 import { formatCapabilities } from "../docs/agent-capabilities";
 import { formatCompute } from "../compute/agent-compute";
+import {
+    asRecord,
+    isTranscript,
+    parseTranscript,
+    type Transcript,
+    type TranscriptEvent,
+    type TranscriptToolResult,
+    type TranscriptTurn,
+} from "../transcript";
 import { pluginsSummary } from "./plugins-api";
 import type {
     ActivityItem,
@@ -245,7 +254,9 @@ export async function readWorkspace(
             String(submission.conversationId) === targetId
             && submissionKeepsAgentBusy(submission, liveConversations));
 
-    const turns = buildTurns(view.messages);
+    // One parse answers both questions the console asks about the conversation.
+    const parsed = parseTranscript(view.messages);
+    const turns = buildTurns(parsed);
     const turnRuns = turns.map((turn, index) => toRun(turn, working && index === turns.length - 1));
     const taskRuns = targetTasks.flatMap((task) => {
         const run = runFromTask(task.record.kind, task.record.input, task.record.startedAt, task.record.id, task.record.state);
@@ -255,7 +266,7 @@ export async function readWorkspace(
     const roster = rosterEntries(rosterDoc);
     const delegated = (rosterDoc?.runs ?? []).slice(-12).reverse().map((run) => runFromRoster(run));
     const runs = [...delegated, ...taskRuns, ...turnRuns.reverse()];
-    const transcript = transcriptFrom(view.messages).slice(-150);
+    const transcript = transcriptFrom(parsed).slice(-150);
     const activity = activityFrom(transcript, plan?.goal);
 
     const sources = linkRuns([
@@ -485,95 +496,79 @@ interface BuiltTurn {
     lastTool?: string;
 }
 
-export function buildTurns(messages: readonly unknown[]): BuiltTurn[] {
-    const turns: BuiltTurn[] = [];
-    let current: {
-        goal: string;
-        startedAt: number;
-        endedAt: number;
-        dataSources: Set<string>;
-        checkpoints: Checkpoint[];
-        answer: string;
-        error?: string;
-        lastTool?: string;
-    } | undefined;
+/** Turns of a conversation, for the run list. Accepts messages or a transcript parsed once. */
+export function buildTurns(input: readonly unknown[] | Transcript): BuiltTurn[] {
+    const transcript = isTranscript(input) ? input : parseTranscript(input);
+    return transcript.turns.map(turnFrom);
+}
 
-    const close = () => {
-        if (!current) return;
-        turns.push({
-            goal: current.goal,
-            startedAt: current.startedAt,
-            endedAt: current.endedAt,
-            dataSources: [...current.dataSources],
-            checkpoints: current.checkpoints,
-            answer: current.answer,
-            ...(current.error ? { error: current.error } : {}),
-            ...(current.lastTool ? { lastTool: current.lastTool } : {}),
-        });
-        current = undefined;
-    };
+function turnFrom(turn: TranscriptTurn): BuiltTurn {
+    const startedAt = turn.timestamp ?? Date.now();
+    const goal = turn.text || "(empty turn)";
+    const dataSources = new Set(sourcesMentioned(goal));
+    const checkpoints: Checkpoint[] = [{
+        id: `ask-${turn.index}`,
+        label: "Request",
+        timestamp: formatClock(startedAt),
+        summary: goal.slice(0, 220),
+        state: "done",
+    }];
+    let endedAt = startedAt;
+    let answer = "";
+    let error: string | undefined;
+    let lastTool: string | undefined;
 
-    messages.forEach((message, index) => {
-        const record = asRecord(message);
-        if (!record) return;
-        const role = typeof record.role === "string" ? record.role : "";
-        const at = typeof record.timestamp === "number" ? record.timestamp : Date.now();
-        if (role === "system") return;
+    for (const event of turn.events) {
+        endedAt = event.timestamp ?? endedAt;
 
-        if (role === "user") {
-            close();
-            const goal = textFromContent(record.content) || "(empty turn)";
-            current = {
-                goal,
-                startedAt: at,
-                endedAt: at,
-                dataSources: new Set(sourcesMentioned(goal)),
-                checkpoints: [{
-                    id: `ask-${index}`,
-                    label: "Request",
-                    timestamp: formatClock(at),
-                    summary: goal.slice(0, 220),
-                    state: "done",
-                }],
-                answer: "",
+        if (event.kind === "toolCall") {
+            for (const source of sourcesForTool(event.toolName, event.args)) dataSources.add(source);
+            lastTool = event.toolName;
+            const checkpoint: Checkpoint = {
+                id: `tool-${event.index}-${checkpoints.length}`,
+                label: event.toolName,
+                timestamp: formatClock(event.timestamp),
+                summary: summarizeToolArgs(event.toolName, event.args),
+                state: "done",
             };
-            return;
+            checkpoints.push(checkpoint);
+            if (event.result) applyResult(checkpoint, event.result);
+        } else if (event.kind === "toolResult") {
+            // A result with no call in the transcript still lands on the last step of its name.
+            const name = event.result.toolName ?? "tool";
+            const checkpoint = [...checkpoints].reverse().find((item) => item.label === name);
+            if (checkpoint) applyResult(checkpoint, event.result);
+        } else if (event.kind === "assistantText") {
+            answer = event.text;
+        } else if (event.kind === "stop" && event.stopReason === "error" && event.errorMessage !== undefined) {
+            error = event.errorMessage;
         }
 
-        if (!current) return;
-        current.endedAt = at;
+        const failure = eventFailure(event);
+        if (failure) error = failure;
+    }
 
-        if (role === "assistant") {
-            for (const call of toolCallsFrom(record.content)) {
-                for (const source of sourcesForTool(call.name, call.arguments)) current.dataSources.add(source);
-                current.lastTool = call.name;
-                current.checkpoints.push({
-                    id: `tool-${index}-${current.checkpoints.length}`,
-                    label: call.name,
-                    timestamp: formatClock(at),
-                    summary: call.summary,
-                    state: "done",
-                });
-            }
-            const text = textFromContent(record.content);
-            if (text) current.answer = text;
-            if (record.stopReason === "error" && typeof record.errorMessage === "string") {
-                current.error = record.errorMessage;
-            }
-        }
+    return {
+        goal,
+        startedAt,
+        endedAt,
+        dataSources: [...dataSources],
+        checkpoints,
+        answer,
+        ...(error ? { error } : {}),
+        ...(lastTool ? { lastTool } : {}),
+    };
+}
 
-        if (role === "toolResult") {
-            if (isSyntheticMissingResult(record)) return;
-            const name = typeof record.toolName === "string" ? record.toolName : "tool";
-            const text = textFromContent(record.content);
-            const checkpoint = [...current.checkpoints].reverse().find((item) => item.label === name);
-            if (checkpoint && text) checkpoint.summary = text.slice(0, 220);
-            if (text.startsWith("Failed") || text.includes("Error:")) current.error = text.slice(0, 280);
-        }
-    });
+function applyResult(checkpoint: Checkpoint, result: TranscriptToolResult): void {
+    if (result.text) checkpoint.summary = result.text.slice(0, 220);
+}
 
-    close();
-    return turns;
+/** A tool result that reads as a failure, in the words the tools use. */
+function eventFailure(event: TranscriptEvent): string | undefined {
+    const text = event.kind === "toolCall" ? event.result?.text : event.kind === "toolResult" ? event.result.text : undefined;
+    if (!text) return undefined;
+    return text.startsWith("Failed") || text.includes("Error:") ? text.slice(0, 280) : undefined;
 }
 
 function toRun(turn: BuiltTurn, inFlight: boolean): Run {
@@ -706,101 +701,99 @@ function phaseOf(state: { status: string; checkpoint?: unknown }): string {
     return state.status;
 }
 
-export function isSyntheticMissingResult(record: Record<string, unknown>): boolean {
-    const details = asRecord(record.details);
-    if (details?.reason === "missing_result") return true;
-    const text = textFromContent(record.content);
-    return text.includes("Tool result unavailable: history ends before this call completed.");
-}
+/** The console's transcript items, projected from the events of one parse. */
+export function transcriptFrom(input: readonly unknown[] | Transcript): TranscriptItem[] {
+    const transcript = isTranscript(input) ? input : parseTranscript(input);
+    const items: TranscriptItem[] = [];
+    let assistant: {
+        index: number;
+        item: TranscriptItem;
+        tools: ToolInvocation[];
+        text: string;
+        thinking: string;
+        failure: string;
+    } | undefined;
 
-export function transcriptFrom(messages: readonly unknown[]): TranscriptItem[] {
-    const resultsByCallId = new Map<string, { toolName?: string; text: string; isError: boolean; durationMs?: number }>();
-    for (const message of messages) {
-        const record = asRecord(message);
-        if (record && record.role === "toolResult" && typeof record.toolCallId === "string") {
-            if (isSyntheticMissingResult(record)) continue;
-            const text = textFromContent(record.content);
-            resultsByCallId.set(record.toolCallId, {
-                toolName: typeof record.toolName === "string" ? record.toolName : undefined,
-                text,
-                isError: Boolean(record.isError),
-                durationMs: typeof record.durationMs === "number" ? record.durationMs : undefined,
+    const flush = () => {
+        if (!assistant) return;
+        const shownText = assistant.text || (assistant.tools.length > 0 ? "" : assistant.failure);
+        if (shownText || assistant.thinking || assistant.tools.length > 0) {
+            items.push({
+                ...assistant.item,
+                text: shownText,
+                thinking: assistant.thinking || undefined,
+                tools: assistant.tools.length > 0 ? assistant.tools : undefined,
             });
+        }
+        assistant = undefined;
+    };
+
+    for (const event of transcript.events) {
+        if (event.kind === "turnStart") {
+            flush();
+            if (event.text) {
+                items.push({ id: `user-${event.index}`, role: "user", text: event.text, time: formatClock(event.timestamp) });
+            }
+            continue;
+        }
+
+        if (event.kind === "toolResult") {
+            flush();
+            if (!event.result.text) continue;
+            items.push({
+                id: `result-${event.index}`,
+                role: "tool",
+                ...(event.result.toolName ? { toolName: event.result.toolName } : {}),
+                ...(event.result.callId ? { toolCallId: event.result.callId } : {}),
+                text: event.result.text,
+                toolStatus: event.result.isError ? "error" : "completed",
+                isError: event.result.isError,
+                durationMs: event.result.durationMs,
+                time: formatClock(event.timestamp),
+            });
+            continue;
+        }
+
+        // Every event of one assistant message belongs to one item, so they share an index.
+        if (!assistant || assistant.index !== event.index) {
+            flush();
+            assistant = {
+                index: event.index,
+                item: { id: `assistant-${event.index}`, role: "assistant", text: "", time: formatClock(event.timestamp) },
+                tools: [],
+                text: "",
+                thinking: "",
+                failure: "",
+            };
+        }
+
+        if (event.kind === "assistantText") assistant.text = event.text;
+        else if (event.kind === "assistantThinking") assistant.thinking = event.text;
+        else if (event.kind === "toolCall") assistant.tools.push(toolInvocationFrom(event));
+        else if (event.kind === "stop" && event.stopReason === "error" && event.errorMessage !== undefined) {
+            assistant.failure = event.errorMessage.trim();
         }
     }
 
-    const consumedResultIds = new Set<string>();
-    const items: TranscriptItem[] = [];
-
-    messages.forEach((message, index) => {
-        const record = asRecord(message);
-        if (!record) return;
-        const role = typeof record.role === "string" ? record.role : "";
-        const time = formatClock(typeof record.timestamp === "number" ? record.timestamp : undefined);
-
-        if (role === "user") {
-            const text = textFromContent(record.content);
-            if (text) items.push({ id: `user-${index}`, role: "user", text, time });
-        } else if (role === "assistant") {
-            const text = textFromContent(record.content);
-            const thinking = thinkingFromContent(record.content);
-            const failure = record.stopReason === "error" && typeof record.errorMessage === "string"
-                ? record.errorMessage.trim()
-                : "";
-
-            const rawCalls = toolCallsFrom(record.content);
-            const toolInvocations: ToolInvocation[] = rawCalls.map((call, cIdx) => {
-                const callId = call.id || `call-${index}-${cIdx}`;
-                const result = resultsByCallId.get(callId);
-                if (result) consumedResultIds.add(callId);
-                const status = !result ? "running" : result.isError ? "error" : "completed";
-                return {
-                    id: callId,
-                    callId,
-                    toolName: call.name,
-                    summary: call.summary,
-                    args: call.arguments,
-                    status,
-                    resultText: result?.text,
-                    isError: result?.isError,
-                    durationMs: result?.durationMs,
-                    time,
-                };
-            });
-
-            const hasTools = toolInvocations.length > 0;
-            const shownText = text || (hasTools ? "" : failure);
-
-            if (shownText || thinking || hasTools) {
-                items.push({
-                    id: `assistant-${index}`,
-                    role: "assistant",
-                    text: shownText,
-                    thinking: thinking || undefined,
-                    tools: hasTools ? toolInvocations : undefined,
-                    time,
-                });
-            }
-        } else if (role === "toolResult") {
-            const callId = typeof record.toolCallId === "string" ? record.toolCallId : undefined;
-            if (callId && consumedResultIds.has(callId)) return;
-            if (isSyntheticMissingResult(record)) return;
-            const text = textFromContent(record.content);
-            if (!text) return;
-            items.push({
-                id: `result-${index}`,
-                role: "tool",
-                ...(typeof record.toolName === "string" ? { toolName: record.toolName } : {}),
-                toolCallId: callId,
-                text,
-                isError: Boolean(record.isError),
-                durationMs: typeof record.durationMs === "number" ? record.durationMs : undefined,
-                time,
-            });
-        }
-    });
-
+    flush();
     return items;
+}
+
+/** A call event as the console's tool card: paired results decide the status. */
+function toolInvocationFrom(event: Extract<TranscriptEvent, { kind: "toolCall" }>): ToolInvocation {
+    const result = event.result;
+    return {
+        id: event.callId,
+        callId: event.callId,
+        toolName: event.toolName,
+        summary: summarizeToolArgs(event.toolName, event.args),
+        args: event.args,
+        status: !result ? "running" : result.isError ? "error" : "completed",
+        resultText: result?.text,
+        isError: result?.isError,
+        durationMs: result?.durationMs,
+        time: formatClock(event.timestamp),
+    };
 }
 
 function activityFrom(transcript: TranscriptItem[], goal: string | undefined): ActivityItem[] {
@@ -840,20 +833,6 @@ function sourcesForTool(name: string, args: unknown): string[] {
     if (typeof record?.dataset === "string") found.push(record.dataset);
     if (typeof record?.table === "string") found.push(record.table);
     return found;
-}
-
-function toolCallsFrom(content: unknown): Array<{ id: string; name: string; summary: string; arguments: unknown }> {
-    if (!Array.isArray(content)) return [];
-    return content.flatMap((part) => {
-        const record = asRecord(part);
-        if (!record || record.type !== "toolCall" || typeof record.name !== "string") return [];
-        return [{
-            id: typeof record.id === "string" ? record.id : "",
-            name: record.name,
-            arguments: record.arguments,
-            summary: summarizeToolArgs(record.name, record.arguments),
-        }];
-    });
 }
 
 function shortPath(path: string): string {
@@ -906,27 +885,6 @@ function summarizeToolArgs(name: string, args: unknown): string {
     const interesting = record.title ?? record.statement ?? record.table ?? record.action ?? record.rationale ?? record.goal;
     if (typeof interesting === "string") return interesting.slice(0, 120);
     return name;
-}
-
-function thinkingFromContent(content: unknown): string {
-    if (!Array.isArray(content)) return "";
-    return content.flatMap((part) => {
-        const record = asRecord(part);
-        return record?.type === "thinking" && typeof record.thinking === "string" ? [record.thinking] : [];
-    }).join("\n\n").trim();
-}
-
-function textFromContent(content: unknown): string {
-    if (typeof content === "string") return content.trim();
-    if (!Array.isArray(content)) return "";
-    return content.flatMap((part) => {
-        const record = asRecord(part);
-        return record?.type === "text" && typeof record.text === "string" ? [record.text] : [];
-    }).join("\n").trim();
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-    return value !== null && typeof value === "object" ? value as Record<string, unknown> : undefined;
 }
 
 function formatClock(timestamp: number | undefined): string {
