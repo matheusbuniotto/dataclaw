@@ -14,12 +14,13 @@ import {
     type SqlExecutionResult,
     type SqlExecutor,
 } from "../mcp/mcp-sql-client";
+import type { ColumnKind, DescribedColumn } from "../datasource/types";
+
+export type { DescribedColumn };
 
 const INTEGER_TYPES = /^(tinyint|smallint|int|integer|bigint|long|byte|short)$/i;
 const FLOAT_TYPES = /^(float|double|real|decimal|numeric)/i;
 const TEMPORAL_TYPES = /^(date|timestamp|timestamp_ntz|timestamp_ltz)$/i;
-
-type ColumnKind = "INTEGER" | "REAL" | "TEXT";
 
 export interface DatabricksAdapterOptions {
     /** Default Unity Catalog table used when profile() is called without a name. */
@@ -34,14 +35,6 @@ export interface DatabricksAdapterOptions {
     warehouseId?: string;
     /** Async token source (OAuth refresh); overrides the static config token. */
     tokenProvider?: (force?: boolean) => string | Promise<string>;
-}
-
-export interface DescribedColumn {
-    name: string;
-    dataType: string;
-    kind: ColumnKind;
-    numeric: boolean;
-    temporal: boolean;
 }
 
 function columnKind(dataType: string): ColumnKind {

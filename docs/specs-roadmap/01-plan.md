@@ -26,7 +26,14 @@ Two constraints shape the order:
   in `manifest.ts` (dialect set, tool roles, read-only modes, auth kinds, argument mapping), and the
   tool bridge now skips a data source so no warehouse is contacted at harness open. 14 tests in
   `tests/data-source-manifest.test.ts`; documented in `docs/plugins.md`.
-- [ ] 3. Types: records, errors, ports
+- [x] **3. Types: records, errors, ports** — `src/datasource/types.ts`: `SourceRecord` / `ConnectIntent` /
+  `SourceStatus`, discovery, `ProfileResult` and `MetricResult` (each carrying `derivation`),
+  `DataSourceSession`, and the `DataProvider` / `Dialect` / `DatasetIntake` ports. `SourceError` is
+  a class over a closed code set with a retryable subset, rather than a bare union: it has to be
+  throwable and keep its stack. `DescribedColumn` / `ColumnKind` moved here, and the Databricks
+  adapter imports them instead of declaring a second shape. 4 tests in
+  `tests/datasource-types.test.ts`.
+- [ ] 4. Dialects: `ansi` and `databricks`
 
 ## Stage 0 · Groundwork (no behaviour change)
 
