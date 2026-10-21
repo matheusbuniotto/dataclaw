@@ -1,13 +1,22 @@
 {
   "mcpServers": {
     "databricks": {
-      "url": "https://dbc-0000000000000000.cloud.databricks.com/api/2.0/mcp/sql",
+      "url": "https://dbc-562d9321-2592.cloud.databricks.com/api/2.0/mcp/sql",
       "headers": {
         "Authorization": "!echo Bearer $(databricks auth token --profile DEFAULT | jq -r .access_token)"
       },
       "description": "Databricks SQL over Unity Catalog: read-only SQL, catalogs, schemas, tables, and column discovery.",
       "exposure": "codemode",
       "timeout": 120
+    },
+    "forecast": {
+      "command": "python3",
+      "args": [
+        "server.py"
+      ],
+      "description": "Time-series forecasting: SES, Holt, Holt-Winters additive, naive baselines, with rolling-origin prediction intervals and AIC model selection.",
+      "timeout": 120,
+      "cwd": "plugins/forecast"
     }
   }
 }
