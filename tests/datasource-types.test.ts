@@ -10,6 +10,7 @@ const CODES: SourceErrorCode[] = [
     "not-configured",
     "auth-expired",
     "auth-denied",
+    "read-only-violation",
     "read-only-unavailable",
     "unsupported-capability",
     "dialect-missing",

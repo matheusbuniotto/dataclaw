@@ -40,7 +40,12 @@ Two constraints shape the order:
   in `tests/dialects.test.ts`; the profile aggregate is asserted string-for-string against what the
   adapter emitted before. `dialectFor()` fails closed with `dialect-missing` for a dialect with no
   module yet.
-- [ ] 5. The fake provider and the conformance suite
+- [x] **5. The fake provider and the conformance suite** — `tests/fixtures/providers/fake.ts` is an
+  in-memory warehouse (describe, inventory, and the profile aggregate the dialect generates) with
+  scripted scenario faults; `conformance.ts` holds the reusable suite. 15 tests, all through the
+  port. `read-only-violation` joined the error codes so a refused mutation is distinct from a query
+  error.
+- [ ] 6. The session
 
 ## Stage 0 · Groundwork (no behaviour change)
 
