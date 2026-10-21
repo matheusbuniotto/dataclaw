@@ -62,7 +62,14 @@ Two constraints shape the order:
   there yet. `McpToolClient.callTool` gained a `signal`. 35 tests across the two provider files; the
   Databricks provider passes the same conformance suite over a local MCP server, and
   `bun run demo:databricks samples.nyctaxi.trips` still profiles and queries a real workspace.
-- [ ] 8. Plan record v2
+- [x] **8. Plan record v2** — `AnalystPlanDoc` is version 2: `dataSource?: SourceRecord` replaces
+  `databricks`, and `DatasetMeta.provider` replaces the `source` discriminator. `migratePlanDocument`
+  is a pure exported function (7 tests in `tests/plan-migration.test.ts`). `databricksRecord()` is now
+  the one shape the console, the connect tool and the harness write, so a migrated record and a fresh
+  one are equal. `bun run cli plan` on a copy of the repo's SQLite prints the migrated source.
+  The document types became type aliases so they satisfy `JsonObject`; that removed the last
+  `defineDoc` type error for the plan.
+- [ ] 9. Tools: the factory and the seven
 
 ## Stage 0 · Groundwork (no behaviour change)
 

@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { createRegistry, Harness } from "@earendil-works/pi-durable";
+import { createRegistry, Harness, type ConversationId, type EnvTarget } from "@earendil-works/pi-durable";
 import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
@@ -7,6 +7,7 @@ import { CodingTools } from "@earendil-works/pi-durable/tools";
 import type { FauxProviderHandle } from "@earendil-works/pi-ai/providers/faux";
 import { getDefaultModelRef, setupModelsRegistry } from "./config";
 import { DatabricksDataAdapter } from "./adapters/databricks-adapter";
+import { databricksRecord } from "./datasource/providers/databricks";
 import type { DatabricksConfigOverrides } from "./mcp/databricks-config";
 import { MAIN_AGENT_INSTRUCTIONS } from "./agent/instructions";
 import { setSharedAdapter } from "./tools/analyst-tools";
@@ -16,9 +17,13 @@ import { AnalystPlanDoc } from "./docs/plan";
 import { FindingsDoc } from "./docs/findings";
 import { PlaybookDoc } from "./docs/playbook";
 import { TelemetryDoc } from "./docs/telemetry";
-import { AgentBindingDoc, AgentRosterDoc } from "./docs/agents";
+import { AgentBindingDoc, AgentRosterDoc, type AgentRosterDocument } from "./docs/agents";
 import { bindAgentWorkspace, ensureWorkspace, resolveWorkspaceDir } from "./workspace/context";
-import { createPluginAgentTools } from "./plugins/agent-tools";
+import { createPluginAgentTools, type PluginAgentTools } from "./plugins/agent-tools";
+import { agentConfiguration } from "./tools/agent-tools";
+import { ensureAgentCompute, normalizedCompute } from "./compute/agent-compute";
+import { createDockerExecutionEnv, sweepDockerContainersOnce } from "./compute/docker-env";
+import { setFeatureRuntime, type FeatureReloadResult } from "./features/runtime";
 import { disabledPluginNames, readDisabled } from "./capabilities/catalog";
 
 export interface CreateAnalystHarnessOptions {
@@ -55,6 +60,14 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
     });
     await ensureWorkspace(workspaceDir);
 
+    // A previous process may have died with containers still running. Stop them once at
+    // startup; they keep their homes and wake on the next turn. `DATACLAW_COMPUTE_SWEEP=off`
+    // disables this for a shared host or a supervisor that owns the containers.
+    void sweepDockerContainersOnce(projectRoot).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Docker compute sweep failed: ${message}`);
+    });
+
     // What the console switched off: `dataclaw.capabilities.json` at the project root.
     const disabled = readDisabled(projectRoot).disabled;
     const disabledPlugins = disabledPluginNames(disabled);
@@ -75,19 +88,45 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
 
     // Installed data plugins become agent tools: one per MCP tool, named <plugin>__<tool>.
     // Deferred by default, so the model loads them through tool_search when a task needs them.
-    const pluginTools = options.pluginTools === false
-        ? undefined
-        : await createPluginAgentTools({
-            root: projectRoot,
-            disabled: disabledPlugins,
-            onError: (message) => console.error(`data plugins: ${message}`),
-        });
-    for (const extension of pluginTools?.extensions ?? []) registry.install(extension);
-    if (pluginTools?.toolNames.length && pluginTools.deferred) registry.install(createToolSearchExtension());
+    const pluginsEnabled = options.pluginTools !== false;
+    const pluginOptions = {
+        root: projectRoot,
+        disabled: disabledPlugins,
+        onError: (message: string) => console.error(`data plugins: ${message}`),
+    };
+    const initialPluginTools = pluginsEnabled
+        ? await createPluginAgentTools(pluginOptions)
+        : undefined;
+    let activePluginTools = initialPluginTools;
+    const retiredPluginTools: PluginAgentTools[] = [];
+    for (const extension of initialPluginTools?.extensions ?? []) registry.install(extension);
+    if (initialPluginTools?.toolNames.length && initialPluginTools.deferred) registry.install(createToolSearchExtension());
 
-    // 3. Execution Environment
-    const env = ({ cwd }: { cwd?: string }) =>
-        new NodeExecutionEnv({ cwd: cwd ?? workspaceDir });
+    // 3. Execution Environment. A specialist with docker compute gets a per-agent container;
+    // every other conversation gets the host environment at its cwd.
+    const env = async ({ cwd, conversationId, read }: EnvTarget) => {
+        const effectiveCwd = cwd ?? workspaceDir;
+        const binding = await read.snapshot(AgentBindingDoc, conversationId, context);
+        if (!binding?.agentId) return new NodeExecutionEnv({ cwd: effectiveCwd });
+        const roster = await read.snapshot(AgentRosterDoc, context) as AgentRosterDocument | undefined;
+        const agent = roster?.agents?.find((item) => item.id === binding.agentId);
+        if (!agent) return new NodeExecutionEnv({ cwd: effectiveCwd });
+        const compute = normalizedCompute(agent.compute);
+        if (compute.kind !== "docker") return new NodeExecutionEnv({ cwd: effectiveCwd });
+        try {
+            return await createDockerExecutionEnv({
+                agentId: agent.id,
+                home: effectiveCwd,
+                projectRoot,
+                ...(compute.image ? { image: compute.image } : {}),
+                ...(compute.network ? { network: compute.network } : {}),
+            });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`Docker compute for ${agent.name} is unavailable; using local files at ${effectiveCwd}: ${message}`);
+            return new NodeExecutionEnv({ cwd: effectiveCwd });
+        }
+    };
 
     // 4. Open Durable SQLite Harness
     const storage = await openNodeSqliteStorage(storagePath);
@@ -164,13 +203,11 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
 
             await conversation.commit(async (tx) => {
                 const plan = await tx.doc(AnalystPlanDoc, conversation.id);
-                plan.databricks = {
+                plan.dataSource = databricksRecord({
                     host: adapter.options.host ?? "unknown",
-                    mcpUrl: adapter.options.mcpUrl ?? "",
+                    ...(adapter.options.mcpUrl ? { mcpUrl: adapter.options.mcpUrl } : {}),
                     ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
-                    ...(adapter.options.warehouseId ? { warehouseId: adapter.options.warehouseId } : {}),
-                    connectedAt: Date.now(),
-                };
+                });
                 plan.updatedAt = Date.now();
             }, context);
         } catch (err) {
@@ -178,6 +215,66 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
             console.error(`Databricks MCP connect failed: ${databricksError}`);
         }
     }
+
+    // 9. Runtime self-extension: `features_apply` starts newly installed plugins, swaps their
+    // extensions into the registry, and re-resolves roster profiles against the new tools.
+    const reconfigureRosterAgents = async (): Promise<string[]> => {
+        const roster = await harness.documentState(AgentRosterDoc, context);
+        const doc = roster?.value as AgentRosterDocument | null | undefined;
+        if (!doc) return [];
+        const coordinator = await conversation.agent(context);
+        const snapshot = registry.snapshot();
+        const updated: string[] = [];
+        for (const agent of doc.agents ?? []) {
+            if (!agent.conversationId) continue;
+            const child = await harness.conversation(agent.conversationId as ConversationId, context);
+            if (!child) continue;
+            await ensureAgentCompute(agent, workspaceDir);
+            await child.configure(agentConfiguration(
+                agent,
+                coordinator.model,
+                snapshot,
+                agent.canManage ? "session" : "run",
+                workspaceDir,
+            ), context);
+            updated.push(agent.id);
+        }
+        return updated;
+    };
+
+    const reloadFeatures = async (): Promise<FeatureReloadResult> => {
+        if (!pluginsEnabled) {
+            throw new Error("Plugin tools are disabled for this harness; set pluginTools: true to install plugins.");
+        }
+        const next = await createPluginAgentTools(pluginOptions);
+        const previous = activePluginTools;
+        const nextNames = new Set(next.extensions.map((extension) => extension.name));
+        for (const extension of previous?.extensions ?? []) {
+            if (!nextNames.has(extension.name)) registry.uninstall(extension);
+        }
+        for (const extension of next.extensions) registry.install(extension);
+        if (next.toolNames.length && next.deferred && !registry.snapshot().extension("tool-search")) {
+            registry.install(createToolSearchExtension());
+        }
+        // Keep the old clients alive until close: another tool call may still be running.
+        if (previous) retiredPluginTools.push(previous);
+        activePluginTools = next;
+        const agentsUpdated = await reconfigureRosterAgents();
+        return {
+            plugins: next.plugins,
+            errors: next.errors,
+            agentsUpdated,
+            toolNames: next.toolNames,
+        };
+    };
+
+    setFeatureRuntime({
+        projectRoot,
+        workspaceDir,
+        pluginToolNames: () => activePluginTools?.toolNames ?? [],
+        pluginErrors: () => activePluginTools?.errors ?? [],
+        reload: reloadFeatures,
+    });
 
     return {
         harness,
@@ -190,7 +287,13 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         workspaceDir,
         projectRoot,
         databricksError,
-        pluginTools,
+        get pluginTools(): PluginAgentTools | undefined {
+            return activePluginTools;
+        },
+
+        // Reload plugins and re-resolve every roster profile. The console and the
+        // `features_apply` tool share this path.
+        reloadFeatures,
 
         // Reactive document observation helpers
         async getPlan() {
@@ -215,7 +318,11 @@ export async function createAnalystHarness(options: CreateAnalystHarnessOptions 
         },
 
         async close() {
-            await pluginTools?.close();
+            setFeatureRuntime(undefined);
+            await activePluginTools?.close();
+            for (const retired of retiredPluginTools) {
+                await retired.close().catch(() => undefined);
+            }
             await harness.close(context);
         },
     };

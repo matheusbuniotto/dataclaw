@@ -124,6 +124,7 @@ Environment:
             for (const agent of agents) {
                 console.log(`  - [${agent.id}] ${agent.name} · ${agent.role} · ${agent.status}`);
                 console.log(`    ${agent.purpose}`);
+                console.log(`    capabilities: ${(agent.capabilities ?? []).join(", ") || "role default"}${agent.contextFiles?.length ? ` · context: ${agent.contextFiles.join(", ")}` : ""}${agent.background ? " · notes" : ""} · compute: ${agent.compute?.kind ?? "shared"}${agent.model ? ` · model: ${agent.model.provider}/${agent.model.modelId}` : ""}`);
             }
             const runs = roster?.runs ?? [];
             console.log(`\nDelegated runs (${runs.length}):`);
@@ -135,7 +136,11 @@ Environment:
             console.log(`\n### Active Analytical Plan`);
             console.log(`Goal: "${plan?.goal}"`);
             console.log(`Status: ${plan?.status.toUpperCase()} (Milestone: ${plan?.currentMilestone})`);
-            console.log(`Dataset: ${plan?.activeDataset?.name ?? "None"} (${plan?.activeDataset?.rowCount ?? 0} rows)`);
+            console.log(`Dataset: ${plan?.activeDataset?.name ?? "None"} (${plan?.activeDataset?.rowCount ?? 0} rows, provider: ${plan?.activeDataset?.provider ?? "none"})`);
+            const source = plan?.dataSource;
+            console.log(source
+                ? `Data source: ${source.provider}${source.host ? ` (${source.host})` : ""}${source.endpoint ? ` · ${source.endpoint}` : ""}`
+                : "Data source: none (local files only)");
             console.log(`\nHypotheses (${plan?.hypotheses.length ?? 0}):`);
             for (const h of plan?.hypotheses ?? []) {
                 console.log(`  - [${h.id}] (${h.status}): ${h.title}`);

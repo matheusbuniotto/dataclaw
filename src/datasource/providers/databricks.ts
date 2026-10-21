@@ -9,8 +9,27 @@ import type { DatabricksMcpConfig } from "../../mcp/databricks-config";
 import { resolveDatabricksConfig } from "../../mcp/databricks-config";
 import { McpSqlClient } from "../../mcp/mcp-sql-client";
 import { databricksDialect } from "../dialects";
-import { SourceError, type ConnectIntent, type DataProvider } from "../types";
+import { SourceError, type ConnectIntent, type DataProvider, type SourceRecord } from "../types";
 import { translateProviderError } from "./errors";
+
+/** The durable record for a Databricks connection: names and URLs only, never a token. */
+export interface DatabricksRecordInput {
+    host?: string;
+    mcpUrl?: string;
+    profile?: string;
+    connectedAt?: number;
+}
+
+export function databricksRecord(input: DatabricksRecordInput): SourceRecord {
+    return {
+        provider: "databricks",
+        dialect: "databricks",
+        ...(input.host ? { host: input.host } : {}),
+        ...(input.mcpUrl ? { endpoint: input.mcpUrl } : {}),
+        ...(input.profile ? { credential: { kind: "cli-profile", profile: input.profile } } : {}),
+        connectedAt: input.connectedAt ?? Date.now(),
+    };
+}
 
 export interface DatabricksProviderOptions {
     /** Where the endpoint and credential come from. Tests inject a fixed config. */
@@ -29,12 +48,14 @@ export async function openDatabricksProvider(
     const tokenFactory = options.tokenFactory ?? (() => resolve(intent).token);
 
     let client: McpSqlClient | undefined;
+    let host: string | undefined;
     let endpoint: string | undefined;
 
     const connect = async (): Promise<McpSqlClient> => {
         if (client) return client;
         try {
             const config = resolve(intent);
+            host = config.host;
             endpoint = config.url;
             client = await McpSqlClient.connect(
                 { ...config, token: await tokenFactory() },
@@ -50,6 +71,9 @@ export async function openDatabricksProvider(
         id: "databricks",
         kind: "remote",
         dialect: databricksDialect,
+        get host() {
+            return host;
+        },
         get endpoint() {
             return endpoint;
         },

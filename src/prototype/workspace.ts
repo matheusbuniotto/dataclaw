@@ -4,7 +4,10 @@ import { MAIN_AGENT_DESCRIPTION, MAIN_AGENT_NAME } from "../agent/instructions";
 import { releaseSharedAdapter, setSharedAdapter } from "../tools/analyst-tools";
 import { noteDatabricksAdapter } from "../tools/databricks-tools";
 import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
+import { databricksRecord } from "../datasource/providers/databricks";
 import { AnalystPlanDoc } from "../docs/plan";
+import { FindingsDoc } from "../docs/findings";
+import { PlaybookDoc } from "../docs/playbook";
 import {
     adoptDatabricksAdapter,
     getDatabricksUiStatus,
@@ -12,7 +15,10 @@ import {
     subscribeDatabricks,
 } from "./databricks-api";
 import { loadSkills } from "../workspace/context";
-import type { AgentRosterDocument, AgentRun } from "../docs/agents";
+import type { AgentRosterDocument, AgentRun, RosterAgent } from "../docs/agents";
+import { normalizedAgentProfile } from "../docs/agents";
+import { formatCapabilities } from "../docs/agent-capabilities";
+import { formatCompute } from "../compute/agent-compute";
 import { pluginsSummary } from "./plugins-api";
 import type {
     ActivityItem,
@@ -38,6 +44,8 @@ const CAPABILITIES = [
     "Playbook",
     "Auditor",
     "Agent roster",
+    "Agent profiles",
+    "Self-extension",
 ];
 
 let opening: Promise<AnalystHarness> | undefined;
@@ -137,14 +145,13 @@ async function rememberDatabricksPlan(analyst: AnalystHarness, adapter: Databric
     const host = adapter.options.host ?? "unknown";
     await analyst.conversation.commit(async (tx) => {
         const plan = await tx.doc(AnalystPlanDoc, analyst.conversation.id);
-        const sameWorkspace = plan.databricks?.host === host;
-        plan.databricks = {
+        const sameWorkspace = plan.dataSource?.host === host;
+        plan.dataSource = databricksRecord({
             host,
-            mcpUrl: adapter.options.mcpUrl ?? "",
+            ...(adapter.options.mcpUrl ? { mcpUrl: adapter.options.mcpUrl } : {}),
             ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
-            ...(adapter.options.warehouseId ? { warehouseId: adapter.options.warehouseId } : {}),
-            connectedAt: sameWorkspace ? plan.databricks?.connectedAt ?? Date.now() : Date.now(),
-        };
+            connectedAt: sameWorkspace ? plan.dataSource?.connectedAt ?? Date.now() : Date.now(),
+        });
         plan.updatedAt = Date.now();
     }, analyst.context);
 }
@@ -160,19 +167,21 @@ async function forgetDatabricks(analyst: AnalystHarness): Promise<void> {
 async function forgetDatabricksPlan(analyst: AnalystHarness): Promise<void> {
     await analyst.conversation.commit(async (tx) => {
         const plan = await tx.doc(AnalystPlanDoc, analyst.conversation.id);
-        delete plan.databricks;
+        delete plan.dataSource;
         plan.updatedAt = Date.now();
     }, analyst.context);
 }
 
-export async function askMainAgent(content: string): Promise<{ submissionId: string }> {
+export async function askMainAgent(content: string, agentId?: string): Promise<{ submissionId: string; agentId: string }> {
     const trimmed = content.trim();
-    if (!trimmed) throw new Error("Tell DataClaw what to explore.");
+    const analyst = await consoleHarness();
+    const target = await resolveConsoleTarget(analyst, agentId, true);
+    const name = target.rosterAgent?.name ?? "DataClaw";
+    if (!trimmed) throw new Error(`Tell ${name} what to do.`);
     if (trimmed.length > 20_000) throw new Error("That request is too long.");
 
     cancelAsk = false;
-    const analyst = await consoleHarness();
-    const submission = await analyst.conversation.submit(
+    const submission = await target.conversation.submit(
         {
             type: "input",
             content: trimmed,
@@ -180,14 +189,15 @@ export async function askMainAgent(content: string): Promise<{ submissionId: str
         },
         analyst.context,
     );
-    if (cancelAsk) await analyst.conversation.abort(analyst.context);
-    return { submissionId: String(submission.id) };
+    if (cancelAsk) await target.conversation.abort(analyst.context);
+    return { submissionId: String(submission.id), agentId: target.agentId };
 }
 
-export async function abortMainAgent(): Promise<void> {
+export async function abortMainAgent(agentId?: string): Promise<void> {
     cancelAsk = true;
     const analyst = await consoleHarness();
-    await analyst.conversation.abort(analyst.context);
+    const target = await resolveConsoleTarget(analyst, agentId, true);
+    await target.conversation.abort(analyst.context);
     await releaseOrphanedSubmissions(analyst);
 }
 
@@ -218,23 +228,35 @@ function submissionKeepsAgentBusy(
     return submission.status === "placed" && liveConversations.has(String(submission.conversationId));
 }
 
-export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceSnapshot> {
-    const [plan, findings, playbook, rosterDoc, view, inspection] = await Promise.all([
-        analyst.getPlan(),
-        analyst.getFindings(),
-        analyst.getPlaybook(),
+export async function readWorkspace(
+    analyst: AnalystHarness,
+    options: { agentId?: string | undefined } = {},
+): Promise<WorkspaceSnapshot> {
+    const target = await resolveConsoleTarget(analyst, options.agentId);
+    const conversationId = target.conversation.id;
+    const [planState, findingsState, playbookState, rosterDoc, view, inspection] = await Promise.all([
+        analyst.harness.documentState(AnalystPlanDoc, conversationId, analyst.context),
+        analyst.harness.documentState(FindingsDoc, conversationId, analyst.context),
+        analyst.harness.documentState(PlaybookDoc, conversationId, analyst.context),
         analyst.getRoster(),
-        analyst.conversation.context(analyst.context),
+        target.conversation.context(analyst.context),
         analyst.harness.inspect(analyst.context),
     ]);
+    const plan = planState?.value;
+    const findings = findingsState?.value;
+    const playbook = playbookState?.value;
 
     const liveConversations = new Set(inspection.tasks.map((task) => String(task.record.conversationId)));
-    const working = inspection.tasks.length > 0
-        || inspection.submissions.some((submission) => submissionKeepsAgentBusy(submission, liveConversations));
+    const targetId = String(conversationId);
+    const targetTasks = inspection.tasks.filter((task) => String(task.record.conversationId) === targetId);
+    const working = targetTasks.length > 0
+        || inspection.submissions.some((submission) =>
+            String(submission.conversationId) === targetId
+            && submissionKeepsAgentBusy(submission, liveConversations));
 
     const turns = buildTurns(view.messages);
     const turnRuns = turns.map((turn, index) => toRun(turn, working && index === turns.length - 1));
-    const taskRuns = inspection.tasks.flatMap((task) => {
+    const taskRuns = targetTasks.flatMap((task) => {
         const run = runFromTask(task.record.kind, task.record.input, task.record.startedAt, task.record.id, task.record.state);
         return run ? [run] : [];
     });
@@ -258,15 +280,25 @@ export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceS
         ? `${plan.activeDataset.name} · ${plan.activeDataset.rowCount.toLocaleString()} rows`
         : undefined;
 
+    const profile = target.rosterAgent ? normalizedAgentProfile(target.rosterAgent) : undefined;
+    const model = target.rosterAgent?.model ?? analyst.selectedModel;
+
     return {
         agent: {
-            id: "dataclaw",
-            name: MAIN_AGENT_NAME,
-            description: MAIN_AGENT_DESCRIPTION,
+            id: target.rosterAgent?.id ?? "dataclaw",
+            name: target.rosterAgent?.name ?? MAIN_AGENT_NAME,
+            description: target.rosterAgent?.purpose ?? MAIN_AGENT_DESCRIPTION,
             status: working ? "Working" : "Ready",
             working,
-            model: `${analyst.selectedModel.provider} / ${analyst.selectedModel.modelId}`,
-            sources: CAPABILITIES,
+            model: `${model.provider} / ${model.modelId}`,
+            sources: target.rosterAgent && profile
+                ? [
+                    `${target.rosterAgent.role} specialist`,
+                    `capabilities: ${formatCapabilities(profile.capabilities)}`,
+                    ...(profile.contextFiles.length ? [`${profile.contextFiles.length} context file(s)`] : []),
+                    ...(profile.skills.length ? [`skills: ${profile.skills.join(", ")}`] : []),
+                ]
+                : CAPABILITIES,
         },
         plan: {
             goal: plan?.goal ?? "Pending goal definition",
@@ -296,12 +328,47 @@ export async function readWorkspace(analyst: AnalystHarness): Promise<WorkspaceS
     };
 }
 
-export async function consoleWorkspace(): Promise<WorkspaceSnapshot> {
+interface ConsoleTarget {
+    conversation: AnalystHarness["conversation"];
+    /** Empty string for the root coordinator. */
+    agentId: string;
+    rosterAgent?: RosterAgent;
+}
+
+/**
+ * Resolve the conversation a console request is about. `dataclaw` (or nothing) is the root;
+ * any other id must be an active roster agent. Read-only views fall back to the root so a
+ * stale picker cannot break the page; an ask is strict and reports the missing agent.
+ */
+async function resolveConsoleTarget(
+    analyst: AnalystHarness,
+    agentId: string | undefined,
+    strict = false,
+): Promise<ConsoleTarget> {
+    const requested = (agentId ?? "").trim();
+    if (!requested || requested === "dataclaw" || requested === "main") {
+        return { conversation: analyst.conversation, agentId: "" };
+    }
+    const roster = await analyst.getRoster();
+    const agent = roster?.agents.find((item) => item.id === requested && item.status === "active");
+    if (!agent || agent.conversationId <= 0) {
+        if (strict) throw new Error(`No active agent with id "${requested}".`);
+        return { conversation: analyst.conversation, agentId: "" };
+    }
+    const conversation = await analyst.harness.conversation(agent.conversationId as never, analyst.context);
+    if (!conversation) {
+        if (strict) throw new Error(`Agent "${agent.name}" has no conversation.`);
+        return { conversation: analyst.conversation, agentId: "" };
+    }
+    return { conversation, agentId: agent.id, rosterAgent: agent };
+}
+
+export async function consoleWorkspace(agentId?: string): Promise<WorkspaceSnapshot> {
     try {
-        return await readWorkspace(await consoleHarness());
+        return await readWorkspace(await consoleHarness(), { agentId });
     } catch (err) {
         resetConsoleHarness();
-        return await readWorkspace(await consoleHarness());
+        return await readWorkspace(await consoleHarness(), { agentId });
     }
 }
 
@@ -414,7 +481,7 @@ interface BuiltTurn {
     lastTool?: string;
 }
 
-function buildTurns(messages: readonly unknown[]): BuiltTurn[] {
+export function buildTurns(messages: readonly unknown[]): BuiltTurn[] {
     const turns: BuiltTurn[] = [];
     let current: {
         goal: string;
@@ -492,6 +559,7 @@ function buildTurns(messages: readonly unknown[]): BuiltTurn[] {
         }
 
         if (role === "toolResult") {
+            if (isSyntheticMissingResult(record)) return;
             const name = typeof record.toolName === "string" ? record.toolName : "tool";
             const text = textFromContent(record.content);
             const checkpoint = [...current.checkpoints].reverse().find((item) => item.label === name);
@@ -572,15 +640,24 @@ function runFromTask(
 
 function rosterEntries(roster: AgentRosterDocument | undefined): RosterEntry[] {
     const runs = roster?.runs ?? [];
-    return (roster?.agents ?? []).map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        role: agent.role,
-        purpose: agent.purpose,
-        status: agent.status,
-        canManage: agent.canManage,
-        working: runs.some((run) => run.agentId === agent.id && run.status === "running"),
-    }));
+    return (roster?.agents ?? []).map((agent) => {
+        const profile = normalizedAgentProfile(agent);
+        return {
+            id: agent.id,
+            name: agent.name,
+            role: agent.role,
+            purpose: agent.purpose,
+            status: agent.status,
+            canManage: agent.canManage,
+            working: runs.some((run) => run.agentId === agent.id && run.status === "running"),
+            capabilities: [...profile.capabilities],
+            contextFiles: [...profile.contextFiles],
+            skills: [...profile.skills],
+            hasBackground: profile.background.length > 0,
+            compute: formatCompute(profile.compute),
+            ...(agent.model ? { model: `${agent.model.provider}/${agent.model.modelId}` } : {}),
+        };
+    });
 }
 
 function runFromRoster(run: AgentRun): Run {
@@ -625,11 +702,19 @@ function phaseOf(state: { status: string; checkpoint?: unknown }): string {
     return state.status;
 }
 
-function transcriptFrom(messages: readonly unknown[]): TranscriptItem[] {
+export function isSyntheticMissingResult(record: Record<string, unknown>): boolean {
+    const details = asRecord(record.details);
+    if (details?.reason === "missing_result") return true;
+    const text = textFromContent(record.content);
+    return text.includes("Tool result unavailable: history ends before this call completed.");
+}
+
+export function transcriptFrom(messages: readonly unknown[]): TranscriptItem[] {
     const resultsByCallId = new Map<string, { toolName?: string; text: string; isError: boolean; durationMs?: number }>();
     for (const message of messages) {
         const record = asRecord(message);
         if (record && record.role === "toolResult" && typeof record.toolCallId === "string") {
+            if (isSyntheticMissingResult(record)) continue;
             const text = textFromContent(record.content);
             resultsByCallId.set(record.toolCallId, {
                 toolName: typeof record.toolName === "string" ? record.toolName : undefined,
@@ -695,6 +780,7 @@ function transcriptFrom(messages: readonly unknown[]): TranscriptItem[] {
         } else if (role === "toolResult") {
             const callId = typeof record.toolCallId === "string" ? record.toolCallId : undefined;
             if (callId && consumedResultIds.has(callId)) return;
+            if (isSyntheticMissingResult(record)) return;
             const text = textFromContent(record.content);
             if (!text) return;
             items.push({

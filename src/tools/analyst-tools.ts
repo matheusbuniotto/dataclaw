@@ -102,7 +102,7 @@ export const profileDatasetTool = defineTool({
             const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
             plan.activeDataset = {
                 name: profile.tableName,
-                source: "file",
+                provider: "local",
                 sourcePath: args.filePath,
                 rowCount: profile.rowCount,
                 columns: profile.columns.map((c) => c.name),

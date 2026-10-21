@@ -27,16 +27,27 @@ import {
 } from "../tools/databricks-tools";
 import { AnalysisWorkflowTask } from "../tasks/analysis-workflow";
 import { AutoImprovementTask } from "../tasks/auto-improvement";
-import { currentWorkspace, workspacePrompt } from "../workspace/context";
-import { AgentRosterDoc, formatRosterPrompt } from "../docs/agents";
+import { currentWorkspace, workspacePrompt, loadAgentContextFiles, formatSkillsForPrompt } from "../workspace/context";
+import { AgentBindingDoc, AgentRosterDoc, formatRosterPrompt, normalizedAgentProfile } from "../docs/agents";
+import { formatCapabilities } from "../docs/agent-capabilities";
+import { computeCwd, formatCompute } from "../compute/agent-compute";
 import {
     agentsArchiveTool,
     agentsCreateTool,
+    agentsInspectTool,
     agentsListTool,
     agentsUpdateTool,
     spawnAgentTool,
     subagentsListTool,
 } from "../tools/agent-tools";
+import {
+    featuresApplyTool,
+    featuresCreatePluginTool,
+    featuresCreateSkillTool,
+    featuresListTool,
+    featuresRemovePluginTool,
+    featuresRemoveSkillTool,
+} from "../tools/feature-tools";
 
 export const AnalystExtension = defineExtension({
     name: "durable-analyst",
@@ -47,12 +58,54 @@ export const AnalystExtension = defineExtension({
             const prompt = await workspacePrompt(currentWorkspace());
             return `# Project Context\n\n${prompt.projectContext}`;
         }),
-        section("available_skills", async () => {
+        section("available_skills", async (input, context) => {
             const prompt = await workspacePrompt(currentWorkspace());
-            return prompt.skillsPrompt;
+            const binding = await input.read.snapshot(AgentBindingDoc, input.conversationId, context);
+            if (!binding?.agentId) return prompt.skillsPrompt;
+            const roster = await input.read.snapshot(AgentRosterDoc, context);
+            const agent = roster?.agents.find((item) => item.id === binding.agentId);
+            const selected = agent ? normalizedAgentProfile(agent).skills : [];
+            if (selected.length === 0) return prompt.skillsPrompt;
+            return formatSkillsForPrompt(prompt.skills.filter((skill) => selected.includes(skill.name)));
+        }),
+        section("agent_profile", async (input, context) => {
+            const binding = await input.read.snapshot(AgentBindingDoc, input.conversationId, context);
+            if (!binding?.agentId) return undefined;
+            const roster = await input.read.snapshot(AgentRosterDoc, context);
+            const agent = roster?.agents.find((item) => item.id === binding.agentId);
+            if (!agent) return undefined;
+
+            const ready = normalizedAgentProfile(agent);
+            const workspace = currentWorkspace();
+            const knowledge = await loadAgentContextFiles(ready.contextFiles, workspace);
+            const lines = [
+                "### Specialist profile",
+                `You are ${agent.name}, a ${agent.role} specialist in DataClaw.`,
+                `Purpose: ${agent.purpose}`,
+                `Capabilities: ${formatCapabilities(ready.capabilities)}`,
+                `Compute: ${formatCompute(ready.compute)} at ${computeCwd(agent.id, ready.compute, workspace.workspaceDir)}. Files you write and shell commands stay in this compute.`,
+                "Stay within these capabilities. If the task needs a tool you do not have, say so and return the request to the coordinator; do not pretend to run it.",
+            ];
+            if (ready.background) {
+                lines.push("", "#### Background", ready.background);
+            }
+            for (const file of knowledge.files) {
+                lines.push("", `#### Knowledge: ${file.path}`, file.content.trimEnd());
+            }
+            if (knowledge.missing.length > 0) {
+                lines.push("", `Knowledge files not readable: ${knowledge.missing.join(", ")}. Do not invent their contents.`);
+            }
+            return lines.join("\n");
         }),
         section("agent_roster", async (input, context) => {
             const roster = await input.read.snapshot(AgentRosterDoc, context);
+            const binding = await input.read.snapshot(AgentBindingDoc, input.conversationId, context);
+            if (binding?.agentId) {
+                const self = (roster?.agents ?? []).find((agent) => agent.id === binding.agentId);
+                if (binding.origin === "run" || !self?.canManage) {
+                    return "### Agent roster\nYou are a specialist in this workspace. The coordinator manages the roster; return the result instead of creating or delegating to other agents.";
+                }
+            }
             return formatRosterPrompt(roster);
         }),
         // 1. Current Analytical Plan & Active Hypotheses
@@ -62,12 +115,13 @@ export const AnalystExtension = defineExtension({
 
             const header = `### Active Analytical Plan\nGoal: "${plan.goal}"\nStatus: ${plan.status.toUpperCase()} (Milestone: ${plan.currentMilestone})`;
             const datasetInfo = plan.activeDataset
-                ? `Dataset: "${plan.activeDataset.name}" (${plan.activeDataset.rowCount} rows, ${plan.activeDataset.columns.length} columns, source: ${plan.activeDataset.source ?? "file"})`
+                ? `Dataset: "${plan.activeDataset.name}" (${plan.activeDataset.rowCount} rows, ${plan.activeDataset.columns.length} columns, source: ${plan.activeDataset.provider ?? "local"})`
                 : `Dataset: None loaded yet`;
 
-            const sourceInfo = plan.databricks
-                ? `Data source: Databricks via MCP (${plan.databricks.host})${plan.databricks.warehouseId ? `, warehouse ${plan.databricks.warehouseId}` : ""}.`
-                : `Data source: local files (call connect_databricks to work against Unity Catalog).`;
+            const source = plan.dataSource;
+            const sourceInfo = source
+                ? `Data source: ${source.provider} via MCP${source.host ? ` (${source.host})` : ""}${source.dataset ? `, dataset ${source.dataset}` : ""}.`
+                : `Data source: local files (connect a data source to work against a warehouse).`;
 
             const hypList = plan.hypotheses.length > 0
                 ? `#### Hypotheses:\n` + plan.hypotheses.map((h) => `- [${h.id}] (${h.status}): ${h.title}`).join("\n")
@@ -135,11 +189,18 @@ export const AnalystExtension = defineExtension({
         promotePlaybookRuleTool,
         triggerAutoImprovementTool,
         agentsListTool,
+        agentsInspectTool,
         agentsCreateTool,
         agentsUpdateTool,
         agentsArchiveTool,
         spawnAgentTool,
         subagentsListTool,
+        featuresListTool,
+        featuresCreateSkillTool,
+        featuresRemoveSkillTool,
+        featuresCreatePluginTool,
+        featuresRemovePluginTool,
+        featuresApplyTool,
     ],
 
     // Durable state machines registered in the runtime

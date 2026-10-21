@@ -2,6 +2,7 @@ import { Type } from "@earendil-works/pi-ai";
 import type { Context } from "@earendil-works/chord";
 import { defineTool, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
+import { databricksRecord } from "../datasource/providers/databricks";
 import { isStoppedError } from "../mcp/mcp-sql-client";
 import { AnalystPlanDoc } from "../docs/plan";
 import { getOrCreateAdapter, setSharedAdapter } from "./analyst-tools";
@@ -49,20 +50,18 @@ async function requireDatabricks(
         lastReconnectAttempt = Date.now();
         const previous = await api.commit(async (tx) => {
             const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
-            if (!plan.databricks?.host) return undefined;
+            const record = plan.dataSource;
+            if (record?.provider !== "databricks") return undefined;
             return {
-                host: plan.databricks.host,
-                mcpUrl: plan.databricks.mcpUrl,
-                ...(plan.databricks.profile ? { profile: plan.databricks.profile } : {}),
-                ...(plan.databricks.warehouseId ? { warehouseId: plan.databricks.warehouseId } : {}),
+                ...(record.host ? { host: record.host } : {}),
+                ...(record.credential?.profile ? { profile: record.credential.profile } : {}),
             };
         }, context);
-        if (previous?.host) {
+        if (previous?.host || previous?.profile) {
             try {
                 const restored = await DatabricksDataAdapter.connect({
-                    host: previous.host,
-                    profile: previous.profile,
-                    warehouseId: previous.warehouseId,
+                    ...(previous.host ? { host: previous.host } : {}),
+                    ...(previous.profile ? { profile: previous.profile } : {}),
                 });
                 setSharedAdapter(restored);
                 noteDatabricksAdapter(restored);
@@ -147,13 +146,11 @@ export const connectDatabricksTool = defineTool({
 
             await api.commit(async (tx) => {
                 const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
-                plan.databricks = {
+                plan.dataSource = databricksRecord({
                     host: adapter.options.host ?? "unknown",
-                    mcpUrl: adapter.options.mcpUrl ?? "",
+                    ...(adapter.options.mcpUrl ? { mcpUrl: adapter.options.mcpUrl } : {}),
                     ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
-                    ...(adapter.options.warehouseId ? { warehouseId: adapter.options.warehouseId } : {}),
-                    connectedAt: Date.now(),
-                };
+                });
                 plan.status = "investigating";
                 plan.currentMilestone = "Databricks Data Exploration";
                 plan.updatedAt = Date.now();
@@ -318,17 +315,12 @@ export const profileDatabricksTableTool = defineTool({
             adapter.setActiveTable(args.table);
 
             const profileText = formatProfileText(profile);
-            const parts = args.table.split(".");
-            const catalog = parts.length >= 3 ? parts[parts.length - 3] : undefined;
-            const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
 
             await api.commit(async (tx) => {
                 const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
                 plan.activeDataset = {
                     name: profile.tableName,
-                    source: "databricks",
-                    ...(catalog ? { catalog } : {}),
-                    ...(schema ? { schema } : {}),
+                    provider: "databricks",
                     rowCount: profile.rowCount,
                     columns: profile.columns.map((column) => column.name),
                     profileSummary: profileText,

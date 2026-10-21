@@ -142,13 +142,14 @@ Seven tools, the same count the model sees today, with no per-source variant eve
 
 ```
 plan.databricks  →  plan.dataSource: {
-  provider, dialect, endpoint?, namespace?, dataset?, authRef: { kind, profile? }, connectedAt
+  provider, dialect, host?, endpoint?, namespace?, dataset?, credential: { kind, profile? }, connectedAt
 }
 ```
 
 Names and kinds only, never a token. The session is its only writer. `DatasetMeta.source` becomes
-`{ provider, dataset }`; `"file"` is the local provider. The existing `migrate` support in
-`defineDoc` (`src/docs/agents.ts:143`) is the pattern.
+`provider` (`local` for a file); `name` already carries the dataset in the source's own convention.
+The `migrate` support in `defineDoc` (`src/docs/agents.ts:143`) is the pattern, and the migration is a
+pure exported function so it can be tested without opening storage.
 
 ### Transport
 

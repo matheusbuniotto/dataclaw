@@ -47,25 +47,34 @@ export type Derivation = "native" | `dialect:${DialectName}`;
 // The durable record
 // ---------------------------------------------------------------------------
 
-/** A credential *source*, by name. Never a token. */
-export interface SourceCredential {
+/**
+ * A credential *source*, by name. Never a token.
+ * A type alias, not an interface: durable documents hold this, and only object literal types get
+ * the implicit index signature `JsonObject` requires.
+ */
+export type SourceCredential = {
     kind: "env" | "cli-profile" | "oauth" | "service-principal";
     /** CLI profile name, for `kind: "cli-profile"`. */
     profile?: string;
-}
+};
 
-/** Exactly what `AnalystPlanDoc.dataSource` stores. Everything here is safe to persist. */
-export interface SourceRecord {
+/**
+ * Exactly what `AnalystPlanDoc.dataSource` stores. Everything here is safe to persist.
+ * A type alias, not an interface, for the same reason as `SourceCredential`.
+ */
+export type SourceRecord = {
     provider: string;
     dialect: DialectName;
+    /** Where the source lives, when that is not the endpoint: a Databricks workspace host, an account URL. */
+    host?: string;
     endpoint?: string;
     /** Namespace parts above the dataset, in the source's own order. */
-    namespace?: readonly string[];
+    namespace?: string[];
     /** The dataset in focus, when one has been selected. */
     dataset?: string;
     credential?: SourceCredential;
     connectedAt: number;
-}
+};
 
 export interface ConnectIntent {
     provider: string;
@@ -170,6 +179,8 @@ export interface ProviderProbe {
 export interface DataProvider {
     readonly id: string;
     readonly dialect: Dialect;
+    /** Where the source lives, for the durable record. Never a secret. */
+    readonly host?: string;
     /** The endpoint this provider reached, for the durable record. Never a secret. */
     readonly endpoint?: string;
     /** A local provider always has `intake`; a remote one never does. */

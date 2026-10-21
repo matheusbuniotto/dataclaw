@@ -42,7 +42,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                     plan.currentMilestone = "Hypothesis Formulation";
                     plan.activeDataset = {
                         name: profile.tableName,
-                        source: "file",
+                        provider: "local",
                         sourcePath: task.input.filePath,
                         rowCount: profile.rowCount,
                         columns: profile.columns.map((c) => c.name),
