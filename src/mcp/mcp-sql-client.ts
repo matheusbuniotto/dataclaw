@@ -1,5 +1,6 @@
 import type { DatabricksMcpConfig } from "./databricks-config";
 import { HttpMcpClient, sleep, throwIfStopped } from "./http-mcp-client";
+import { quotePart, quoteQualifiedName as quoteQualifiedNameWith, splitQuotedName } from "../datasource/identifiers";
 
 export { isStoppedError, stoppedError } from "./http-mcp-client";
 
@@ -105,7 +106,7 @@ export function assertReadOnlySql(sql: string): void {
 }
 
 export function quoteIdentifier(identifier: string): string {
-    return `\`${identifier.replace(/`/g, "``")}\``;
+    return quotePart(identifier, "`");
 }
 
 /**
@@ -113,45 +114,11 @@ export function quoteIdentifier(identifier: string): string {
  * Rejects empty parts and control characters.
  */
 export function splitQualifiedName(name: string): string[] {
-    const input = name.trim();
-    if (!input) throw new Error("Identifier must not be empty.");
-
-    const parts: string[] = [];
-    let current = "";
-    let inBacktick = false;
-
-    for (const char of input) {
-        if (char === "`") {
-            inBacktick = !inBacktick;
-            current += char;
-            continue;
-        }
-        if (char === "." && !inBacktick) {
-            parts.push(current);
-            current = "";
-            continue;
-        }
-        current += char;
-    }
-    parts.push(current);
-
-    if (inBacktick) throw new Error(`Unbalanced backticks in identifier: ${name}`);
-
-    return parts.map((part) => {
-        const trimmed = part.trim();
-        if (!trimmed) throw new Error(`Invalid qualified name "${name}": empty part.`);
-        const unquoted = trimmed.startsWith("`") && trimmed.endsWith("`")
-            ? trimmed.slice(1, -1).replace(/``/g, "`")
-            : trimmed;
-        if (!unquoted || /[`\u0000-\u001f;]/.test(unquoted)) {
-            throw new Error(`Invalid identifier part "${part}" in "${name}".`);
-        }
-        return unquoted;
-    });
+    return splitQuotedName(name, "`");
 }
 
 export function quoteQualifiedName(name: string): string {
-    return splitQualifiedName(name).map(quoteIdentifier).join(".");
+    return quoteQualifiedNameWith(name, "`");
 }
 
 function toNumberIfSafe(value: string): number | string {

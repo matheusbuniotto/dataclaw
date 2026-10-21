@@ -33,7 +33,14 @@ Two constraints shape the order:
   throwable and keep its stack. `DescribedColumn` / `ColumnKind` moved here, and the Databricks
   adapter imports them instead of declaring a second shape. 4 tests in
   `tests/datasource-types.test.ts`.
-- [ ] 4. Dialects: `ansi` and `databricks`
+- [x] **4. Dialects: `ansi` and `databricks`** — `src/datasource/dialects/` (a shared profile builder,
+  Databricks with `SHOW`/`DESCRIBE`/`PERCENTILE_APPROX`/`CORR`, ANSI with `INFORMATION_SCHEMA` and
+  `PERCENTILE_CONT`), identifier quoting moved to `src/datasource/identifiers.ts` and re-used by
+  `mcp-sql-client`. The Databricks adapter no longer builds SQL by hand (−77 lines). 16 golden tests
+  in `tests/dialects.test.ts`; the profile aggregate is asserted string-for-string against what the
+  adapter emitted before. `dialectFor()` fails closed with `dialect-missing` for a dialect with no
+  module yet.
+- [ ] 5. The fake provider and the conformance suite
 
 ## Stage 0 · Groundwork (no behaviour change)
 

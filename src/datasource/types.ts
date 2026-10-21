@@ -26,12 +26,15 @@ import type { DialectName } from "../plugins/types";
 /** The three column kinds a profile reports. The dialect maps native types onto them. */
 export type ColumnKind = "INTEGER" | "REAL" | "TEXT";
 
-export interface DescribedColumn {
-    name: string;
-    dataType: string;
+export interface ColumnTraits {
     kind: ColumnKind;
     numeric: boolean;
     temporal: boolean;
+}
+
+export interface DescribedColumn extends ColumnTraits {
+    name: string;
+    dataType: string;
 }
 
 /**
@@ -196,7 +199,7 @@ export interface Dialect {
     percentile(expression: string, p: number): string;
     correlation(a: string, b: string): string;
     castDouble(expression: string): string;
-    classify(dataType: string): ColumnKind;
+    classify(dataType: string): ColumnTraits;
     isReadOnly(sql: string): boolean;
 }
 

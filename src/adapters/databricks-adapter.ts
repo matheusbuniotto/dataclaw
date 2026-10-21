@@ -7,20 +7,14 @@ import {
 import {
     assertReadOnlySql,
     McpSqlClient,
-    quoteIdentifier,
-    quoteQualifiedName,
-    splitQualifiedName,
     type ExecuteSqlOptions,
     type SqlExecutionResult,
     type SqlExecutor,
 } from "../mcp/mcp-sql-client";
-import type { ColumnKind, DescribedColumn } from "../datasource/types";
+import { databricksDialect as dialect } from "../datasource/dialects";
+import type { DescribedColumn } from "../datasource/types";
 
 export type { DescribedColumn };
-
-const INTEGER_TYPES = /^(tinyint|smallint|int|integer|bigint|long|byte|short)$/i;
-const FLOAT_TYPES = /^(float|double|real|decimal|numeric)/i;
-const TEMPORAL_TYPES = /^(date|timestamp|timestamp_ntz|timestamp_ltz)$/i;
 
 export interface DatabricksAdapterOptions {
     /** Default Unity Catalog table used when profile() is called without a name. */
@@ -37,12 +31,6 @@ export interface DatabricksAdapterOptions {
     tokenProvider?: (force?: boolean) => string | Promise<string>;
 }
 
-function columnKind(dataType: string): ColumnKind {
-    if (INTEGER_TYPES.test(dataType)) return "INTEGER";
-    if (FLOAT_TYPES.test(dataType)) return "REAL";
-    return "TEXT";
-}
-
 /** Parse the rows returned by `DESCRIBE TABLE`. */
 export function parseDescribeTableRows(rows: Array<Record<string, unknown>>): DescribedColumn[] {
     const columns: DescribedColumn[] = [];
@@ -57,9 +45,7 @@ export function parseDescribeTableRows(rows: Array<Record<string, unknown>>): De
         columns.push({
             name,
             dataType,
-            kind: columnKind(dataType),
-            numeric: INTEGER_TYPES.test(dataType) || FLOAT_TYPES.test(dataType),
-            temporal: TEMPORAL_TYPES.test(dataType),
+            ...dialect.classify(dataType),
         });
     }
     return columns;
@@ -168,10 +154,9 @@ export class DatabricksDataAdapter implements DataAdapter {
                 "No table specified. Pass a fully qualified Unity Catalog table (catalog.schema.table).",
             );
         }
-        const qualified = quoteQualifiedName(table);
         this.activeTableName = table;
 
-        const described = await this.sql(`DESCRIBE TABLE ${qualified}`, { readOnly: true, maxRows: 500 });
+        const described = await this.sql(dialect.describeSql(table), { readOnly: true, maxRows: 500 });
         const describedColumns = parseDescribeTableRows(described.rows);
         if (describedColumns.length === 0) {
             throw new Error(
@@ -179,24 +164,8 @@ export class DatabricksDataAdapter implements DataAdapter {
             );
         }
 
-        const aggregateParts = ["COUNT(*) AS `__row_count`"];
-        describedColumns.forEach((column, index) => {
-            const id = quoteIdentifier(column.name);
-            aggregateParts.push(`COUNT(${id}) AS \`c${index}__non_null\``);
-            aggregateParts.push(`COUNT(DISTINCT ${id}) AS \`c${index}__distinct\``);
-            if (column.numeric) {
-                aggregateParts.push(`MIN(CAST(${id} AS DOUBLE)) AS \`c${index}__min\``);
-                aggregateParts.push(`MAX(CAST(${id} AS DOUBLE)) AS \`c${index}__max\``);
-                aggregateParts.push(`AVG(CAST(${id} AS DOUBLE)) AS \`c${index}__mean\``);
-                aggregateParts.push(`PERCENTILE_APPROX(CAST(${id} AS DOUBLE), 0.5) AS \`c${index}__median\``);
-            } else if (column.temporal) {
-                aggregateParts.push(`MIN(${id}) AS \`c${index}__min\``);
-                aggregateParts.push(`MAX(${id}) AS \`c${index}__max\``);
-            }
-        });
-
         const aggregate = await this.sql(
-            `SELECT ${aggregateParts.join(", ")} FROM ${qualified}`,
+            dialect.profileSql(describedColumns, table),
             { readOnly: true, maxRows: 1 },
         );
         const aggregateRow = aggregate.rows[0] ?? {};
@@ -204,8 +173,8 @@ export class DatabricksDataAdapter implements DataAdapter {
         let sampleRows: Array<Record<string, unknown>> = [];
         try {
             const samples = await this.sql(
-                `SELECT ${describedColumns.map((column) => quoteIdentifier(column.name)).join(", ")} ` +
-                `FROM ${qualified} LIMIT 5`,
+                `SELECT ${describedColumns.map((column) => dialect.quote(column.name)).join(", ")} ` +
+                `FROM ${dialect.qualify(table)} LIMIT 5`,
                 { readOnly: true, maxRows: 5 },
             );
             sampleRows = samples.rows;
@@ -264,16 +233,16 @@ export class DatabricksDataAdapter implements DataAdapter {
         if (!table) {
             throw new Error("No table specified for metric calculation (catalog.schema.table).");
         }
-        const qualified = quoteQualifiedName(table);
+        const qualified = dialect.qualify(table);
 
         if (type === "correlation") {
             const { colA, colB } = options as { colA?: string; colB?: string };
             if (!colA || !colB) throw new Error("Correlation requires colA and colB.");
-            const a = quoteIdentifier(colA);
-            const b = quoteIdentifier(colB);
+            const a = dialect.quote(colA);
+            const b = dialect.quote(colB);
 
             const result = await this.sql(
-                `SELECT COUNT(*) AS n, CORR(CAST(${a} AS DOUBLE), CAST(${b} AS DOUBLE)) AS r ` +
+                `SELECT COUNT(*) AS n, ${dialect.correlation(a, b)} AS r ` +
                 `FROM ${qualified} WHERE ${a} IS NOT NULL AND ${b} IS NOT NULL`,
                 { readOnly: true, maxRows: 1 },
             );
@@ -295,14 +264,14 @@ export class DatabricksDataAdapter implements DataAdapter {
         if (type === "percentiles") {
             const col = (options.col ?? options.colA) as string | undefined;
             if (!col) throw new Error("Percentiles require a column name.");
-            const id = quoteIdentifier(col);
+            const id = dialect.quote(col);
             const result = await this.sql(
                 `SELECT COUNT(${id}) AS n, ` +
-                `PERCENTILE_APPROX(CAST(${id} AS DOUBLE), 0.25) AS p25, ` +
-                `PERCENTILE_APPROX(CAST(${id} AS DOUBLE), 0.50) AS p50, ` +
-                `PERCENTILE_APPROX(CAST(${id} AS DOUBLE), 0.75) AS p75, ` +
-                `PERCENTILE_APPROX(CAST(${id} AS DOUBLE), 0.90) AS p90, ` +
-                `PERCENTILE_APPROX(CAST(${id} AS DOUBLE), 0.99) AS p99 ` +
+                `${dialect.percentile(id, 0.25)} AS p25, ` +
+                `${dialect.percentile(id, 0.5)} AS p50, ` +
+                `${dialect.percentile(id, 0.75)} AS p75, ` +
+                `${dialect.percentile(id, 0.9)} AS p90, ` +
+                `${dialect.percentile(id, 0.99)} AS p99 ` +
                 `FROM ${qualified}`,
                 { readOnly: true, maxRows: 1 },
             );
@@ -324,7 +293,7 @@ export class DatabricksDataAdapter implements DataAdapter {
     }
 
     async listCatalogs(): Promise<string[]> {
-        const result = await this.sql("SHOW CATALOGS", { readOnly: true, maxRows: 500 });
+        const result = await this.sql(dialect.listChildrenSql(), { readOnly: true, maxRows: 500 });
         return result.rows
             .map((row) => Object.values(row)[0])
             .filter((value): value is string => typeof value === "string");
@@ -332,7 +301,7 @@ export class DatabricksDataAdapter implements DataAdapter {
 
     async listSchemas(catalog: string): Promise<string[]> {
         const result = await this.sql(
-            `SHOW SCHEMAS IN ${quoteIdentifier(splitQualifiedName(catalog)[0]!)}`,
+            dialect.listChildrenSql({ namespace: [dialect.split(catalog)[0]!] }),
             { readOnly: true, maxRows: 500 },
         );
         return result.rows
@@ -341,8 +310,10 @@ export class DatabricksDataAdapter implements DataAdapter {
     }
 
     async listTables(catalog: string, schema: string): Promise<Array<{ name: string; type?: string }>> {
-        const qualified = `${quoteIdentifier(splitQualifiedName(catalog)[0]!)}.${quoteIdentifier(splitQualifiedName(schema)[0]!)}`;
-        const result = await this.sql(`SHOW TABLES IN ${qualified}`, { readOnly: true, maxRows: 1000 });
+        const result = await this.sql(
+            dialect.listChildrenSql({ namespace: [dialect.split(catalog)[0]!, dialect.split(schema)[0]!] }),
+            { readOnly: true, maxRows: 1000 },
+        );
         return result.rows.flatMap((row) => {
             const name = row.tableName ?? row.table_name ?? row.name;
             if (typeof name !== "string") return [];
@@ -353,7 +324,7 @@ export class DatabricksDataAdapter implements DataAdapter {
 
     async describeTable(table: string): Promise<DescribedColumn[]> {
         const result = await this.sql(
-            `DESCRIBE TABLE ${quoteQualifiedName(table)}`,
+            dialect.describeSql(table),
             { readOnly: true, maxRows: 500 },
         );
         return parseDescribeTableRows(result.rows);
