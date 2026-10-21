@@ -106,6 +106,8 @@ export const TOOL_DECLARATIONS = {
 
     // The rest of the analyst extension: datasets, hypotheses, findings, playbook, audit.
     load_dataset: {
+        // Local intake: it connects the local provider, so the analyst group owns it. A
+        // `databricks` specialist holds the remote tools only and cannot swap its source.
         group: "analyst",
         category: "file",
         phrase: { calling: "Loading dataset", called: "Loaded dataset" },

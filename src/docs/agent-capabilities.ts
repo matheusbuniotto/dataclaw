@@ -11,7 +11,10 @@
  */
 import { declaredTools, type ToolCapabilityGroup } from "../tools/inventory";
 
-/** The source-neutral data tools. They work against whichever data source is connected. */
+/**
+ * The tools that read whichever data source is connected. `load_dataset` is local intake, so it
+ * belongs to the analyst group: a `databricks` specialist cannot swap its source for a CSV.
+ */
 export const DATA_TOOLS = declaredTools("databricks");
 
 /** Tools that come from the core analyst extension (`durable-analyst`). */
