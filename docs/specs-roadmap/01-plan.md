@@ -45,7 +45,14 @@ Two constraints shape the order:
   scripted scenario faults; `conformance.ts` holds the reusable suite. 15 tests, all through the
   port. `read-only-violation` joined the error codes so a refused mutation is distinct from a query
   error.
-- [ ] 6. The session
+- [x] **6. The session** — `src/datasource/session.ts`: `DataSourceRegistry` (one session per
+  conversation) over two ports, `ProviderCatalog` and `SourceRecordStore`. Connect opens → probes →
+  `SELECT 1` → writes the record last; a failed connect closes the new provider and leaves the
+  previous source live. `status()` never throws; `close()` aborts in-flight calls; profile composes
+  from describe + the dialect's aggregate (or a native one) and carries `derivation`; reconnect from
+  the record has a cooldown. 23 tests in `tests/datasource-session.test.ts`, including every
+  provider failure arriving through the session unchanged.
+- [ ] 7. The Databricks provider
 
 ## Stage 0 · Groundwork (no behaviour change)
 

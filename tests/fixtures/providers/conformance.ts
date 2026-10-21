@@ -18,6 +18,8 @@ export interface ProviderHarness {
     provider: DataProvider;
     /** SQL that reached the transport. A refused statement must not appear here. */
     executed: string[];
+    /** Change the scripted scenario mid-test. The fake implements it; a real provider may not. */
+    setScenario?(scenario: ProviderScenario): void;
     close(): Promise<void>;
 }
 

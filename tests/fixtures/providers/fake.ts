@@ -6,7 +6,7 @@
  * A scenario scripts the failures a provider has to translate into `SourceError`.
  */
 import { ansiDialect } from "../../../src/datasource/dialects";
-import type { QueryResult } from "../../../src/adapters/adapter-interface";
+import type { DatasetProfile, QueryResult } from "../../../src/adapters/adapter-interface";
 import {
     SourceError,
     type ColumnTraits,
@@ -28,7 +28,6 @@ export interface FakeOptions {
     /** Server tool names. Leave out `describe_table` to exercise the dialect fallback. */
     tools?: string[];
 }
-
 const DEFAULT_TOOLS = ["run_sql", "describe_table", "list_objects"];
 
 function column(name: string, dataType: string): DescribedColumn {
@@ -54,7 +53,7 @@ function median(values: readonly number[]): number | null {
 
 /** The dataset a generated statement reads, by the last part of its `FROM`. */
 function targetDataset(sql: string): string | undefined {
-    const match = /FROM\s+(.+?)\s*$/i.exec(sql.trim());
+    const match = /FROM\s+(\S+)/i.exec(sql.trim());
     if (!match) return undefined;
     const parts = match[1]!.replace(/[`"]/g, "").split(".");
     return parts[parts.length - 1];
@@ -127,6 +126,7 @@ export function fakeHarness(scenario: ProviderScenario = "healthy", options: Fak
     const tools = [...(options.tools ?? DEFAULT_TOOLS)];
     const executed: string[] = [];
     let closed = false;
+    let active = scenario;
 
     const resolveDataset = (name: string): FakeDataset | undefined => {
         const short = name.replace(/[`"]/g, "").split(".").pop()!;
@@ -149,14 +149,59 @@ export function fakeHarness(scenario: ProviderScenario = "healthy", options: Fak
                 throw new SourceError("aborted", "Stopped.");
             }
             executed.push(sql);
-            if (scenario === "slow") await abortableDelay(200, executeOptions.signal);
+            if (active === "slow") await abortableDelay(200, executeOptions.signal);
 
-            const failure = failureFor(scenario);
+            const failure = failureFor(active);
             if (failure) throw failure;
 
-            const dataset = targetDataset(sql) ? resolveDataset(targetDataset(sql)!) : undefined;
+            const datasetName = targetDataset(sql);
+            const dataset = datasetName ? resolveDataset(datasetName) : undefined;
+
             if (dataset && sql.includes("__row_count")) {
                 return { columns: [], rows: [aggregateRow(dataset)], rowCount: 1, executionTimeMs: 1 };
+            }
+            if (/information_schema\.schemata/i.test(sql)) {
+                return { columns: ["catalog_name"], rows: [{ catalog_name: "main" }], rowCount: 1, executionTimeMs: 1 };
+            }
+            if (/information_schema\.columns/i.test(sql)) {
+                const requested = /table_name\s*=\s*'([^']+)'/i.exec(sql)?.[1];
+                const described = requested ? resolveDataset(requested) : undefined;
+                return {
+                    columns: ["column_name", "data_type"],
+                    rows: (described?.columns ?? []).map((definition) => ({
+                        column_name: definition.name,
+                        data_type: definition.dataType,
+                    })),
+                    rowCount: described?.columns.length ?? 0,
+                    executionTimeMs: 1,
+                };
+            }
+            if (/information_schema\.tables/i.test(sql)) {
+                return {
+                    columns: ["table_name", "table_type"],
+                    rows: [{ table_name: "orders", table_type: "TABLE" }],
+                    rowCount: 1,
+                    executionTimeMs: 1,
+                };
+            }
+            if (/CORR\(/i.test(sql)) {
+                return { columns: ["n", "r"], rows: [{ n: 3, r: 0.5 }], rowCount: 1, executionTimeMs: 1 };
+            }
+            if (/AS p25/i.test(sql)) {
+                return {
+                    columns: ["n", "p25", "p50", "p75", "p90", "p99"],
+                    rows: [{ n: 3, p25: 10, p50: 15, p75: 20, p90: 20, p99: 20 }],
+                    rowCount: 1,
+                    executionTimeMs: 1,
+                };
+            }
+            if (dataset) {
+                return {
+                    columns: dataset.columns.map((definition) => definition.name),
+                    rows: [...dataset.rows],
+                    rowCount: dataset.rows.length,
+                    executionTimeMs: 1,
+                };
             }
             return { columns: ["n"], rows: [{ n: 1 }], rowCount: 1, executionTimeMs: 1 };
         },
@@ -188,11 +233,42 @@ export function fakeHarness(scenario: ProviderScenario = "healthy", options: Fak
                 },
             }
             : {}),
+        ...(tools.includes("profile_table")
+            ? {
+                async profile(dataset: string): Promise<DatasetProfile> {
+                    const found = resolveDataset(dataset);
+                    if (!found) throw new SourceError("query-error", `unknown dataset "${dataset}"`);
+                    const rowCount = found.rows.length;
+                    return {
+                        tableName: dataset,
+                        rowCount,
+                        columnCount: found.columns.length,
+                        columns: found.columns.map((definition) => {
+                            const values = found.rows
+                                .map((record) => record[definition.name])
+                                .filter((value) => value !== null && value !== undefined);
+                            const nullCount = rowCount - values.length;
+                            return {
+                                name: definition.name,
+                                type: definition.kind,
+                                nullCount,
+                                nullPct: rowCount > 0 ? Number(((nullCount / rowCount) * 100).toFixed(2)) : 0,
+                                distinctCount: new Set(values).size,
+                                sampleValues: values.slice(0, 5),
+                            };
+                        }),
+                    };
+                },
+            }
+            : {}),
     };
 
     return {
         provider,
         executed,
+        setScenario(next: ProviderScenario) {
+            active = next;
+        },
         async close() {
             if (!closed) await provider.close();
             closed = true;

@@ -125,6 +125,8 @@ export interface CorrelationMetric {
     strength: "weak" | "moderate" | "strong";
     direction: "positive" | "negative";
     derivation: Derivation;
+    /** Set when the number is not worth reading, e.g. a sample of one. */
+    note?: string;
 }
 
 export interface PercentileMetric {
@@ -194,8 +196,12 @@ export interface Dialect {
     qualify(dataset: string): string;
     split(dataset: string): string[];
     listChildrenSql(scope?: DatasetScope): string;
+    /** Whether the level below `scope` holds namespaces or datasets. */
+    childKind(scope?: DatasetScope): "namespace" | "dataset";
     describeSql(dataset: string): string;
     profileSql(columns: readonly DescribedColumn[], dataset: string): string;
+    /** Sample rows for a profile, in this dialect's row-limit syntax. */
+    sampleSql(columns: readonly DescribedColumn[], dataset: string): string;
     percentile(expression: string, p: number): string;
     correlation(a: string, b: string): string;
     castDouble(expression: string): string;
@@ -272,9 +278,9 @@ export interface DataSourceSession {
     status(): SourceStatus;
     connect(intent: ConnectIntent): Promise<SourceRecord>;
     close(): Promise<void>;
-    discover(request: DiscoveryRequest): Promise<Discovery[]>;
-    profile(dataset: string): Promise<ProfileResult>;
+    discover(request: DiscoveryRequest, options?: { signal?: AbortSignal }): Promise<Discovery[]>;
+    profile(dataset: string, options?: { signal?: AbortSignal }): Promise<ProfileResult>;
     query(sql: string, options?: { maxRows?: number; signal?: AbortSignal }): Promise<QueryResult>;
-    metric(spec: MetricSpec): Promise<MetricResult>;
+    metric(spec: MetricSpec, options?: { signal?: AbortSignal }): Promise<MetricResult>;
     readonly intake?: DatasetIntake;
 }

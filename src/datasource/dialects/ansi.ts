@@ -84,6 +84,7 @@ export const ansiDialect: Dialect = {
         }
         throw new Error("An ANSI namespace is catalog.schema; deeper parts belong to the table.");
     },
+    childKind: (scope?: DatasetScope) => (scope?.namespace ?? []).length >= 2 ? "dataset" : "namespace",
     describeSql(dataset: string): string {
         const target = describeTarget(dataset);
         const conditions = [`table_name = ${literal(target.table)}`];
@@ -92,6 +93,8 @@ export const ansiDialect: Dialect = {
         return "SELECT column_name, data_type FROM information_schema.columns " +
             `WHERE ${conditions.join(" AND ")} ORDER BY ordinal_position`;
     },
+    sampleSql: (columns: readonly DescribedColumn[], dataset: string) =>
+        `SELECT ${columns.map((column) => quote(column.name)).join(", ")} FROM ${qualify(dataset)} FETCH FIRST 5 ROWS ONLY`,
     profileSql: (columns: readonly DescribedColumn[], dataset: string) =>
         profileAggregateSql(columns, dataset, { quote, qualify, castDouble, percentile }),
     percentile,

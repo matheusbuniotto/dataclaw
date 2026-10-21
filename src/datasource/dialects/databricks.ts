@@ -57,7 +57,10 @@ export const databricksDialect: Dialect = {
         }
         throw new Error("A Databricks namespace is catalog.schema; deeper parts belong to the table.");
     },
+    childKind: (scope?: DatasetScope) => (scope?.namespace ?? []).length >= 2 ? "dataset" : "namespace",
     describeSql: (dataset) => `DESCRIBE TABLE ${qualify(dataset)}`,
+    sampleSql: (columns: readonly DescribedColumn[], dataset: string) =>
+        `SELECT ${columns.map((column) => quote(column.name)).join(", ")} FROM ${qualify(dataset)} LIMIT 5`,
     profileSql: (columns: readonly DescribedColumn[], dataset: string) =>
         profileAggregateSql(columns, dataset, { quote, qualify, castDouble, percentile }),
     percentile,
