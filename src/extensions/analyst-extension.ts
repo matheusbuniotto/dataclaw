@@ -42,6 +42,7 @@ import {
     featuresRemoveSkillTool,
 } from "../tools/feature-tools";
 import { createDataSourceTools } from "../tools/datasource-tools";
+import { toolDeclaration } from "../tools/inventory";
 import { isReadOnlySql } from "../mcp/mcp-sql-client";
 import type { DataSourceRegistry } from "../datasource/session";
 
@@ -226,7 +227,7 @@ export function createAnalystTools(options: AnalystToolsOptions) {
             hook(ToolTask, {
                 beforeTool: async (call) => {
                     // Defense in depth: the session and the provider refuse too.
-                    if (call.name === "query_data") {
+                    if (toolDeclaration(call.name)?.runsSql) {
                         const sql = (call.arguments as { sql?: string }).sql ?? "";
                         // The session and the provider check again; this only stops an obvious mistake early.
                         if (sql.trim() && !isReadOnlySql(sql)) {
@@ -236,7 +237,7 @@ export function createAnalystTools(options: AnalystToolsOptions) {
                     return undefined;
                 },
                 afterTool: async (call, result, api, context) => {
-                    if (call.name !== "query_data" || !result.isError) return result;
+                    if (!toolDeclaration(call.name)?.runsSql || !result.isError) return result;
                     const outputText = result.output?.flatMap((c: { text?: string }) => c.text ?? []).join("") ?? "";
                     await api.commit(async (tx) => {
                         const telemetry = await tx.doc(TelemetryDoc, api.conversationId);

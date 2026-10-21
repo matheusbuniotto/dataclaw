@@ -17,6 +17,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { ANALYST_TOOLS, CODING_TOOLS } from "../docs/agent-capabilities";
 import type { PluginAgentTools } from "../plugins/agent-tools";
 import { discoverPlugins, providers, validateManifest } from "../plugins/manifest";
 import type { LoadedPlugin, PluginManifest } from "../plugins/types";
@@ -117,7 +118,8 @@ function pluginEntries(installed: readonly LoadedPlugin[], loaded?: PluginAgentT
     return installed.map((plugin): CapabilityEntry => {
         const manifest = plugin.manifest;
         const summary = summaries.get(manifest.name);
-        const tools = summary?.mcpTools ?? [];
+        // The names the model calls, so a row here matches the agent's own tool allowlist.
+        const tools = summary?.tools ?? [];
         const error = loaded?.errors.find((message) => message.includes(manifest.name));
         return {
             id: `plugin:${manifest.name}`,
@@ -182,14 +184,9 @@ export async function capabilityCatalog(options: CatalogOptions): Promise<Capabi
             enabled: true,
             toggleable: false,
             source: "src/extensions/analyst-extension.ts",
-            details: {
-                tools: [
-                    "list_data_sources", "connect_data_source", "discover_data", "profile_table",
-                    "query_data", "calculate_metric", "load_dataset",
-                    "manage_hypotheses", "record_finding", "consult_playbook",
-                    "request_auditor_review",
-                ],
-            },
+            // Derived from src/tools/inventory.ts: the analyst capability's own tools plus the
+            // source-neutral data tools it installs, so the row cannot drift from the extension.
+            details: { tools: [...ANALYST_TOOLS] },
         },
         {
             id: "tool:coding",
@@ -199,7 +196,7 @@ export async function capabilityCatalog(options: CatalogOptions): Promise<Capabi
             enabled: !disabled.includes("tool:coding"),
             toggleable: true,
             source: "@earendil-works/pi-durable/tools",
-            details: { tools: ["read", "write", "edit", "bash"] },
+            details: { tools: [...CODING_TOOLS] },
         },
         {
             id: "tool:tool-search",

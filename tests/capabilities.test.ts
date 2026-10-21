@@ -15,6 +15,7 @@ import {
     writeDisabled,
 } from "../src/capabilities/catalog";
 import { createPluginAgentTools } from "../src/plugins";
+import { ANALYST_TOOLS, CODING_TOOLS } from "../src/docs/agent-capabilities";
 import { formatSkillsForPrompt, loadSkills } from "../src/workspace/context";
 
 const FAKE_MCP = resolve(import.meta.dir, "fixtures/plugins/fake-stats-mcp");
@@ -103,6 +104,40 @@ describe("plugins and skills from the console", () => {
         removeSkill(workspaceDir, "readout");
         expect((await capabilityCatalog({ projectRoot: root, workspaceDir })).entries.some((entry) => entry.id === "skill:readout")).toBe(false);
     });
+});
+
+describe("the catalog reports the declared inventory", () => {
+    test("tool rows come from the declarations and a loaded plugin reports the names the model calls", async () => {
+        const root = project();
+        addPlugin(root, {
+            name: "fake-stats-mcp",
+            version: "0.0.1",
+            description: "test server",
+            domain: "stats",
+            capabilities: [],
+            transport: { type: "mcp", command: "bun", args: [join(FAKE_MCP, "server.ts")] },
+        });
+
+        const loaded = await createPluginAgentTools({ root });
+        try {
+            const catalog = await capabilityCatalog({
+                projectRoot: root,
+                workspaceDir: join(root, "workspace"),
+                loaded,
+                databricks: { connected: false },
+            });
+
+            // Nothing hand-written: the rows are the same lists the capability resolver installs.
+            expect(catalog.entries.find((entry) => entry.id === "tool:analyst")?.details.tools).toEqual([...ANALYST_TOOLS]);
+            expect(catalog.entries.find((entry) => entry.id === "tool:coding")?.details.tools).toEqual([...CODING_TOOLS]);
+
+            const plugin = catalog.entries.find((entry) => entry.id === "plugin:fake-stats-mcp");
+            expect(plugin?.details.tools).toEqual(loaded.toolNames);
+            expect(plugin?.details.tools).toContain("fake-stats-mcp__compare_eval_runs");
+        } finally {
+            await loaded.close();
+        }
+    }, 60_000);
 });
 
 describe("the catalog and the harness agree on what is off", () => {

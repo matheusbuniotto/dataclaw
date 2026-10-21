@@ -18,6 +18,7 @@ import { loadSkills } from "../workspace/context";
 import type { AgentRosterDocument, AgentRun, RosterAgent } from "../docs/agents";
 import { normalizedAgentProfile } from "../docs/agents";
 import { formatCapabilities } from "../docs/agent-capabilities";
+import { toolDeclaration, type ToolSummary } from "../tools/inventory";
 import { formatCompute } from "../compute/agent-compute";
 import { pluginsSummary } from "./plugins-api";
 import type {
@@ -829,16 +830,17 @@ function sourcesMentioned(text: string): string[] {
 }
 
 function sourcesForTool(name: string, args: unknown): string[] {
-    const found: string[] = [];
     const record = asRecord(args);
-    if (name === "load_dataset" && typeof record?.filePath === "string") {
-        found.push(record.filePath.split(/[/\\]/).pop() ?? record.filePath);
+    if (!record) return [];
+    const found: string[] = [];
+    for (const source of toolDeclaration(name)?.sources ?? []) {
+        const value = record[source.key];
+        if (typeof value !== "string") continue;
+        found.push(source.shape === "path" ? value.split(/[/\\]/).pop() ?? value : value);
     }
-    if (name === "connect_data_source" && typeof record?.provider === "string") {
-        found.push(record.provider);
-    }
-    if (typeof record?.dataset === "string") found.push(record.dataset);
-    if (typeof record?.table === "string") found.push(record.table);
+    // Whatever the tool, a call that names a dataset or a table touched it.
+    if (typeof record.dataset === "string") found.push(record.dataset);
+    if (typeof record.table === "string") found.push(record.table);
     return found;
 }
 
@@ -868,44 +870,33 @@ function shortPath(path: string): string {
 function summarizeToolArgs(name: string, args: unknown): string {
     const record = asRecord(args);
     if (!record) return name;
-    if (name === "bash" && typeof record.command === "string") {
-        const line = record.command.trim().split("\n")[0] ?? "";
-        return line.slice(0, 120);
+    const summary = toolDeclaration(name)?.summary;
+    if (summary) return summarizeDeclared(name, record, summary);
+    // Undeclared tools (plugins, tool_search) and declared ones without a hint: the first
+    // argument that names the call.
+    for (const key of ["sql", "command"]) {
+        if (typeof record[key] === "string") return clipLine(record[key] as string);
     }
-    if ((name === "read" || name === "write" || name === "edit") && typeof record.path === "string") {
-        return shortPath(record.path);
-    }
-    if (typeof record.sql === "string") {
-        const line = record.sql.trim().split("\n")[0] ?? "";
-        return line.slice(0, 120);
-    }
-    if (typeof record.command === "string") {
-        const line = record.command.trim().split("\n")[0] ?? "";
-        return line.slice(0, 120);
-    }
-    if (typeof record.filePath === "string") {
-        return record.filePath.split(/[/\\]/).pop() ?? record.filePath;
-    }
-    if (name === "record_finding" && typeof record.title === "string") {
-        return record.title.slice(0, 120);
-    }
-    if (name === "request_auditor_review" && typeof record.findingId === "string") {
-        return `Audit ${record.findingId}`;
-    }
-    if (name === "manage_hypotheses") {
-        const act = typeof record.action === "string" ? record.action : "manage";
-        const id = typeof record.hypothesisId === "string" ? ` ${record.hypothesisId}` : "";
-        return `${act}${id}`;
-    }
-    if (name === "discover_data") {
-        return [record.step, record.namespace, record.dataset].filter(Boolean).join(" · ") || "children";
-    }
-    if (name === "connect_data_source") {
-        return typeof record.provider === "string" ? record.provider : "data source";
-    }
+    if (typeof record.filePath === "string") return record.filePath.split(/[/\\]/).pop() ?? record.filePath;
     const interesting = record.title ?? record.statement ?? record.table ?? record.action ?? record.rationale ?? record.goal;
-    if (typeof interesting === "string") return interesting.slice(0, 120);
-    return name;
+    return typeof interesting === "string" ? interesting.slice(0, 120) : name;
+}
+
+function clipLine(value: string): string {
+    return (value.trim().split("\n")[0] ?? "").slice(0, 120);
+}
+
+function summarizeDeclared(name: string, record: Record<string, unknown>, summary: ToolSummary): string {
+    const parts: string[] = [];
+    for (const key of summary.keys) {
+        const value = record[key];
+        if (typeof value !== "string" || !value.trim()) continue;
+        parts.push(summary.shape === "line" ? clipLine(value)
+            : summary.shape === "path" ? shortPath(value)
+                : value);
+    }
+    if (parts.length === 0) return summary.fallback ?? name;
+    return `${summary.prefix ?? ""}${parts.join(summary.join ?? " ")}`.slice(0, 120);
 }
 
 function thinkingFromContent(content: unknown): string {

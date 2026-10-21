@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { marked, type Tokens } from "marked";
+import { declaredCategory, toolDeclaration, type ToolCategory } from "../tools/inventory";
 import type { ToolInvocation, TranscriptItem } from "./workspace-types";
 import {
     AlertCircle,
@@ -637,59 +638,28 @@ export function ThinkingView({ text, active = false }: { text: string; active?: 
 // ============================================================================
 // Tool Invocation Card (Tooling execution)
 // ============================================================================
-const TOOL_PHRASES: Record<string, { calling: string; called: string }> = {
-    query_data: { calling: "Querying the data source", called: "Queried the data source" },
-    discover_data: { calling: "Exploring the data source", called: "Explored the data source" },
-    profile_table: { calling: "Profiling table", called: "Profiled table" },
-    connect_data_source: { calling: "Connecting to a data source", called: "Connected to a data source" },
-    list_data_sources: { calling: "Listing data sources", called: "Listed data sources" },
-    bash: { calling: "Running command", called: "Ran command" },
-    read: { calling: "Reading file", called: "Read file" },
-    write: { calling: "Writing file", called: "Wrote file" },
-    edit: { calling: "Editing file", called: "Edited file" },
-    load_dataset: { calling: "Loading dataset", called: "Loaded dataset" },
-    calculate_metric: { calling: "Calculating metric", called: "Calculated metric" },
-    manage_hypotheses: { calling: "Updating hypotheses", called: "Updated hypotheses" },
-    record_finding: { calling: "Recording finding", called: "Recorded finding" },
-    consult_playbook: { calling: "Consulting playbook", called: "Consulted playbook" },
-    request_auditor_review: { calling: "Requesting audit", called: "Requested audit" },
-    record_reflection: { calling: "Recording reflection", called: "Recorded reflection" },
-    record_human_feedback: { calling: "Recording feedback", called: "Recorded feedback" },
-    promote_playbook_rule: { calling: "Promoting playbook rule", called: "Promoted playbook rule" },
-    trigger_auto_improvement: { calling: "Improving playbook", called: "Improved playbook" },
-    agents_list: { calling: "Listing agents", called: "Listed agents" },
-    agents_create: { calling: "Creating agent", called: "Created agent" },
-    agents_update: { calling: "Updating agent", called: "Updated agent" },
-    agents_archive: { calling: "Archiving agent", called: "Archived agent" },
-    spawn_agent: { calling: "Delegating to agent", called: "Delegated to agent" },
-    subagents_list: { calling: "Listing delegated runs", called: "Listed delegated runs" },
+// Phrases and categories come from the declaration in src/tools/inventory.ts; an undeclared
+// tool (a plugin's, or a name that is not installed here) falls back to its own name.
+const CATEGORY_LOOK: Record<ToolCategory, { icon: React.ReactNode; colorClass: string }> = {
+    db: { icon: <Database size={13} />, colorClass: "tool-color-db" },
+    terminal: { icon: <Terminal size={13} />, colorClass: "tool-color-bash" },
+    file: { icon: <FileCode size={13} />, colorClass: "tool-color-file" },
+    audit: { icon: <ShieldCheck size={13} />, colorClass: "tool-color-audit" },
+    other: { icon: <Wrench size={13} />, colorClass: "tool-color-other" },
 };
 
 export function toolCategory(name: string): {
     icon: React.ReactNode;
-    category: "db" | "terminal" | "file" | "audit" | "other";
+    category: ToolCategory;
     colorClass: string;
     calling: string;
     called: string;
 } {
-    const n = name.toLowerCase();
-    const phrase = TOOL_PHRASES[n] ?? {
-        calling: `Calling ${n.replace(/_/g, " ")}`,
-        called: n.replace(/_/g, " "),
-    };
-    if (n.includes("databricks") || n.includes("sql") || n.includes("query") || n.includes("catalog") || n.includes("discover")) {
-        return { icon: <Database size={13} />, category: "db", colorClass: "tool-color-db", ...phrase };
-    }
-    if (n.includes("bash") || n.includes("shell") || n.includes("exec") || n.includes("terminal")) {
-        return { icon: <Terminal size={13} />, category: "terminal", colorClass: "tool-color-bash", ...phrase };
-    }
-    if (n.includes("read") || n.includes("write") || n.includes("edit") || n.includes("file") || n.includes("dataset")) {
-        return { icon: <FileCode size={13} />, category: "file", colorClass: "tool-color-file", ...phrase };
-    }
-    if (n.includes("finding") || n.includes("audit") || n.includes("hypothes") || n.includes("playbook")) {
-        return { icon: <ShieldCheck size={13} />, category: "audit", colorClass: "tool-color-audit", ...phrase };
-    }
-    return { icon: <Wrench size={13} />, category: "other", colorClass: "tool-color-other", ...phrase };
+    const declared = toolDeclaration(name);
+    const category = declaredCategory(name);
+    const words = name.toLowerCase().replace(/_/g, " ");
+    const phrase = declared?.phrase ?? { calling: `Calling ${words}`, called: words };
+    return { icon: CATEGORY_LOOK[category].icon, category, colorClass: CATEGORY_LOOK[category].colorClass, ...phrase };
 }
 
 function argsRecordOf(args: unknown): Record<string, unknown> | null {
