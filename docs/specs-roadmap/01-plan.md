@@ -22,7 +22,11 @@ Two constraints shape the order:
   Databricks result decoding stays in `normalizeStatementResult` (a pure export of
   `mcp-sql-client.ts`) rather than moving into the transport, because it decodes SQL payloads, not
   the wire. The Databricks provider in step 7 will import it.
-- [ ] 2. `dataSource` manifest block
+- [x] **2. `dataSource` manifest block** — `DataSourceManifest` in `plugins/types.ts`, validation
+  in `manifest.ts` (dialect set, tool roles, read-only modes, auth kinds, argument mapping), and the
+  tool bridge now skips a data source so no warehouse is contacted at harness open. 14 tests in
+  `tests/data-source-manifest.test.ts`; documented in `docs/plugins.md`.
+- [ ] 3. Types: records, errors, ports
 
 ## Stage 0 · Groundwork (no behaviour change)
 

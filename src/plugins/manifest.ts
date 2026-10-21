@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { PluginError, type CapabilityId, type LoadedPlugin, type PluginManifest } from "./types";
+import { DIALECT_NAMES, PluginError, type CapabilityId, type LoadedPlugin, type PluginManifest } from "./types";
 
 const CAPABILITY = /^[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*@\d+$/;
 const NAME = /^[a-z0-9][a-z0-9_.-]*$/;
@@ -14,6 +14,96 @@ export function parseCapability(id: string): { domain: string; name: string; maj
 
 const isStringRecord = (v: unknown): v is Record<string, string> =>
     typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "string");
+
+const DATA_SOURCE_TOOL_ROLES = ["query", "describe", "profile", "inventory"] as const;
+
+/**
+ * Validate the `dataSource` block. Every message names the first problem in the block, and the
+ * caller prefixes the manifest path, so a provider author sees `plugins/x/plugin.json: "..."`.
+ */
+function validateDataSource(raw: unknown, transportType: string, fail: (msg: string) => never): void {
+    if (transportType === "script") fail(`"dataSource" requires an MCP transport (mcp or mcp-http), not a script`);
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(`"dataSource" must be an object`);
+    const block = raw as Record<string, unknown>;
+
+    if (typeof block.dialect !== "string" || !(DIALECT_NAMES as readonly string[]).includes(block.dialect)) {
+        fail(`"dataSource.dialect" must be one of: ${DIALECT_NAMES.join(", ")}`);
+    }
+
+    if (typeof block.tools !== "object" || block.tools === null || Array.isArray(block.tools)) {
+        fail(`"dataSource.tools" must be an object`);
+    }
+    const tools = block.tools as Record<string, unknown>;
+    if (typeof tools.query !== "string" || !tools.query.trim()) {
+        fail(`"dataSource.tools.query" must be a non-empty string`);
+    }
+    const seen: string[] = [];
+    for (const role of DATA_SOURCE_TOOL_ROLES) {
+        const value = tools[role];
+        if (value === undefined) continue;
+        if (typeof value !== "string" || !value.trim()) fail(`"dataSource.tools.${role}" must be a non-empty string`);
+        if (seen.includes(value as string)) fail(`"dataSource.tools.${role}" repeats the tool "${value}"`);
+        seen.push(value as string);
+    }
+
+    if (typeof block.readOnly !== "object" || block.readOnly === null || Array.isArray(block.readOnly)) {
+        fail(`"dataSource.readOnly" must be an object`);
+    }
+    const readOnly = block.readOnly as Record<string, unknown>;
+    if (readOnly.mode !== "tool" && readOnly.mode !== "role" && readOnly.mode !== "checked") {
+        fail(`"dataSource.readOnly.mode" must be "tool", "role" or "checked"`);
+    }
+    if (readOnly.tool !== undefined && (typeof readOnly.tool !== "string" || !readOnly.tool.trim())) {
+        fail(`"dataSource.readOnly.tool" must be a non-empty string`);
+    }
+    if (readOnly.argument !== undefined && (typeof readOnly.argument !== "string" || !readOnly.argument.trim())) {
+        fail(`"dataSource.readOnly.argument" must be a non-empty string`);
+    }
+    if ((readOnly.argument === undefined) !== (readOnly.value === undefined)) {
+        fail(`"dataSource.readOnly.argument" and "value" must be provided together`);
+    }
+    if (readOnly.value !== undefined && typeof readOnly.value !== "boolean" && typeof readOnly.value !== "string") {
+        fail(`"dataSource.readOnly.value" must be a boolean or a string`);
+    }
+    if (readOnly.mode !== "tool" && (readOnly.tool !== undefined || readOnly.argument !== undefined || readOnly.value !== undefined)) {
+        fail(`"dataSource.readOnly" uses tool/argument/value only with mode "tool"`);
+    }
+    if (readOnly.note !== undefined && typeof readOnly.note !== "string") {
+        fail(`"dataSource.readOnly.note" must be a string`);
+    }
+
+    if (block.auth !== undefined) {
+        if (!Array.isArray(block.auth)) fail(`"dataSource.auth" must be an array`);
+        for (const entry of block.auth as unknown[]) {
+            if (typeof entry !== "object" || entry === null || Array.isArray(entry)) fail(`"dataSource.auth" entries must be objects`);
+            const auth = entry as Record<string, unknown>;
+            if (auth.kind === "env") {
+                const vars = auth.vars;
+                if (!Array.isArray(vars) || vars.length === 0 || !vars.every((v) => typeof v === "string" && v.trim())) {
+                    fail(`"dataSource.auth" env entry needs a non-empty "vars" array of names`);
+                }
+            } else if (auth.kind === "cli-profile") {
+                if (auth.default !== undefined && typeof auth.default !== "string") {
+                    fail(`"dataSource.auth" cli-profile "default" must be a string`);
+                }
+            } else if (auth.kind !== "oauth" && auth.kind !== "service-principal") {
+                fail(`"dataSource.auth.kind" must be env, cli-profile, oauth or service-principal`);
+            }
+        }
+    }
+
+    if (block.arguments !== undefined) {
+        if (typeof block.arguments !== "object" || block.arguments === null || Array.isArray(block.arguments)) {
+            fail(`"dataSource.arguments" must be an object`);
+        }
+        for (const role of DATA_SOURCE_TOOL_ROLES) {
+            const name = (block.arguments as Record<string, unknown>)[role];
+            if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+                fail(`"dataSource.arguments.${role}" must be a non-empty string`);
+            }
+        }
+    }
+}
 
 /** Validate a parsed manifest. Throws PluginError naming the source and the first problem. */
 export function validateManifest(raw: unknown, source: string): PluginManifest {
@@ -63,6 +153,9 @@ export function validateManifest(raw: unknown, source: string): PluginManifest {
         for (const c of Object.keys(t!.tools as object)) {
             if (!(m.capabilities as string[]).includes(c)) fail(`transport.tools maps "${c}", which is not in capabilities`);
         }
+    }
+    if (m.dataSource !== undefined) {
+        validateDataSource(m.dataSource, String(t!.type), fail);
     }
     return m as unknown as PluginManifest;
 }

@@ -115,6 +115,49 @@ plugin. Endpoints and credentials come from the environment: the manifest names 
 contain them. A 401 or 403 triggers one re-read of `bearerEnv` (or one `tokenProvider(force)` call
 for code-built clients) before the call fails.
 
+### Data sources
+
+A plugin that is a **data source** — a warehouse you connect to and query, rather than a list of
+capabilities — adds a `dataSource` block. The session that reads it is described in
+[specs-roadmap/01-data-source-session.md](specs-roadmap/01-data-source-session.md); until that lands,
+the block is validated and the plugin is left unopened.
+
+```json
+{
+    "name": "snowflake",
+    "version": "1.0.0",
+    "description": "Snowflake warehouse over MCP",
+    "domain": "data",
+    "capabilities": [],
+    "transport": { "type": "mcp-http", "url": "${SNOWFLAKE_MCP_URL}", "bearerEnv": "SNOWFLAKE_TOKEN" },
+    "dataSource": {
+        "dialect": "snowflake",
+        "tools": { "query": "run_sql", "describe": "describe_table", "inventory": "list_objects" },
+        "readOnly": { "mode": "tool", "tool": "run_sql", "argument": "read_only", "value": true },
+        "auth": [
+            { "kind": "env", "vars": ["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_TOKEN"] },
+            { "kind": "cli-profile", "default": "prod" }
+        ],
+        "arguments": { "query": "sql" }
+    }
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `dataSource.dialect` | yes | `databricks`, `snowflake`, `bigquery` or `ansi`. The dialect supplies SQL when the server publishes no `describe`/`profile` tool. |
+| `dataSource.tools.query` | yes | The server tool that runs a statement. |
+| `dataSource.tools.describe` | no | The server tool that describes a table. Absent: the dialect generates it. |
+| `dataSource.tools.profile` | no | The server tool that profiles a table. Absent: the dialect generates it. |
+| `dataSource.tools.inventory` | no | The server tool that lists catalogs, schemas or tables. |
+| `dataSource.readOnly` | yes | `{ mode: "tool", tool?, argument?, value? }`, `{ mode: "role", note? }` or `{ mode: "checked" }`. A source declaring none is refused at connect. |
+| `dataSource.auth` | no | Credential sources in order: `env` (with `vars`), `cli-profile` (with optional `default`), `oauth`, `service-principal`. Names only. |
+| `dataSource.arguments` | no | Argument name each tool expects for its statement, when it is not `sql`. |
+
+A `dataSource` requires an MCP transport (`mcp` or `mcp-http`), never a script. The tool bridge does
+not open it: listing its tools at harness open would reach the warehouse before a conversation
+connects.
+
 ## Capabilities and versions
 
 A capability id is `domain.name@major`, e.g. `stats.agreement_kappa@1`. The major version

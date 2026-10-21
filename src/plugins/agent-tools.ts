@@ -110,6 +110,11 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
         const manifest = plugin.manifest;
         if (options.only && !options.only.includes(manifest.name)) continue;
         if (disabled.includes(manifest.name)) continue;
+        if (manifest.dataSource) {
+            // A data source is opened by the data-source session when a conversation connects.
+            // Listing its tools here would reach the warehouse before anyone asked for it.
+            continue;
+        }
         const client = openMcpPlugin(plugin, { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS });
         if (!client) {
             // Script transports are one call per capability and publish no tool inventory.

@@ -41,6 +41,50 @@ export interface HttpMcpTransportConfig {
 
 export type TransportConfig = McpTransportConfig | ScriptTransportConfig | HttpMcpTransportConfig;
 
+/** SQL dialects a data source may declare. Code for each lives in `src/datasource/dialects/`. */
+export const DIALECT_NAMES = ["databricks", "snowflake", "bigquery", "ansi"] as const;
+export type DialectName = (typeof DIALECT_NAMES)[number];
+
+/** A credential source, by name. The manifest never holds a secret. */
+export type DataSourceAuth =
+    | { kind: "env"; vars: readonly string[] }
+    | { kind: "cli-profile"; default?: string }
+    | { kind: "oauth" }
+    | { kind: "service-principal" };
+
+/**
+ * How read-only is guaranteed. `tool` names the server tool (or argument) that is read-only,
+ * `role` declares a server-enforced read-only role, `checked` parses the statement client-side.
+ * A data source with none of these is refused at connect.
+ */
+export interface DataSourceReadOnly {
+    mode: "tool" | "role" | "checked";
+    /** Tool that is read-only. Defaults to `tools.query`. */
+    tool?: string;
+    /** When the read-only guarantee is an argument on a tool, its name... */
+    argument?: string;
+    /** ...and the value that makes the call read-only. */
+    value?: boolean | string;
+    /** Free text for the record, e.g. the role name. */
+    note?: string;
+}
+
+/**
+ * A plugin that is a data source rather than a capability provider. It is not started at harness
+ * open: the data-source session opens it when a conversation connects, so no warehouse is contacted
+ * before the user asks.
+ */
+export interface DataSourceManifest {
+    /** SQL dialect the session uses when the server publishes no describe/profile tool. */
+    dialect: DialectName;
+    /** The server's tool names for the four operations. `query` is required. */
+    tools: { query: string; describe?: string; profile?: string; inventory?: string };
+    readOnly: DataSourceReadOnly;
+    auth?: readonly DataSourceAuth[];
+    /** Argument name each tool expects for its statement, when it is not `sql`. */
+    arguments?: { query?: string; describe?: string; profile?: string; inventory?: string };
+}
+
 export interface PluginManifest {
     name: string;
     version: string;
@@ -51,6 +95,8 @@ export interface PluginManifest {
     transport: TransportConfig;
     /** Higher wins when several plugins provide the same capability. Default 0. */
     priority?: number;
+    /** Present when this plugin is a data source. See `DataSourceManifest`. */
+    dataSource?: DataSourceManifest;
 }
 
 export interface LoadedPlugin {
