@@ -178,6 +178,15 @@ bun run evals:calibrate export evals/results/model-openai_gpt-4o.jsonl > labels.
 bun run evals:calibrate score labels.csv evals/results/model-openai_gpt-4o.jsonl
 ```
 
+**Plugins.** Statistics can also come from an external plugin, for example a Python service
+on a stats library. `bun run evals:compare a.jsonl b.jsonl` compares two runs (cases = tasks,
+runs = repeats) through whichever installed plugin provides `stats.compare_eval_runs@1`, and
+`evals:calibrate score` also asks a `stats.agreement_kappa@1` plugin. Without one, both use the
+built-in code above. Plugins are declared by a small manifest and speak MCP over stdio or plain
+JSON on stdin/stdout. Stats is the first domain; ML, forecasting or FP&A plugins use the same
+mechanism. See [docs/plugins.md](docs/plugins.md) and
+[docs/capabilities/stats.md](docs/capabilities/stats.md).
+
 `evals/labels/auditor-labels.example.csv` shows the label format. Its labels are placeholders produced by a rule
 (rejected if the finding has no query or a wrong number) and are marked `EXAMPLE`. The score command prints a
 warning when it sees them.

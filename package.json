@@ -13,7 +13,9 @@
     "demo:databricks": "bun run examples/databricks-demo.ts",
     "evals": "bun run evals/run.ts",
     "evals:report": "bun run evals/report.ts",
-    "evals:calibrate": "bun run evals/calibrate.ts"
+    "evals:calibrate": "bun run evals/calibrate.ts",
+    "evals:compare": "bun run evals/compare.ts",
+    "plugins:list": "bun run src/plugins/cli.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
