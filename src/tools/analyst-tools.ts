@@ -60,7 +60,8 @@ export const profileDatasetTool = defineTool({
         api.output(`Profiling dataset from ${args.filePath}...\n`);
         if (!existsSync(args.filePath)) {
             return {
-                content: [{ type: "text", text: `Error: File not found at path "${args.filePath}".` }],
+                output: [{ type: "text", text: `Error: File not found at path "${args.filePath}".` }],
+                isError: true,
             };
         }
 
@@ -68,7 +69,7 @@ export const profileDatasetTool = defineTool({
         const adapter = await getOrCreateAdapter();
         if (adapter.source === "databricks") {
             return {
-                content: [{
+                output: [{
                     type: "text",
                     text: "Databricks is the active data source, so local file loading is unavailable. " +
                         "Use profile_databricks_table with a fully qualified Unity Catalog table instead.",
@@ -115,7 +116,7 @@ export const profileDatasetTool = defineTool({
         api.output(`Completed profiling: ${profile.rowCount} rows across ${profile.columnCount} columns.\n`);
 
         return {
-            content: [{ type: "text", text: profileText }],
+            output: [{ type: "text", text: profileText }],
         };
     },
 });
@@ -149,12 +150,13 @@ export const runAnalyticalQueryTool = defineTool({
             ].filter(Boolean).join("\n");
 
             return {
-                content: [{ type: "text", text: resultText }],
+                output: [{ type: "text", text: resultText }],
             };
         } catch (err: any) {
             if (context.abortSignal?.aborted || isStoppedError(err)) throw err;
             return {
-                content: [{ type: "text", text: `SQL Execution Error: ${err.message}` }],
+                output: [{ type: "text", text: `SQL Execution Error: ${err.message}` }],
+                isError: true,
             };
         }
     },
@@ -185,12 +187,13 @@ export const calculateStatisticalMetricTool = defineTool({
             }));
 
             return {
-                content: [{ type: "text", text: `Metric Result:\n\`\`\`json\n${JSON.stringify(metric, null, 2)}\n\`\`\`` }],
+                output: [{ type: "text", text: `Metric Result:\n\`\`\`json\n${JSON.stringify(metric, null, 2)}\n\`\`\`` }],
             };
         } catch (err: any) {
             if (context.abortSignal?.aborted || isStoppedError(err)) throw err;
             return {
-                content: [{ type: "text", text: `Calculation Error: ${err.message}` }],
+                output: [{ type: "text", text: `Calculation Error: ${err.message}` }],
+                isError: true,
             };
         }
     },
@@ -259,7 +262,7 @@ export const manageHypothesesTool = defineTool({
         }, context);
 
         return {
-            content: [{ type: "text", text: resultMessage }],
+            output: [{ type: "text", text: resultMessage }],
         };
     },
 });
@@ -314,7 +317,7 @@ export const recordFindingTool = defineTool({
         api.output(`Recorded Finding [${findingId}]: ${args.title} (${args.impact} impact, confidence: ${args.confidence})\n`);
 
         return {
-            content: [{ type: "text", text: `Finding registered successfully with ID [${findingId}]. Ready for audit or report synthesis.` }],
+            output: [{ type: "text", text: `Finding registered successfully with ID [${findingId}]. Ready for audit or report synthesis.` }],
         };
     },
 });
@@ -358,7 +361,7 @@ export const consultPlaybookTool = defineTool({
         ];
 
         return {
-            content: [{ type: "text", text: lines.join("\n") }],
+            output: [{ type: "text", text: lines.join("\n") }],
         };
     },
 });

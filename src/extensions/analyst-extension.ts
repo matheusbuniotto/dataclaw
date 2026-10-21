@@ -144,7 +144,7 @@ export const AnalystExtension = defineExtension({
             },
             afterTool: async (call, result, api, context) => {
                 // If a query encounters an error, record it in telemetry
-                const outputText = result.content?.flatMap((c: any) => c.text ?? []).join("") ?? "";
+                const outputText = result.output?.flatMap((c: any) => c.text ?? []).join("") ?? "";
                 if (outputText.includes("SQL Execution Error")) {
                     await api.commit(async (tx) => {
                         const telemetry = await tx.doc(TelemetryDoc, api.conversationId);
