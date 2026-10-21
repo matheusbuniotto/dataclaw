@@ -34,16 +34,31 @@ export function validateManifest(raw: unknown, source: string): PluginManifest {
     if (m.priority !== undefined && typeof m.priority !== "number") fail(`"priority" must be a number`);
     const t = m.transport as Record<string, unknown> | undefined;
     if (typeof t !== "object" || t === null) fail(`"transport" must be an object`);
-    if (t!.type !== "mcp" && t!.type !== "script") fail(`transport.type must be "mcp" or "script"`);
+    if (t!.type !== "mcp" && t!.type !== "script" && t!.type !== "mcp-http") {
+        fail(`transport.type must be "mcp", "script" or "mcp-http"`);
+    }
     // An MCP plugin may contribute agent tools alone; a script plugin is only reachable by capability.
     if (t!.type === "script" && (m.capabilities as unknown[]).length === 0) {
         fail(`"capabilities" must be non-empty for a script transport: nothing else can call it`);
     }
-    if (typeof t!.command !== "string" || !t!.command) fail("transport.command must be a non-empty string");
-    if (t!.args !== undefined && !(Array.isArray(t!.args) && t!.args.every((a) => typeof a === "string"))) fail("transport.args must be an array of strings");
-    if (t!.env !== undefined && !isStringRecord(t!.env)) fail("transport.env must map strings to strings");
-    if (t!.cwd !== undefined && typeof t!.cwd !== "string") fail("transport.cwd must be a string");
-    if (t!.type === "mcp" && t!.tools !== undefined) {
+    if (t!.type === "mcp-http") {
+        if (typeof t!.url !== "string" || !t!.url.trim()) fail("transport.url must be a non-empty string for mcp-http");
+        // Reject process fields rather than ignore them: a manifest that names a command for an
+        // HTTP endpoint is a mistake, and silently dropping it hides the mistake.
+        for (const key of ["command", "args", "env", "cwd"] as const) {
+            if (t![key] !== undefined) fail(`transport.${key} is not used by mcp-http`);
+        }
+        if (t!.headers !== undefined && !isStringRecord(t!.headers)) fail("transport.headers must map strings to strings");
+        if (t!.bearerEnv !== undefined && (typeof t!.bearerEnv !== "string" || !t!.bearerEnv)) {
+            fail("transport.bearerEnv must be a non-empty string");
+        }
+    } else {
+        if (typeof t!.command !== "string" || !t!.command) fail("transport.command must be a non-empty string");
+        if (t!.args !== undefined && !(Array.isArray(t!.args) && t!.args.every((a) => typeof a === "string"))) fail("transport.args must be an array of strings");
+        if (t!.env !== undefined && !isStringRecord(t!.env)) fail("transport.env must map strings to strings");
+        if (t!.cwd !== undefined && typeof t!.cwd !== "string") fail("transport.cwd must be a string");
+    }
+    if ((t!.type === "mcp" || t!.type === "mcp-http") && t!.tools !== undefined) {
         if (!isStringRecord(t!.tools)) fail("transport.tools must map capability ids to tool names");
         for (const c of Object.keys(t!.tools as object)) {
             if (!(m.capabilities as string[]).includes(c)) fail(`transport.tools maps "${c}", which is not in capabilities`);
@@ -55,7 +70,9 @@ export function validateManifest(raw: unknown, source: string): PluginManifest {
 function load(manifest: unknown, source: string): LoadedPlugin {
     const m = validateManifest(manifest, source);
     const base = dirname(source);
-    const cwd = m.transport.cwd ? (isAbsolute(m.transport.cwd) ? m.transport.cwd : resolve(base, m.transport.cwd)) : base;
+    const transport = m.transport;
+    const relative = transport.type === "mcp-http" ? undefined : transport.cwd;
+    const cwd = relative ? (isAbsolute(relative) ? relative : resolve(base, relative)) : base;
     return { manifest: m, source, cwd };
 }
 

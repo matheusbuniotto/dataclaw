@@ -26,7 +26,20 @@ export interface ScriptTransportConfig {
     cwd?: string;
 }
 
-export type TransportConfig = McpTransportConfig | ScriptTransportConfig;
+/** Streamable HTTP MCP. Auth and endpoint come from the environment, never from the manifest. */
+export interface HttpMcpTransportConfig {
+    type: "mcp-http";
+    /** Endpoint URL. `${ENV_VAR}` is expanded when the client opens; a missing variable is an error. */
+    url: string;
+    /** Sent with every request. Values may reference `${ENV_VAR}`. */
+    headers?: Record<string, string>;
+    /** Environment variable holding a bearer token. Re-read once after an auth failure. */
+    bearerEnv?: string;
+    /** Capability id -> MCP tool name. Defaults to the part between the first "." and "@". */
+    tools?: Record<string, string>;
+}
+
+export type TransportConfig = McpTransportConfig | ScriptTransportConfig | HttpMcpTransportConfig;
 
 export interface PluginManifest {
     name: string;

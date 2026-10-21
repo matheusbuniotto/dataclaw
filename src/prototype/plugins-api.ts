@@ -8,7 +8,7 @@
  */
 import type { PluginAgentTools, PluginAgentToolsSummary } from "../plugins/agent-tools";
 import { discoverPlugins, providers } from "../plugins/manifest";
-import { McpPluginClient } from "../plugins/transports";
+import { openMcpPlugin } from "../plugins/transports";
 import type { LoadedPlugin } from "../plugins/types";
 
 export interface WorkspacePluginCapability {
@@ -30,7 +30,7 @@ export interface WorkspacePluginInfo {
     version: string;
     description: string;
     domain: string;
-    transport: "mcp" | "script";
+    transport: "mcp" | "mcp-http" | "script";
     priority: number;
     capabilities: WorkspacePluginCapability[];
     tools: WorkspacePluginTool[];
@@ -136,11 +136,11 @@ export async function checkPlugins(timeoutMs = 20_000): Promise<PluginCheck[]> {
     const results: PluginCheck[] = [];
     for (const plugin of installed) {
         const name = plugin.manifest.name;
-        if (plugin.manifest.transport.type !== "mcp") {
+        const client = openMcpPlugin(plugin, { timeoutMs });
+        if (!client) {
             results.push({ name, ok: true, tools: [], error: "script plugin: capabilities only, no tools to check" });
             continue;
         }
-        const client = new McpPluginClient(plugin, timeoutMs);
         try {
             results.push({ name, ok: true, tools: await client.listTools() });
         } catch (err) {

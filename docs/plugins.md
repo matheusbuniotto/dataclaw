@@ -82,11 +82,38 @@ take `--plugin <name>` require that plugin. `--builtin` skips plugins.
 | `domain` | yes | Free-form area: `stats`, `ml`, `forecasting`, `fpa`, ... |
 | `capabilities` | yes | Capability ids it implements, `domain.name@major`. |
 | `priority` | no | Higher wins when plugins overlap. Default 0. |
-| `transport.type` | yes | `mcp` or `script`. |
-| `transport.command`, `args` | yes / no | Program to start. |
-| `transport.env` | no | Extra environment variables (added to DataClaw's own). |
-| `transport.cwd` | no | Working directory, relative to the manifest. Default: the manifest's directory. |
-| `transport.tools` | no (mcp) | Capability id → MCP tool name. Default: the part between the first `.` and `@` (`stats.compare_eval_runs@1` → `compare_eval_runs`). |
+| `transport.type` | yes | `mcp` (stdio), `mcp-http` (streamable HTTP), or `script`. |
+| `transport.command`, `args` | yes / no (`mcp`, `script`) | Program to start. Rejected for `mcp-http`. |
+| `transport.env` | no (`mcp`, `script`) | Extra environment variables (added to DataClaw's own). |
+| `transport.cwd` | no (`mcp`, `script`) | Working directory, relative to the manifest. Default: the manifest's directory. |
+| `transport.url` | yes (`mcp-http`) | Endpoint. `${ENV_VAR}` is expanded when the client opens; a missing variable is an error, not an empty string. |
+| `transport.headers` | no (`mcp-http`) | Headers sent with every request; values may reference `${ENV_VAR}`. |
+| `transport.bearerEnv` | no (`mcp-http`) | Environment variable holding a bearer token. Re-read once after an auth failure. |
+| `transport.tools` | no (`mcp`, `mcp-http`) | Capability id → MCP tool name. Default: the part between the first `.` and `@` (`stats.compare_eval_runs@1` → `compare_eval_runs`). |
+
+### HTTP MCP servers
+
+A remote MCP server needs no local process:
+
+```json
+{
+    "name": "snowflake",
+    "version": "1.0.0",
+    "description": "Snowflake warehouse over MCP",
+    "domain": "data",
+    "capabilities": [],
+    "transport": {
+        "type": "mcp-http",
+        "url": "${SNOWFLAKE_MCP_URL}",
+        "bearerEnv": "SNOWFLAKE_TOKEN"
+    }
+}
+```
+
+`mcp-http` accepts an empty `capabilities` because its tools go to the agent, like an stdio MCP
+plugin. Endpoints and credentials come from the environment: the manifest names them, it does not
+contain them. A 401 or 403 triggers one re-read of `bearerEnv` (or one `tokenProvider(force)` call
+for code-built clients) before the call fails.
 
 ## Capabilities and versions
 
@@ -196,6 +223,14 @@ DataClaw change: restart the process and the tool exists.
   publishes no tool inventory.
 - Turn the whole thing off with `pluginTools: false` in `createAnalystHarness`; discovery is
   skipped and no plugin process starts.
+
+### Self-authored plugins
+
+DataClaw can write a plugin for itself from chat. `features_create_plugin` writes
+`plugins/<name>/plugin.json` plus optional source files, and `features_apply` starts it, installs its
+`<plugin>__<tool>` agent tools, and reconfigures roster agents against the new registry. This is the
+same manifest and transport described above; nothing about the plugin contract changes. A plugin
+that cannot start is reported by `features_apply`, never fatal (see `src/tools/feature-tools.ts`).
 
 ### In the console
 

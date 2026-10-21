@@ -1,5 +1,5 @@
 import { discoverPlugins } from "./manifest";
-import { McpPluginClient } from "./transports";
+import { openMcpPlugin } from "./transports";
 
 /** `bun run plugins:list [--check]`: show installed plugins; `--check` starts MCP plugins and lists their tools. */
 async function main() {
@@ -15,8 +15,12 @@ async function main() {
         console.log(`  ${m.description}`);
         console.log(`  capabilities: ${m.capabilities.join(", ")}`);
         console.log(`  manifest: ${p.source}`);
-        if (check && m.transport.type === "mcp") {
-            const client = new McpPluginClient(p);
+        if (check) {
+            const client = openMcpPlugin(p);
+            if (!client) {
+                console.log("  script transport: capabilities only, no tools to check");
+                continue;
+            }
             try {
                 console.log(`  ok, tools: ${(await client.listTools()).join(", ")}`);
             } catch (err) {

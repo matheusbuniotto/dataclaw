@@ -18,7 +18,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
 import { discoverPlugins, type DiscoverOptions } from "./manifest";
-import { McpPluginClient } from "./transports";
+import { openMcpPlugin, type McpToolClient } from "./transports";
 import type { LoadedPlugin } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -101,7 +101,7 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
         installed = [];
     }
 
-    const clients: McpPluginClient[] = [];
+    const clients: McpToolClient[] = [];
     const extensions: Extension<ToolRegistration>[] = [];
     const plugins: PluginAgentToolsSummary[] = [];
     const disabled = [...(options.disabled ?? [])];
@@ -110,13 +110,12 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
         const manifest = plugin.manifest;
         if (options.only && !options.only.includes(manifest.name)) continue;
         if (disabled.includes(manifest.name)) continue;
-        if (manifest.transport.type !== "mcp") {
+        const client = openMcpPlugin(plugin, { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS });
+        if (!client) {
             // Script transports are one call per capability and publish no tool inventory.
             report(`plugin ${manifest.name}: script plugins provide capabilities only, so no agent tools`);
             continue;
         }
-
-        const client = new McpPluginClient(plugin, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
         let definitions;
         try {
             definitions = await client.listToolDefinitions();

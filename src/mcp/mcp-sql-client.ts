@@ -1,6 +1,7 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { DatabricksMcpConfig } from "./databricks-config";
+import { HttpMcpClient, sleep, throwIfStopped } from "./http-mcp-client";
+
+export { isStoppedError, stoppedError } from "./http-mcp-client";
 
 export interface SqlColumn {
     name: string;
@@ -286,153 +287,47 @@ function unwrapToolResult(result: any): any {
     return result;
 }
 
-export function stoppedError(): Error {
-    const error = new Error("Stopped.");
-    error.name = "AbortError";
-    return error;
-}
-
-export function isStoppedError(err: unknown): boolean {
-    return err instanceof Error && (err.name === "AbortError" || err.message === "Stopped.");
-}
-
-function throwIfStopped(signal?: AbortSignal): void {
-    if (signal?.aborted) throw stoppedError();
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-    throwIfStopped(signal);
-    return new Promise((resolve, reject) => {
-        const timer = setTimeout(finish, ms);
-        const onAbort = () => {
-            clearTimeout(timer);
-            reject(stoppedError());
-        };
-        function finish() {
-            signal?.removeEventListener("abort", onAbort);
-            resolve();
-        }
-        signal?.addEventListener("abort", onAbort, { once: true });
-    });
-}
-
 /**
  * MCP client for the Databricks-managed SQL MCP server.
  *
  * Speaks streamable HTTP JSON-RPC to `/api/2.0/mcp/sql`, uses the read-only
  * execution tool by default, and polls long-running statements to completion.
  */
+/**
+ * SQL over an MCP server: choose the read-only execution tool, poll a long-running statement,
+ * and decode the typed result. The wire itself lives in `HttpMcpClient`.
+ */
 export class McpSqlClient implements SqlExecutor {
     private constructor(
-        private client: Client,
+        private readonly http: HttpMcpClient,
         private readonly config: DatabricksMcpConfig,
-        private tools: Set<string>,
-        private readonly options: McpClientOptions,
     ) { }
-
-    private static async openConnection(
-        config: DatabricksMcpConfig,
-        options: McpClientOptions,
-        force = false,
-    ): Promise<{ client: Client; tools: Set<string> }> {
-        const token = await (options.tokenFactory?.(force) ?? config.token);
-        const transport = new StreamableHTTPClientTransport(new URL(config.url), {
-            requestInit: {
-                headers: { Authorization: `Bearer ${token}` },
-            },
-        });
-
-        const client = new Client({
-            name: options.clientName ?? "dataclaw",
-            version: options.clientVersion ?? "0.1.0",
-        });
-
-        try {
-            await client.connect(transport);
-        } catch (err: any) {
-            throw new Error(
-                `Failed to connect to Databricks MCP server at ${config.url}: ${err?.message ?? String(err)}`,
-            );
-        }
-
-        try {
-            const listed = await client.listTools();
-            return { client, tools: new Set(listed.tools.map((tool) => tool.name)) };
-        } catch (err: any) {
-            await client.close().catch(() => { });
-            throw new Error(`Connected to ${config.url} but could not list MCP tools: ${err?.message ?? String(err)}`);
-        }
-    }
 
     static async connect(
         config: DatabricksMcpConfig,
         options: McpClientOptions = {},
     ): Promise<McpSqlClient> {
-        const { client, tools } = await McpSqlClient.openConnection(config, options);
-        return new McpSqlClient(client, config, tools, options);
+        const http = await HttpMcpClient.connect({
+            url: config.url,
+            tokenProvider: options.tokenFactory ?? (() => config.token),
+            timeoutMs: config.timeoutMs,
+            ...(options.clientName ? { clientName: options.clientName } : {}),
+            ...(options.clientVersion ? { clientVersion: options.clientVersion } : {}),
+        });
+        return new McpSqlClient(http, config);
     }
 
     get availableTools(): string[] {
-        return [...this.tools];
-    }
-
-    /** Re-mint the bearer token and reconnect after an auth failure. */
-    private async refreshConnection(): Promise<void> {
-        const previous = this.client;
-        const { client, tools } = await McpSqlClient.openConnection(this.config, this.options, true);
-        this.client = client;
-        this.tools = tools;
-        await previous.close().catch(() => { });
+        return this.http.availableTools;
     }
 
     private async callTool(
         name: string,
         args: Record<string, unknown>,
-        attempt = 0,
         signal?: AbortSignal,
     ): Promise<any> {
-        if (!this.tools.has(name)) {
-            throw new Error(
-                `Databricks MCP server does not expose "${name}". Available tools: ${this.availableTools.join(", ")}`,
-            );
-        }
-        throwIfStopped(signal);
-        let result: any;
-        let stopListening = () => {};
-        const stopped = new Promise<never>((_, reject) => {
-            if (!signal) return;
-            const onAbort = () => reject(stoppedError());
-            if (signal.aborted) {
-                onAbort();
-                return;
-            }
-            signal.addEventListener("abort", onAbort, { once: true });
-            stopListening = () => signal.removeEventListener("abort", onAbort);
-        });
-        try {
-            const call = this.client.callTool(
-                { name, arguments: args },
-                undefined,
-                { timeout: this.config.timeoutMs, ...(signal ? { signal } : {}) },
-            ).catch((err: unknown) => {
-                if (signal?.aborted || isStoppedError(err)) return undefined;
-                throw err;
-            });
-            result = await Promise.race([call, stopped]);
-            if (result === undefined && signal?.aborted) throw stoppedError();
-        } catch (err: any) {
-            if (signal?.aborted || isStoppedError(err)) throw stoppedError();
-            const message = err?.message ?? String(err);
-            const authFailure = /401|403|unauthor|forbidden|invalid[ _-]?token|expired/i.test(message);
-            if (attempt === 0 && authFailure && this.options.tokenFactory) {
-                await this.refreshConnection();
-                return this.callTool(name, args, attempt + 1, signal);
-            }
-            throw new Error(`MCP tool ${name} failed: ${message}`);
-        } finally {
-            stopListening();
-        }
-        if (result?.isError) {
+        const result = await this.http.callTool(name, args, { ...(signal ? { signal } : {}) });
+        if (result.isError) {
             const payload = unwrapToolResult(result);
             const message = payload?.message ?? payload?.error ?? JSON.stringify(payload);
             throw new Error(`Databricks MCP tool ${name} returned an error: ${message}`);
@@ -445,12 +340,12 @@ export class McpSqlClient implements SqlExecutor {
         const readOnly = options.readOnly ?? this.config.readOnly;
         if (readOnly) assertReadOnlySql(sql);
 
-        const toolName = readOnly && this.tools.has("execute_sql_read_only")
+        const toolName = readOnly && this.availableTools.includes("execute_sql_read_only")
             ? "execute_sql_read_only"
             : "execute_sql";
 
         const signal = options.signal;
-        let payload = await this.callTool(toolName, { query: sql }, 0, signal);
+        let payload = await this.callTool(toolName, { query: sql }, signal);
         const statementId: string | undefined = payload?.statement_id;
         let state: string | undefined = payload?.status?.state;
 
@@ -460,7 +355,7 @@ export class McpSqlClient implements SqlExecutor {
 
         while (PENDING_STATES.has(String(state).toUpperCase())) {
             throwIfStopped(signal);
-            if (!statementId || !this.tools.has("poll_sql_result")) {
+            if (!statementId || !this.availableTools.includes("poll_sql_result")) {
                 throw new Error(
                     `SQL statement ${statementId ?? "(unknown)"} is still ${state}, but this MCP server cannot poll results.`,
                 );
@@ -472,7 +367,7 @@ export class McpSqlClient implements SqlExecutor {
             }
             await sleep(interval, signal);
             interval = Math.min(Math.round(interval * 1.6), 2_000);
-            payload = await this.callTool("poll_sql_result", { statement_id: statementId }, 0, signal);
+            payload = await this.callTool("poll_sql_result", { statement_id: statementId }, signal);
             state = payload?.status?.state;
         }
 
@@ -495,6 +390,6 @@ export class McpSqlClient implements SqlExecutor {
     }
 
     async close(): Promise<void> {
-        await this.client.close().catch(() => { });
+        await this.http.close();
     }
 }
