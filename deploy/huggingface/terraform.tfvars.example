@@ -1,0 +1,13 @@
+# Hugging Face User Access Token (create one at https://huggingface.co/settings/tokens with Write permission)
+hf_token = "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Desired name of the space (e.g. dataclaw or dataclaw-console)
+space_name = "dataclaw"
+
+# Make the space private or public (free on Hugging Face either way!)
+private = false
+
+# Optional Model API Keys (configured securely as Space secrets)
+# anthropic_api_key = "sk-ant-..."
+# openai_api_key    = "sk-..."
+# gemini_api_key    = "AIza..."
