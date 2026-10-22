@@ -134,8 +134,13 @@ export interface PluginFacts {
     command: string;
     /** Manifest file it was read from. */
     source: string;
-    /** `ready`: the harness loaded it and its tools exist. `declared`: manifest only. */
-    status: "ready" | "declared";
+    /**
+     * `ready`: the harness loaded it and its tools exist. `capabilities-only`: a script plugin,
+     * which publishes no tools by design. `declared`: manifest only, nothing loaded it.
+     */
+    status: "ready" | "declared" | "capabilities-only";
+    /** True for a script plugin: it serves capabilities, not agent tools. */
+    capabilitiesOnly?: boolean;
     error?: string;
 }
 
@@ -152,6 +157,7 @@ export function pluginFacts(installed: readonly LoadedPlugin[], loaded?: PluginA
             name,
             tool: summary?.mcpTools?.[index] ?? name.replace(`${manifest.name}__`, ""),
         }));
+        const capabilitiesOnly = summary?.capabilitiesOnly ?? false;
         const error = loaded?.errors.find((message) => message.includes(manifest.name))
             ?? (summary ? undefined : "declared but not loaded by the harness");
         // An MCP-over-HTTP plugin has no command line; its endpoint is what runs it.
@@ -182,7 +188,8 @@ export function pluginFacts(installed: readonly LoadedPlugin[], loaded?: PluginA
             tools,
             command,
             source: plugin.source,
-            status: summary && tools.length > 0 ? "ready" : "declared",
+            status: capabilitiesOnly ? "capabilities-only" : summary && tools.length > 0 ? "ready" : "declared",
+            ...(capabilitiesOnly ? { capabilitiesOnly: true } : {}),
             ...(error ? { error } : {}),
         };
     });

@@ -30,6 +30,8 @@ export interface PluginCheck {
     name: string;
     ok: boolean;
     tools?: string[];
+    /** A script plugin publishes capabilities, not tools: nothing to check, not a failure. */
+    capabilitiesOnly?: boolean;
     error?: string;
 }
 
@@ -72,7 +74,7 @@ export async function checkPlugins(timeoutMs = 20_000): Promise<PluginCheck[]> {
         const name = plugin.manifest.name;
         const client = openMcpPlugin(plugin, { timeoutMs });
         if (!client) {
-            results.push({ name, ok: true, tools: [], error: "script plugin: capabilities only, no tools to check" });
+            results.push({ name, ok: true, tools: [], capabilitiesOnly: true });
             continue;
         }
         try {

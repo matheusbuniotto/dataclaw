@@ -1534,13 +1534,17 @@ function PluginsCard({
                                     ))}
                                 </div>
                                 <small style={{ marginTop: 6 }}>
-                                    {plugin.status === "ready"
+                                    {plugin.status === "capabilities-only"
+                                        ? "capabilities only"
+                                        : plugin.status === "ready"
                                         ? `${plugin.tools.length} agent tool${plugin.tools.length === 1 ? "" : "s"}${
                                             plugins?.deferred ? " · deferred behind tool_search" : ""
                                         }`
                                         : plugin.error ?? "manifest only"}
                                     {check && (
-                                        <> · {check.ok ? `answered: ${check.tools?.join(", ") || "no tools"}` : `failed: ${check.error}`}</>
+                                        <> · {check.capabilitiesOnly
+                                            ? "capabilities only"
+                                            : check.ok ? `answered: ${check.tools?.join(", ") || "no tools"}` : `failed: ${check.error}`}</>
                                     )}
                                 </small>
                             </div>
