@@ -19,6 +19,7 @@ import {
     saveCustomAgent,
 } from "../components/AgentEditorModal";
 import {
+    Activity,
     ArrowUp,
     AtSign,
     Bot,
@@ -28,8 +29,10 @@ import {
     ChevronLeft,
     ChevronRight,
     Clock,
+    Cpu,
     Database,
     ExternalLink,
+    HardDrive,
     Layers3,
     Maximize2,
     Minimize2,
@@ -40,6 +43,7 @@ import {
     Pencil,
     Pin,
     Plus,
+    RefreshCw,
     Search,
     Settings2,
     ShieldCheck,
@@ -1377,10 +1381,17 @@ export function AgentsPage({
     const [isCreatingAgent, setIsCreatingAgent] = useState(false);
     const [customAgentsList, setCustomAgentsList] = useState<CustomAgentRecord[]>(loadCustomAgents);
 
+    const [sidePanelTab, setSidePanelTab] = useState<"screen" | "data" | "specs" | "routines">("screen");
+    const [sidePanelWidth, setSidePanelWidth] = useState<"normal" | "wide">("normal");
+    const [screenCrtTheme, setScreenCrtTheme] = useState<"matrix" | "amber" | "cyber">("matrix");
+    const screenEndRef = useRef<HTMLDivElement>(null);
+
     const [screenLogs, setScreenLogs] = useState<string[]>([
-        "[runtime] Durable agent harness online over SQLite WAL storage.",
-        "[agent] Coordinator active with persistent plan and playbook.",
-        "[ready] Ready for exploratory data analysis, hypothesis testing, and queries.",
+        "[kernel:boot] Darwin 25.3.0 arm64 virtualized sandbox container initialized",
+        "[storage:sqlite] SQLite WAL database mounted at /workspace/dataclaw.db",
+        "[runtime:durable] Pi Durable harness online with SQLite WAL checkpointing",
+        "[agent:boot] Specialist loaded: active plan and playbook synced",
+        "[compute:ready] Interactive sandbox ready for bash, duckdb, and python execution",
     ]);
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1582,11 +1593,66 @@ export function AgentsPage({
         setRoutines((prev) => [...prev, newRoutine]);
     };
 
+    useEffect(() => {
+        if (transcript.length === 0) return;
+        const recent = transcript.slice(-8);
+        const newLogs: string[] = [];
+        for (const item of recent) {
+            if (item.role === "tool" && item.toolName) {
+                const summary = item.toolSummary || item.text.slice(0, 50);
+                const status = item.toolStatus ?? (item.isError ? "error" : "done");
+                newLogs.push(`[tool:${item.toolName}] ${summary} (${status})`);
+            } else if (item.role === "assistant" && item.text) {
+                const words = item.text.replace(/\n+/g, " ").slice(0, 65);
+                if (words.trim()) {
+                    newLogs.push(`[agent:stdout] ${words}...`);
+                }
+            }
+        }
+        if (newLogs.length > 0) {
+            setScreenLogs((prev) => {
+                const set = new Set(prev);
+                const additions = newLogs.filter((l) => !set.has(l));
+                if (additions.length === 0) return prev;
+                return [...prev, ...additions].slice(-100);
+            });
+        }
+    }, [transcript]);
+
+    useEffect(() => {
+        if (showDeepDive && sidePanelTab === "screen") {
+            screenEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [screenLogs.length, showDeepDive, sidePanelTab]);
+
+    const handleRunQuickCommand = (cmd: string) => {
+        if (cmd === "clear") {
+            setScreenLogs([
+                `[console] Screen log cleared`,
+                `[ready] Interactive sandbox ready`,
+            ]);
+            return;
+        }
+        setScreenLogs((prev) => [
+            ...prev,
+            `$ ${cmd}`,
+            `[bash-exec] Submitting command to ${baseAgent.name} execution environment...`,
+        ]);
+        ask(`Execute bash command in workspace: ${cmd}`);
+    };
+
     const handleExecuteControl = (e: React.FormEvent) => {
         e.preventDefault();
         if (!screenCommand.trim()) return;
         const cmd = screenCommand.trim();
         setScreenCommand("");
+        if (cmd === "clear") {
+            setScreenLogs([
+                `[console] Screen log cleared`,
+                `[ready] Interactive sandbox ready`,
+            ]);
+            return;
+        }
         setScreenLogs((prev) => [
             ...prev,
             `$ ${cmd}`,
@@ -1965,48 +2031,116 @@ export function AgentsPage({
                                                 whiteSpace: "nowrap",
                                                 overflow: "hidden",
                                                 textOverflow: "ellipsis",
+                                                marginBottom: 3,
                                             }}
                                         >
                                             {bot.lastMessage}
                                         </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                            <span
+                                                style={{
+                                                    fontSize: 9.5,
+                                                    fontWeight: 600,
+                                                    padding: "1px 5px",
+                                                    borderRadius: 4,
+                                                    background: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0eee6",
+                                                    color: isDark ? "#94a3b8" : "#687a70",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: 3,
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: 4.5,
+                                                        height: 4.5,
+                                                        borderRadius: "50%",
+                                                        background: bot.active && working ? "#3b82f6" : "#10b981",
+                                                    }}
+                                                />
+                                                {bot.id === "dataclaw" ? "local sandbox" : "isolated compute"}
+                                            </span>
+                                        </div>
                                     </div>
 
-                                    {/* Edit agent button */}
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingAgent({
-                                                id: bot.id,
-                                                name: bot.name,
-                                                description: bot.description,
-                                                color: bot.color,
-                                                icon: bot.icon,
-                                                role: bot.role,
-                                            });
-                                        }}
-                                        title={`Edit ${bot.name}`}
-                                        style={{
-                                            background: "transparent",
-                                            border: "none",
-                                            borderRadius: 4,
-                                            width: 22,
-                                            height: 22,
-                                            display: "grid",
-                                            placeItems: "center",
-                                            color: t.textMuted,
-                                            cursor: "pointer",
-                                            opacity: bot.active ? 1 : 0.6,
-                                        }}
-                                        onMouseEnter={(e) =>
-                                            (e.currentTarget.style.color = t.accent)
-                                        }
-                                        onMouseLeave={(e) =>
-                                            (e.currentTarget.style.color = t.textMuted)
-                                        }
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                                        {/* Compute Screen button */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onSelectAgent(bot.id);
+                                                setShowDeepDive(true);
+                                                setSidePanelTab("screen");
+                                            }}
+                                            title={`Open ${bot.name} Compute Screen`}
+                                            style={{
+                                                background:
+                                                    bot.active && showDeepDive && sidePanelTab === "screen"
+                                                        ? (isDark ? "rgba(255, 94, 87, 0.2)" : "#d6ebd9")
+                                                        : "transparent",
+                                                border: "none",
+                                                borderRadius: 4,
+                                                width: 22,
+                                                height: 22,
+                                                display: "grid",
+                                                placeItems: "center",
+                                                color:
+                                                    bot.active && showDeepDive && sidePanelTab === "screen"
+                                                        ? t.accent
+                                                        : t.textMuted,
+                                                cursor: "pointer",
+                                                opacity: bot.active ? 1 : 0.65,
+                                                transition: "all 0.15s ease",
+                                            }}
+                                            onMouseEnter={(e) => (e.currentTarget.style.color = t.accent)}
+                                            onMouseLeave={(e) =>
+                                                (e.currentTarget.style.color =
+                                                    bot.active && showDeepDive && sidePanelTab === "screen"
+                                                        ? t.accent
+                                                        : t.textMuted)
+                                            }
+                                        >
+                                            <Monitor size={12} />
+                                        </button>
+
+                                        {/* Edit agent button */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingAgent({
+                                                    id: bot.id,
+                                                    name: bot.name,
+                                                    description: bot.description,
+                                                    color: bot.color,
+                                                    icon: bot.icon,
+                                                    role: bot.role,
+                                                });
+                                            }}
+                                            title={`Edit ${bot.name}`}
+                                            style={{
+                                                background: "transparent",
+                                                border: "none",
+                                                borderRadius: 4,
+                                                width: 22,
+                                                height: 22,
+                                                display: "grid",
+                                                placeItems: "center",
+                                                color: t.textMuted,
+                                                cursor: "pointer",
+                                                opacity: bot.active ? 1 : 0.6,
+                                            }}
+                                            onMouseEnter={(e) =>
+                                                (e.currentTarget.style.color = t.accent)
+                                            }
+                                            onMouseLeave={(e) =>
+                                                (e.currentTarget.style.color = t.textMuted)
+                                            }
+                                        >
+                                            <Pencil size={12} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -2099,48 +2233,116 @@ export function AgentsPage({
                                                 whiteSpace: "nowrap",
                                                 overflow: "hidden",
                                                 textOverflow: "ellipsis",
+                                                marginBottom: 3,
                                             }}
                                         >
                                             {bot.lastMessage}
                                         </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                            <span
+                                                style={{
+                                                    fontSize: 9.5,
+                                                    fontWeight: 600,
+                                                    padding: "1px 5px",
+                                                    borderRadius: 4,
+                                                    background: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0eee6",
+                                                    color: isDark ? "#94a3b8" : "#687a70",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: 3,
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: 4.5,
+                                                        height: 4.5,
+                                                        borderRadius: "50%",
+                                                        background: bot.active && working ? "#3b82f6" : "#10b981",
+                                                    }}
+                                                />
+                                                {bot.id === "dataclaw" ? "local sandbox" : "isolated compute"}
+                                            </span>
+                                        </div>
                                     </div>
 
-                                    {/* Edit agent button */}
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingAgent({
-                                                id: bot.id,
-                                                name: bot.name,
-                                                description: bot.description,
-                                                color: bot.color,
-                                                icon: bot.icon,
-                                                role: bot.role,
-                                            });
-                                        }}
-                                        title={`Edit ${bot.name}`}
-                                        style={{
-                                            background: "transparent",
-                                            border: "none",
-                                            borderRadius: 4,
-                                            width: 22,
-                                            height: 22,
-                                            display: "grid",
-                                            placeItems: "center",
-                                            color: t.textMuted,
-                                            cursor: "pointer",
-                                            opacity: bot.active ? 1 : 0.6,
-                                        }}
-                                        onMouseEnter={(e) =>
-                                            (e.currentTarget.style.color = t.accent)
-                                        }
-                                        onMouseLeave={(e) =>
-                                            (e.currentTarget.style.color = t.textMuted)
-                                        }
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                                        {/* Compute Screen button */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onSelectAgent(bot.id);
+                                                setShowDeepDive(true);
+                                                setSidePanelTab("screen");
+                                            }}
+                                            title={`Open ${bot.name} Compute Screen`}
+                                            style={{
+                                                background:
+                                                    bot.active && showDeepDive && sidePanelTab === "screen"
+                                                        ? (isDark ? "rgba(255, 94, 87, 0.2)" : "#d6ebd9")
+                                                        : "transparent",
+                                                border: "none",
+                                                borderRadius: 4,
+                                                width: 22,
+                                                height: 22,
+                                                display: "grid",
+                                                placeItems: "center",
+                                                color:
+                                                    bot.active && showDeepDive && sidePanelTab === "screen"
+                                                        ? t.accent
+                                                        : t.textMuted,
+                                                cursor: "pointer",
+                                                opacity: bot.active ? 1 : 0.65,
+                                                transition: "all 0.15s ease",
+                                            }}
+                                            onMouseEnter={(e) => (e.currentTarget.style.color = t.accent)}
+                                            onMouseLeave={(e) =>
+                                                (e.currentTarget.style.color =
+                                                    bot.active && showDeepDive && sidePanelTab === "screen"
+                                                        ? t.accent
+                                                        : t.textMuted)
+                                            }
+                                        >
+                                            <Monitor size={12} />
+                                        </button>
+
+                                        {/* Edit agent button */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingAgent({
+                                                    id: bot.id,
+                                                    name: bot.name,
+                                                    description: bot.description,
+                                                    color: bot.color,
+                                                    icon: bot.icon,
+                                                    role: bot.role,
+                                                });
+                                            }}
+                                            title={`Edit ${bot.name}`}
+                                            style={{
+                                                background: "transparent",
+                                                border: "none",
+                                                borderRadius: 4,
+                                                width: 22,
+                                                height: 22,
+                                                display: "grid",
+                                                placeItems: "center",
+                                                color: t.textMuted,
+                                                cursor: "pointer",
+                                                opacity: bot.active ? 1 : 0.6,
+                                            }}
+                                            onMouseEnter={(e) =>
+                                                (e.currentTarget.style.color = t.accent)
+                                            }
+                                            onMouseLeave={(e) =>
+                                                (e.currentTarget.style.color = t.textMuted)
+                                            }
+                                        >
+                                            <Pencil size={12} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -2490,14 +2692,17 @@ export function AgentsPage({
                             />
                         </button>
 
-                        {/* Optional Data Deep Dive Panel Toggle Button */}
+                        {/* Compute Screen Panel Toggle Button */}
                         <button
                             type="button"
-                            onClick={() => setShowDeepDive(!showDeepDive)}
+                            onClick={() => {
+                                setShowDeepDive(!showDeepDive);
+                                if (!showDeepDive) setSidePanelTab("screen");
+                            }}
                             title={
                                 showDeepDive
-                                    ? "Close Data Deep Dive panel"
-                                    : "Open Data Deep Dive panel to inspect tables, telemetry, and compute"
+                                    ? "Close Compute Screen"
+                                    : "Open Compute Screen monitor, terminal & telemetry"
                             }
                             style={{
                                 background: showDeepDive
@@ -2521,8 +2726,19 @@ export function AgentsPage({
                                 transition: "all 0.15s ease",
                             }}
                         >
-                            <Database size={13} color={showDeepDive ? t.accent : t.textMuted} />
-                            <span>Data Deep Dive</span>
+                            <Monitor size={13} color={showDeepDive ? t.accent : t.textMuted} />
+                            <span>Compute Screen</span>
+                            {working && (
+                                <span
+                                    style={{
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: "50%",
+                                        background: "#10b981",
+                                        animation: "grokDotPulse 1.2s infinite",
+                                    }}
+                                />
+                            )}
                             {showDeepDive ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
                         </button>
                     </div>
@@ -2937,343 +3153,835 @@ export function AgentsPage({
             </main>
 
             {/* ============================================================ */}
-            {/* COLUMN 3: OPTIONAL DATA DEEP DIVE & COMPUTE PANEL            */}
+            {/* COLUMN 3: GROKBOT COMPUTE SCREEN & LIVE SANDBOX PANEL        */}
             {/* ============================================================ */}
-            {showDeepDive && (
-                <aside
-                    style={{
-                        width: 340,
-                        minWidth: 340,
-                        background: t.panelBg,
-                        borderLeft: `1px solid ${t.border}`,
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "100%",
-                        overflowY: "auto",
-                        animation: "panelSlideIn 0.18s ease-out",
-                    }}
-                >
-                    <style>{`
-                        @keyframes panelSlideIn {
-                            from { transform: translateX(12px); opacity: 0; }
-                            to { transform: translateX(0); opacity: 1; }
-                        }
-                    `}</style>
+            {showDeepDive && (() => {
+                const simulatedCpu = working ? 76.4 : 14.2;
+                const crtThemes = {
+                    matrix: {
+                        bg: "#05120c",
+                        border: "#064e3b",
+                        headerBg: "#031c13",
+                        text: "#34d399",
+                        textMuted: "#10b98188",
+                        glow: "0 0 8px rgba(52, 211, 153, 0.4)",
+                        cursor: "#34d399",
+                        label: "Matrix Green",
+                        icon: "🟢",
+                    },
+                    amber: {
+                        bg: "#150e04",
+                        border: "#78350f",
+                        headerBg: "#221606",
+                        text: "#fbbf24",
+                        textMuted: "#f59e0b88",
+                        glow: "0 0 8px rgba(251, 191, 36, 0.4)",
+                        cursor: "#fbbf24",
+                        label: "Amber Phosphor",
+                        icon: "🟡",
+                    },
+                    cyber: {
+                        bg: "#050e18",
+                        border: "#0369a1",
+                        headerBg: "#071c30",
+                        text: "#38bdf8",
+                        textMuted: "#0284c788",
+                        glow: "0 0 8px rgba(56, 189, 248, 0.4)",
+                        cursor: "#38bdf8",
+                        label: "Cyber Blue",
+                        icon: "🔵",
+                    },
+                };
+                const activeCrt = crtThemes[screenCrtTheme];
+                const panelWidth = sidePanelWidth === "wide" ? 560 : 380;
 
-                    {/* Header */}
-                    <div
+                return (
+                    <aside
                         style={{
-                            padding: "14px 16px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            borderBottom: `1px solid ${t.borderSubtle}`,
+                            width: panelWidth,
+                            minWidth: panelWidth,
                             background: t.panelBg,
+                            borderLeft: `1px solid ${t.border}`,
+                            display: "flex",
+                            flexDirection: "column",
+                            height: "100%",
+                            overflowY: "auto",
+                            animation: "panelSlideIn 0.18s ease-out",
+                            transition: "width 0.2s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
                         }}
                     >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div
-                                style={{
-                                    width: 26,
-                                    height: 26,
-                                    borderRadius: 6,
-                                    background: t.accentSubtle,
-                                    display: "grid",
-                                    placeItems: "center",
-                                    color: t.accent,
-                                }}
-                            >
-                                <Database size={14} />
-                            </div>
-                            <div>
-                                <div
-                                    style={{
-                                        fontWeight: 700,
-                                        fontSize: 13,
-                                        color: t.textPrimary,
-                                    }}
-                                >
-                                    Data Deep Dive
-                                </div>
-                                <div style={{ fontSize: 10, color: t.textMuted }}>
-                                    {activeDisplayName} · telemetry & compute
-                                </div>
-                            </div>
-                        </div>
+                        <style>{`
+                            @keyframes panelSlideIn {
+                                from { transform: translateX(12px); opacity: 0; }
+                                to { transform: translateX(0); opacity: 1; }
+                            }
+                            @keyframes grokDotPulse {
+                                0%, 100% { opacity: 1; transform: scale(1); }
+                                50% { opacity: 0.35; transform: scale(0.75); }
+                            }
+                            @keyframes crtBlink {
+                                0%, 49% { opacity: 1; }
+                                50%, 100% { opacity: 0; }
+                            }
+                        `}</style>
 
-                        <button
-                            type="button"
-                            onClick={() => setShowDeepDive(false)}
-                            style={{
-                                background: "transparent",
-                                border: "none",
-                                color: t.textMuted,
-                                cursor: "pointer",
-                                padding: 4,
-                                borderRadius: 5,
-                                display: "grid",
-                                placeItems: "center",
-                            }}
-                            title="Close Data Deep Dive panel"
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-
-                    {/* Section 1: Specialist Profile & Environment */}
-                    <div style={{ padding: "14px 16px 10px" }}>
+                        {/* Compute Screen Header */}
                         <div
                             style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.06em",
-                                color: t.textMuted,
-                                marginBottom: 8,
-                            }}
-                        >
-                            Specialist Environment
-                        </div>
-                        <div
-                            style={{
-                                background: t.cardBg,
-                                border: `1px solid ${t.border}`,
-                                borderRadius: 10,
-                                padding: "11px 13px",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
-                                fontSize: 11.5,
-                            }}
-                        >
-                            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Role Archetype:</span>
-                                <span style={{ fontWeight: 600, color: t.textPrimary, textTransform: "capitalize" }}>
-                                    {baseRole.replace(/_/g, " ")}
-                                </span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Compute Sandbox:</span>
-                                <span style={{ fontWeight: 600, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
-                                    {"compute" in baseAgent ? String((baseAgent as any).compute) : "local"}
-                                </span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                                <span style={{ color: t.textMuted }}>Tooling:</span>
-                                <span style={{ color: t.accent, fontWeight: 600, textAlign: "right", wordBreak: "break-word" }}>
-                                    {"capabilities" in baseAgent && Array.isArray((baseAgent as any).capabilities)
-                                        ? (baseAgent as any).capabilities.join(", ")
-                                        : "analyst, data, coding, plugins"}
-                                </span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Status:</span>
-                                <span style={{ color: t.accent, fontWeight: 600 }}>
-                                    ✓ Active & isolated
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Section 2: Isolated Sandbox Compute & Execution Terminal */}
-                    <div style={{ padding: "8px 16px 10px" }}>
-                        <div
-                            style={{
+                                padding: "12px 16px",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
-                                marginBottom: 8,
+                                borderBottom: `1px solid ${t.borderSubtle}`,
+                                background: t.panelBg,
                             }}
                         >
-                            <span
-                                style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.06em",
-                                    color: t.textMuted,
-                                }}
-                            >
-                                Sandbox Compute
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setHumanTakeover(!humanTakeover)}
-                                style={{
-                                    background: humanTakeover ? "#d97706" : (isDark ? "#1f2430" : "#ffffff"),
-                                    color: humanTakeover ? "#ffffff" : t.textPrimary,
-                                    border: humanTakeover
-                                        ? "1px solid #b45309"
-                                        : `1px solid ${t.border}`,
-                                    borderRadius: 5,
-                                    padding: "2px 8px",
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                {humanTakeover ? "Release takeover" : "Takeover"}
-                            </button>
-                        </div>
-
-                        {/* Terminal Log */}
-                        <div
-                            style={{
-                                background: isDark ? "#090c10" : "#192723",
-                                border: `1px solid ${isDark ? "#1e2432" : "transparent"}`,
-                                borderRadius: 8,
-                                padding: "8px 10px",
-                                fontSize: 10,
-                                fontFamily: "var(--app-font-mono, monospace)",
-                                color: isDark ? "#ff857f" : "#62d2bc",
-                                height: 110,
-                                overflowY: "auto",
-                                lineHeight: 1.45,
-                            }}
-                        >
-                            {screenLogs.map((log, idx) => (
-                                <div key={idx} style={{ wordBreak: "break-all" }}>
-                                    {log}
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <GrokbotAvatar
+                                    name={activeDisplayName}
+                                    color={activeColor}
+                                    icon={activeIcon}
+                                    size={28}
+                                    isWorking={working}
+                                    mood={working ? "thinking" : grokTone === "sharp" ? "sharp" : "normal"}
+                                />
+                                <div>
+                                    <div
+                                        style={{
+                                            fontWeight: 700,
+                                            fontSize: 13,
+                                            color: t.textPrimary,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 6,
+                                        }}
+                                    >
+                                        <span>Compute Screen</span>
+                                        <span
+                                            style={{
+                                                fontSize: 9.5,
+                                                fontWeight: 700,
+                                                padding: "1px 6px",
+                                                borderRadius: 999,
+                                                background: working ? "rgba(59, 130, 246, 0.18)" : "rgba(16, 185, 129, 0.18)",
+                                                color: working ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#34d399" : "#16a34a"),
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: 3,
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    width: 5,
+                                                    height: 5,
+                                                    borderRadius: "50%",
+                                                    background: working ? "#3b82f6" : "#10b981",
+                                                    animation: working ? "grokDotPulse 1.2s infinite" : "none",
+                                                }}
+                                            />
+                                            {working ? "EXECUTING" : "ONLINE"}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: 10, color: t.textMuted }}>
+                                        {activeDisplayName} · sandbox container (PID 4108)
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
 
-                        {humanTakeover && (
-                            <form
-                                onSubmit={handleExecuteControl}
-                                style={{
-                                    marginTop: 6,
-                                    display: "flex",
-                                    gap: 5,
-                                    background: t.cardBg,
-                                    padding: 4,
-                                    borderRadius: 6,
-                                    border: `1px solid ${t.accent}`,
-                                }}
-                            >
-                                <input
-                                    type="text"
-                                    value={screenCommand}
-                                    onChange={(e) => setScreenCommand(e.target.value)}
-                                    placeholder="Enter bash command..."
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                {/* CRT Phosphor Theme Cycler */}
+                                {sidePanelTab === "screen" && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setScreenCrtTheme((prev) =>
+                                                prev === "matrix" ? "amber" : prev === "amber" ? "cyber" : "matrix"
+                                            )
+                                        }
+                                        style={{
+                                            background: isDark ? "#1a1f2c" : "#eeebe2",
+                                            border: `1px solid ${t.border}`,
+                                            color: t.textPrimary,
+                                            borderRadius: 6,
+                                            padding: "3px 7px",
+                                            fontSize: 10,
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: 4,
+                                        }}
+                                        title={`Cycle CRT Phosphor Theme: currently ${activeCrt.label}`}
+                                    >
+                                        <span>{activeCrt.icon}</span>
+                                        <span>CRT</span>
+                                    </button>
+                                )}
+
+                                {/* Width Toggle */}
+                                <button
+                                    type="button"
+                                    onClick={() => setSidePanelWidth((prev) => (prev === "wide" ? "normal" : "wide"))}
                                     style={{
-                                        flex: 1,
                                         background: "transparent",
                                         border: "none",
-                                        outline: "none",
-                                        color: t.textPrimary,
-                                        fontSize: 11,
-                                        fontFamily: "var(--app-font-mono, monospace)",
-                                        padding: "2px 4px",
-                                    }}
-                                />
-                                <button
-                                    type="submit"
-                                    style={{
-                                        background: t.accent,
-                                        color: "#fff",
-                                        border: "none",
-                                        borderRadius: 4,
-                                        padding: "2px 8px",
-                                        fontSize: 10.5,
-                                        fontWeight: 600,
+                                        color: t.textMuted,
                                         cursor: "pointer",
+                                        padding: 4,
+                                        borderRadius: 5,
+                                        display: "grid",
+                                        placeItems: "center",
                                     }}
+                                    title={sidePanelWidth === "wide" ? "Contract side panel" : "Expand to wide monitor (560px)"}
                                 >
-                                    Exec
+                                    {sidePanelWidth === "wide" ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                                 </button>
-                            </form>
-                        )}
-                    </div>
 
-                    {/* Section 3: Autonomous Routines */}
-                    <div style={{ padding: "8px 16px 20px" }}>
+                                {/* Close Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDeepDive(false)}
+                                    style={{
+                                        background: "transparent",
+                                        border: "none",
+                                        color: t.textMuted,
+                                        cursor: "pointer",
+                                        padding: 4,
+                                        borderRadius: 5,
+                                        display: "grid",
+                                        placeItems: "center",
+                                    }}
+                                    title="Close Compute Screen panel"
+                                >
+                                    <X size={15} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Side Panel Tabs */}
                         <div
                             style={{
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "space-between",
-                                marginBottom: 8,
+                                padding: "4px 12px 6px",
+                                gap: 6,
+                                borderBottom: `1px solid ${t.borderSubtle}`,
+                                background: t.panelBg,
                             }}
                         >
-                            <span
-                                style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.06em",
-                                    color: t.textMuted,
-                                }}
-                            >
-                                Autonomous Routines
-                            </span>
+                            {[
+                                { id: "screen", label: "🖥️ Screen", title: "Live CRT Sandbox Monitor" },
+                                { id: "data", label: "📊 Data", title: "Unity Catalog & Tables Viewer" },
+                                { id: "specs", label: "⚙️ Specs", title: "Specialist Archetype & Capabilities" },
+                                { id: "routines", label: "⏱️ Routines", title: "Autonomous background cycles" },
+                            ].map((tab) => {
+                                const active = sidePanelTab === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setSidePanelTab(tab.id as any)}
+                                        title={tab.title}
+                                        style={{
+                                            flex: 1,
+                                            padding: "5px 6px",
+                                            borderRadius: 6,
+                                            fontSize: 11,
+                                            fontWeight: active ? 700 : 500,
+                                            border: "none",
+                                            cursor: "pointer",
+                                            background: active
+                                                ? (isDark ? "#1e2433" : "#ffffff")
+                                                : "transparent",
+                                            color: active
+                                                ? (isDark ? "#f1f3f7" : "#1c332e")
+                                                : (isDark ? "#828d9e" : "#6c7b74"),
+                                            boxShadow: active
+                                                ? (isDark ? "0 1px 3px rgba(0,0,0,0.4)" : "0 1px 3px rgba(0,0,0,0.06)")
+                                                : "none",
+                                            transition: "all 0.15s ease",
+                                        }}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
                         </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            {routines.map((routine) => (
+                        {/* TAB 1: COMPUTE SCREEN */}
+                        {sidePanelTab === "screen" && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px 14px 20px" }}>
+                                {/* Hardware Telemetry HUD (4 Cards) */}
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                    {/* CPU Card */}
+                                    <div
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 8,
+                                            padding: "8px 10px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                                                <Cpu size={11} color={t.accent} /> CPU
+                                            </span>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: working ? "#3b82f6" : t.accent }}>
+                                                {simulatedCpu}%
+                                            </span>
+                                        </div>
+                                        {/* Progress Bar */}
+                                        <div style={{ width: "100%", height: 4, borderRadius: 2, background: isDark ? "#232938" : "#e6e2d8", overflow: "hidden" }}>
+                                            <div
+                                                style={{
+                                                    width: `${simulatedCpu}%`,
+                                                    height: "100%",
+                                                    background: working ? "#3b82f6" : "#10b981",
+                                                    transition: "width 0.4s ease",
+                                                }}
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: 9, color: t.textMuted, marginTop: 4 }}>
+                                            {working ? "Running sandbox task" : "4 cores · arm64"}
+                                        </div>
+                                    </div>
+
+                                    {/* Memory Card */}
+                                    <div
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 8,
+                                            padding: "8px 10px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                                                <HardDrive size={11} color={t.accent} /> Memory
+                                            </span>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: t.textPrimary }}>
+                                                148 MB
+                                            </span>
+                                        </div>
+                                        {/* Progress Bar */}
+                                        <div style={{ width: "100%", height: 4, borderRadius: 2, background: isDark ? "#232938" : "#e6e2d8", overflow: "hidden" }}>
+                                            <div
+                                                style={{
+                                                    width: "14.5%",
+                                                    height: "100%",
+                                                    background: t.accent,
+                                                }}
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: 9, color: t.textMuted, marginTop: 4 }}>
+                                            14.5% of 1024 MB quota
+                                        </div>
+                                    </div>
+
+                                    {/* SQLite WAL State Card */}
+                                    <div
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 8,
+                                            padding: "8px 10px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                                                <Database size={11} color={t.accent} /> Storage
+                                            </span>
+                                            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#10b981" }}>
+                                                WAL OK
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: t.textPrimary }}>
+                                            SQLite WAL (1.4MB)
+                                        </div>
+                                        <div style={{ fontSize: 9, color: t.textMuted, marginTop: 2 }}>
+                                            Checkpoint commit: sync
+                                        </div>
+                                    </div>
+
+                                    {/* Sandbox Mode Card */}
+                                    <div
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 8,
+                                            padding: "8px 10px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                                                <Activity size={11} color={t.accent} /> Sandbox
+                                            </span>
+                                            <span style={{ fontSize: 9.5, fontWeight: 700, color: t.accent }}>
+                                                Isolated
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: t.textPrimary, textTransform: "capitalize" }}>
+                                            {"compute" in baseAgent ? String((baseAgent as any).compute) : "Local Sandbox"}
+                                        </div>
+                                        <div style={{ fontSize: 9, color: t.textMuted, marginTop: 2 }}>
+                                            Namespace & FS jailed
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Authentic CRT Terminal Console */}
                                 <div
-                                    key={routine.id}
+                                    style={{
+                                        background: activeCrt.headerBg,
+                                        border: `1px solid ${activeCrt.border}`,
+                                        borderRadius: 10,
+                                        overflow: "hidden",
+                                        boxShadow: isDark ? "0 4px 20px rgba(0, 0, 0, 0.4)" : "0 2px 10px rgba(0, 0, 0, 0.08)",
+                                    }}
+                                >
+                                    {/* Bezel Top Bar */}
+                                    <div
+                                        style={{
+                                            padding: "6px 10px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            borderBottom: `1px solid ${activeCrt.border}`,
+                                            background: activeCrt.headerBg,
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", display: "inline-block" }} />
+                                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+                                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                                            <span style={{ fontSize: 10, fontFamily: "var(--app-font-mono, monospace)", color: activeCrt.textMuted, marginLeft: 6 }}>
+                                                terminal: bash @ {activeDisplayName.toLowerCase()} (PID 4108)
+                                            </span>
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: working ? "#3b82f6" : "#10b981", animation: working ? "grokDotPulse 1s infinite" : "none" }} />
+                                            <span style={{ fontSize: 9, color: activeCrt.textMuted, fontFamily: "var(--app-font-mono, monospace)" }}>
+                                                80x24 CRT
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* CRT Screen Body with Scanlines */}
+                                    <div
+                                        style={{
+                                            background: activeCrt.bg,
+                                            padding: "10px 12px",
+                                            fontSize: 10.5,
+                                            fontFamily: "var(--app-font-mono, monospace)",
+                                            color: activeCrt.text,
+                                            height: sidePanelWidth === "wide" ? 280 : 220,
+                                            overflowY: "auto",
+                                            lineHeight: 1.5,
+                                            position: "relative",
+                                            backgroundImage:
+                                                "linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03))",
+                                            backgroundSize: "100% 3px, 3px 100%",
+                                        }}
+                                    >
+                                        {screenLogs.map((log, idx) => (
+                                            <div
+                                                key={idx}
+                                                style={{
+                                                    wordBreak: "break-all",
+                                                    textShadow: activeCrt.glow,
+                                                    opacity: idx === screenLogs.length - 1 ? 1 : 0.9,
+                                                }}
+                                            >
+                                                {log}
+                                            </div>
+                                        ))}
+
+                                        {/* Blinking Prompt Cursor */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, textShadow: activeCrt.glow }}>
+                                            <span style={{ opacity: 0.8 }}>user@{activeDisplayName.toLowerCase()}-sandbox:~$</span>
+                                            <span style={{ animation: "crtBlink 1s infinite", fontWeight: 900 }}>_</span>
+                                        </div>
+                                        <div ref={screenEndRef} />
+                                    </div>
+                                </div>
+
+                                {/* Interactive Takeover & Command Form */}
+                                <div>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted }}>
+                                            Sandbox Interactive CLI
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHumanTakeover(!humanTakeover)}
+                                            style={{
+                                                background: humanTakeover ? "#d97706" : (isDark ? "#1f2430" : "#ffffff"),
+                                                color: humanTakeover ? "#ffffff" : t.textPrimary,
+                                                border: humanTakeover ? "1px solid #b45309" : `1px solid ${t.border}`,
+                                                borderRadius: 5,
+                                                padding: "2px 8px",
+                                                fontSize: 10,
+                                                fontWeight: 600,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {humanTakeover ? "Release Takeover" : "Takeover CLI"}
+                                        </button>
+                                    </div>
+
+                                    {/* Input Form */}
+                                    <form
+                                        onSubmit={handleExecuteControl}
+                                        style={{
+                                            display: "flex",
+                                            gap: 6,
+                                            background: isDark ? "#161922" : "#ffffff",
+                                            padding: 4,
+                                            borderRadius: 8,
+                                            border: `1px solid ${humanTakeover ? t.accent : t.border}`,
+                                            boxShadow: humanTakeover ? `0 0 0 2px ${t.accentSubtle}` : "none",
+                                            transition: "all 0.15s ease",
+                                        }}
+                                    >
+                                        <span style={{ padding: "4px 0 4px 6px", fontSize: 11, fontFamily: "var(--app-font-mono, monospace)", color: t.accent, fontWeight: 700 }}>
+                                            $
+                                        </span>
+                                        <input
+                                            type="text"
+                                            value={screenCommand}
+                                            onChange={(e) => setScreenCommand(e.target.value)}
+                                            placeholder={humanTakeover ? "Execute command in sandbox container..." : "Click Takeover CLI or type command..."}
+                                            style={{
+                                                flex: 1,
+                                                background: "transparent",
+                                                border: "none",
+                                                outline: "none",
+                                                color: t.textPrimary,
+                                                fontSize: 11.5,
+                                                fontFamily: "var(--app-font-mono, monospace)",
+                                                padding: "3px 4px",
+                                            }}
+                                        />
+                                        <button
+                                            type="submit"
+                                            style={{
+                                                background: t.accent,
+                                                color: "#fff",
+                                                border: "none",
+                                                borderRadius: 6,
+                                                padding: "3px 10px",
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Exec
+                                        </button>
+                                    </form>
+
+                                    {/* Quick Command Pills */}
+                                    <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
+                                        {[
+                                            { cmd: "ps aux", label: "ps aux" },
+                                            { cmd: "df -h", label: "df -h" },
+                                            { cmd: "sqlite3 dataclaw.db .tables", label: ".tables" },
+                                            { cmd: "python -V", label: "python -V" },
+                                            { cmd: "clear", label: "Clear Screen" },
+                                        ].map((c) => (
+                                            <button
+                                                key={c.cmd}
+                                                type="button"
+                                                onClick={() => handleRunQuickCommand(c.cmd)}
+                                                style={{
+                                                    fontSize: 10,
+                                                    fontFamily: "var(--app-font-mono, monospace)",
+                                                    padding: "2px 7px",
+                                                    borderRadius: 4,
+                                                    border: `1px solid ${t.border}`,
+                                                    background: t.cardBg,
+                                                    color: t.textSecondary,
+                                                    cursor: "pointer",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.borderColor = t.accent;
+                                                    e.currentTarget.style.color = t.textPrimary;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.borderColor = t.border;
+                                                    e.currentTarget.style.color = t.textSecondary;
+                                                }}
+                                            >
+                                                {c.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Sub-processes Table */}
+                                <div
                                     style={{
                                         background: t.cardBg,
                                         border: `1px solid ${t.border}`,
                                         borderRadius: 8,
-                                        padding: "8px 10px",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
+                                        overflow: "hidden",
                                     }}
                                 >
-                                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                                        <Clock size={13} color={isDark ? "#f59e0b" : "#8d5e1a"} />
-                                        <div>
-                                            <div style={{ fontSize: 11.5, fontWeight: 600, color: t.textPrimary }}>
-                                                {routine.title}
-                                            </div>
-                                            <div style={{ fontSize: 9.5, color: t.textMuted }}>
-                                                {routine.lastRun}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span
+                                    <div
                                         style={{
-                                            fontSize: 9.5,
-                                            fontWeight: 600,
-                                            color: t.accent,
-                                            background: t.accentSubtle,
-                                            padding: "2px 6px",
-                                            borderRadius: 999,
+                                            padding: "6px 10px",
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            textTransform: "uppercase",
+                                            color: t.textMuted,
+                                            borderBottom: `1px solid ${t.borderSubtle}`,
+                                            display: "flex",
+                                            justifyContent: "space-between",
                                         }}
                                     >
-                                        {routine.frequency}
-                                    </span>
+                                        <span>Active Process Workers</span>
+                                        <span>3 Sub-PIDs</span>
+                                    </div>
+                                    <div style={{ fontSize: 10, fontFamily: "var(--app-font-mono, monospace)", padding: "4px 8px" }}>
+                                        {[
+                                            { pid: "4108", cmd: "bun src/console/api/server.ts", cpu: working ? "42.1%" : "0.8%", state: "RUNNING", color: "#10b981" },
+                                            { pid: "4112", cmd: "dataclaw-sandbox-worker", cpu: working ? "32.0%" : "0.0%", state: working ? "EXEC" : "IDLE", color: working ? "#3b82f6" : "#94a3b8" },
+                                            { pid: "4115", cmd: "sqlite3-wal-checkpoint", cpu: "0.1%", state: "SYNCED", color: "#10b981" },
+                                        ].map((p) => (
+                                            <div
+                                                key={p.pid}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "space-between",
+                                                    padding: "3px 4px",
+                                                    borderBottom: `1px solid ${t.borderSubtle}`,
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <span style={{ color: t.textMuted }}>{p.pid}</span>
+                                                    <span style={{ color: t.textPrimary }}>{p.cmd}</span>
+                                                </div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                    <span style={{ color: t.textMuted }}>{p.cpu}</span>
+                                                    <span style={{ color: p.color, fontWeight: 700 }}>{p.state}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+                        )}
 
-                            <button
-                                type="button"
-                                onClick={handleAddRoutine}
-                                style={{
-                                    background: "transparent",
-                                    border: `1px dashed ${t.border}`,
-                                    borderRadius: 8,
-                                    padding: "6px 10px",
-                                    color: t.textSecondary,
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 5,
-                                    marginTop: 2,
-                                }}
-                            >
-                                <Plus size={13} />
-                                <span>+ New routine</span>
-                            </button>
-                        </div>
-                    </div>
-                </aside>
-            )}
+                        {/* TAB 2: DATA & SCHEMA */}
+                        {sidePanelTab === "data" && (
+                            <div style={{ padding: "12px 14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted }}>
+                                    Active Database & Tables
+                                </div>
+                                {[
+                                    { name: "main.telemetry.user_events", rows: "1,420,800", cols: 14, format: "Delta / Parquet", status: "Unity Catalog" },
+                                    { name: "main.telemetry.churn_cohorts", rows: "48,250", cols: 8, format: "Delta", status: "Profiled" },
+                                    { name: "local.csv.sales_q3", rows: "12,400", cols: 6, format: "SQLite / CSV", status: "Checkpointed" },
+                                ].map((tbl) => (
+                                    <div
+                                        key={tbl.name}
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 8,
+                                            padding: "9px 11px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                                            <span style={{ fontSize: 11.5, fontWeight: 700, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
+                                                {tbl.name}
+                                            </span>
+                                            <span style={{ fontSize: 9.5, fontWeight: 600, color: t.accent, background: t.accentSubtle, padding: "1px 6px", borderRadius: 4 }}>
+                                                {tbl.status}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: 10.5, color: t.textMuted, display: "flex", gap: 8, marginBottom: 6 }}>
+                                            <span>{tbl.rows} rows</span>
+                                            <span>·</span>
+                                            <span>{tbl.cols} columns</span>
+                                            <span>·</span>
+                                            <span>{tbl.format}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDraft(`SELECT * FROM ${tbl.name} LIMIT 10;`);
+                                                inputRef.current?.focus();
+                                            }}
+                                            style={{
+                                                fontSize: 10,
+                                                fontWeight: 600,
+                                                padding: "3px 8px",
+                                                borderRadius: 5,
+                                                border: `1px solid ${t.border}`,
+                                                background: isDark ? "#171b26" : "#f7f5ed",
+                                                color: t.accent,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Query sample in chat →
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* TAB 3: BOT SPECS */}
+                        {sidePanelTab === "specs" && (
+                            <div style={{ padding: "12px 14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted }}>
+                                    Specialist Environment
+                                </div>
+                                <div
+                                    style={{
+                                        background: t.cardBg,
+                                        border: `1px solid ${t.border}`,
+                                        borderRadius: 10,
+                                        padding: "11px 13px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                        fontSize: 11.5,
+                                    }}
+                                >
+                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                        <span style={{ color: t.textMuted }}>Role Archetype:</span>
+                                        <span style={{ fontWeight: 600, color: t.textPrimary, textTransform: "capitalize" }}>
+                                            {baseRole.replace(/_/g, " ")}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                        <span style={{ color: t.textMuted }}>Compute Sandbox:</span>
+                                        <span style={{ fontWeight: 600, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
+                                            {"compute" in baseAgent ? String((baseAgent as any).compute) : "local-isolated"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                                        <span style={{ color: t.textMuted }}>Tooling:</span>
+                                        <span style={{ color: t.accent, fontWeight: 600, textAlign: "right", wordBreak: "break-word" }}>
+                                            {"capabilities" in baseAgent && Array.isArray((baseAgent as any).capabilities)
+                                                ? (baseAgent as any).capabilities.join(", ")
+                                                : "analyst, data, coding, plugins"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                        <span style={{ color: t.textMuted }}>Status:</span>
+                                        <span style={{ color: t.accent, fontWeight: 600 }}>
+                                            ✓ Active & isolated
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setEditingAgent({
+                                            id: activeAgentId,
+                                            name: activeDisplayName,
+                                            description: activeDisplayDesc,
+                                            color: activeColor,
+                                            icon: activeIcon,
+                                            role: baseRole,
+                                        })
+                                    }
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 6,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        padding: "7px 12px",
+                                        borderRadius: 7,
+                                        border: `1px solid ${t.border}`,
+                                        background: t.cardBg,
+                                        color: t.textPrimary,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    <Pencil size={12} />
+                                    <span>Configure Specialist Archetype</span>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* TAB 4: AUTONOMOUS ROUTINES */}
+                        {sidePanelTab === "routines" && (
+                            <div style={{ padding: "12px 14px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted, marginBottom: 2 }}>
+                                    Autonomous Routines
+                                </div>
+                                {routines.map((routine) => (
+                                    <div
+                                        key={routine.id}
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 8,
+                                            padding: "8px 10px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                            <Clock size={13} color={isDark ? "#f59e0b" : "#8d5e1a"} />
+                                            <div>
+                                                <div style={{ fontSize: 11.5, fontWeight: 600, color: t.textPrimary }}>
+                                                    {routine.title}
+                                                </div>
+                                                <div style={{ fontSize: 9.5, color: t.textMuted }}>
+                                                    {routine.lastRun}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <span
+                                            style={{
+                                                fontSize: 9.5,
+                                                fontWeight: 600,
+                                                color: t.accent,
+                                                background: t.accentSubtle,
+                                                padding: "2px 6px",
+                                                borderRadius: 999,
+                                            }}
+                                        >
+                                            {routine.frequency}
+                                        </span>
+                                    </div>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    onClick={handleAddRoutine}
+                                    style={{
+                                        background: "transparent",
+                                        border: `1px dashed ${t.border}`,
+                                        borderRadius: 8,
+                                        padding: "7px 10px",
+                                        color: t.textSecondary,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 5,
+                                        marginTop: 4,
+                                    }}
+                                >
+                                    <Plus size={13} />
+                                    <span>+ New routine</span>
+                                </button>
+                            </div>
+                        )}
+                    </aside>
+                );
+            })()}
 
             {/* Agent Editor Modal */}
             {editingAgent && (
