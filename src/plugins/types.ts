@@ -114,9 +114,42 @@ export interface PluginClient {
     close(): Promise<void>;
 }
 
+/**
+ * How long a plugin may take to start and to answer one call. One value for every consumer:
+ * the agent tool bridge, the eval capability resolver and `plugins:list` share it.
+ * `DATACLAW_PLUGIN_TIMEOUT_MS` (milliseconds) overrides the default.
+ */
+export const PLUGIN_TIMEOUT_MS = 120_000;
+
+/** The timeout for one plugin operation: `override`, else the environment, else `PLUGIN_TIMEOUT_MS`. */
+export function pluginTimeoutMs(override?: number): number {
+    if (override !== undefined) return override;
+    const env = Number(process.env.DATACLAW_PLUGIN_TIMEOUT_MS);
+    return Number.isFinite(env) && env > 0 ? env : PLUGIN_TIMEOUT_MS;
+}
+
+/**
+ * What went wrong, in the one vocabulary every plugin caller uses:
+ * `manifest` (it cannot be read or validated), `startup` (it cannot be started, or lacks a tool it
+ * declares), `call` (a call failed) or `contract` (its output does not match a capability contract).
+ */
+export type PluginErrorCode = "manifest" | "startup" | "call" | "contract";
+
+export interface PluginFailure {
+    /** Plugin name, when the failure belongs to one. Discovery failures name none. */
+    plugin?: string;
+    code: PluginErrorCode;
+}
+
+/** The one error type a plugin failure produces, whichever transport it came from. */
 export class PluginError extends Error {
-    constructor(message: string, readonly plugin?: string) {
-        super(plugin ? `[plugin ${plugin}] ${message}` : message);
+    readonly plugin?: string;
+    readonly code: PluginErrorCode;
+
+    constructor(message: string, failure: PluginFailure) {
+        super(failure.plugin ? `[plugin ${failure.plugin}] ${message}` : message);
         this.name = "PluginError";
+        this.code = failure.code;
+        this.plugin = failure.plugin;
     }
 }

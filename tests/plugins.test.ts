@@ -1,13 +1,17 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     McpPluginClient,
+    PLUGIN_TIMEOUT_MS,
     PluginError,
     ScriptPluginClient,
+    createPluginAgentTools,
     discoverPlugins,
+    openPluginHandle,
     parseCapability,
+    pluginTimeoutMs,
     providers,
     resolveCapability,
     validateManifest,
@@ -158,6 +162,141 @@ describe("script transport (example kappa plugin)", () => {
         await expect(client.invoke("stats.compare_eval_runs@1", {})).rejects.toThrow(/does not provide/);
         const failing = new ScriptPluginClient(loaded(manifest({ name: "fails", transport: { type: "script", command: "sh", args: ["-c", "echo boom >&2; exit 3"] } })));
         await expect(failing.invoke("stats.compare_eval_runs@1", {})).rejects.toThrow(/exited with code 3[\s\S]*boom/);
+    });
+});
+
+describe("one plugin module", () => {
+    const installed = (path: string) => discoverPlugins({ root: join(tmp, "none"), paths: [path] });
+
+    /** An MCP manifest whose command cannot exist, so every start fails the same way. */
+    const brokenPlugin = (name: string) => {
+        const dir = join(tmp, `broken-${name}`);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "plugin.json"), JSON.stringify({
+            name,
+            version: "0.1.0",
+            description: "never starts",
+            domain: "stats",
+            capabilities: ["stats.compare_eval_runs@1"],
+            transport: { type: "mcp", command: `definitely-not-a-real-command-${name}` },
+        }));
+        return dir;
+    };
+
+    const compareInput = { scores_a: [[1, 0]], scores_b: [[1, 1]], paired: true, alpha: 0.05, ci_method: "analytic" as const };
+
+    test("one manifest: the agent bridge and the eval path report the same tools and the same timeout", async () => {
+        const agent = await createPluginAgentTools({ root: join(tmp, "none"), paths: [FAKE_MCP] });
+        const capability = resolveCapability(compareEvalRuns, { plugins: installed(FAKE_MCP) })!;
+        const handle = openPluginHandle(installed(FAKE_MCP)[0]!);
+        try {
+            const summary = agent.plugins[0]!;
+            const published = (await handle.tools()).map((tool) => tool.name);
+            expect(summary.mcpTools).toEqual(published);
+            expect(summary.tools).toEqual(published.map((tool) => `fake-stats-mcp__${tool}`));
+            expect(handle.timeoutMs).toBe(summary.timeoutMs);
+            expect(capability.timeoutMs).toBe(summary.timeoutMs);
+            expect(summary.timeoutMs).toBe(PLUGIN_TIMEOUT_MS);
+
+            // Both consumers, in this process, over this one manifest.
+            const out = await compareRuns(grid("a", 3, 2, (t) => t > 0), grid("b", 3, 2, () => true), { plugins: { plugins: installed(FAKE_MCP) } });
+            expect(out.kind).toBe("plugin");
+        } finally {
+            await handle.close();
+            await capability.close();
+            await agent.close();
+        }
+    });
+
+    test("the timeout is one value, overridable in one place", async () => {
+        const previous = process.env.DATACLAW_PLUGIN_TIMEOUT_MS;
+        process.env.DATACLAW_PLUGIN_TIMEOUT_MS = "1234";
+        const agent = await createPluginAgentTools({ root: join(tmp, "none"), paths: [FAKE_MCP] });
+        const capability = resolveCapability(compareEvalRuns, { plugins: installed(FAKE_MCP) })!;
+        try {
+            expect(pluginTimeoutMs()).toBe(1234);
+            expect(agent.plugins[0]?.timeoutMs).toBe(1234);
+            expect(capability.timeoutMs).toBe(1234);
+        } finally {
+            await capability.close();
+            await agent.close();
+            if (previous === undefined) delete process.env.DATACLAW_PLUGIN_TIMEOUT_MS;
+            else process.env.DATACLAW_PLUGIN_TIMEOUT_MS = previous;
+        }
+    });
+
+    test("a plugin that cannot start produces one message, and both consumers see it", async () => {
+        const dir = brokenPlugin("broken");
+        const onError: string[] = [];
+        const agent = await createPluginAgentTools({ root: join(tmp, "none"), paths: [dir], onError: (message) => onError.push(message) });
+        const capability = resolveCapability(compareEvalRuns, { plugins: installed(dir) })!;
+        try {
+            expect(agent.errors).toHaveLength(1);
+            expect(onError).toEqual(agent.errors);
+            const failure = await capability.call(compareInput).catch((err: unknown) => err);
+            expect(failure).toBeInstanceOf(PluginError);
+            expect((failure as PluginError).code).toBe("startup");
+            expect((failure as Error).message).toBe(agent.errors[0]!);
+        } finally {
+            await capability.close();
+            await agent.close();
+        }
+    });
+
+    test("a script plugin is capabilities-only, not an error", async () => {
+        const agent = await createPluginAgentTools({ root: join(tmp, "none"), paths: [KAPPA_SCRIPT] });
+        const capability = resolveCapability(agreementKappa, { plugins: installed(KAPPA_SCRIPT) })!;
+        try {
+            expect(agent.errors).toEqual([]);
+            expect(agent.capabilitiesOnly).toEqual(["kappa-script"]);
+            expect(agent.toolNames).toEqual([]);
+            expect(agent.extensions).toEqual([]);
+            expect(agent.plugins).toEqual([
+                expect.objectContaining({ name: "kappa-script", capabilitiesOnly: true, tools: [], mcpTools: [], timeoutMs: PLUGIN_TIMEOUT_MS }),
+            ]);
+            // The same plugin still serves the eval path: capabilities only is not a defect.
+            const out = await capability.call({ rater_a: ["yes", "no"], rater_b: ["yes", "no"], labels: ["yes", "no"], alpha: 0.05, n_resamples: 200 });
+            expect(out.kappa).toBeCloseTo(1, 10);
+        } finally {
+            await capability.close();
+            await agent.close();
+        }
+    });
+
+    test("resolveCapability opens the plugin through the module, not with a client of its own", () => {
+        const opened: { name: string; timeoutMs: number }[] = [];
+        const capability = resolveCapability(compareEvalRuns, {
+            plugins: [loaded(manifest({ name: "spied", transport: { type: "script", command: "true" } }))],
+            open: (plugin, options) => {
+                opened.push({ name: plugin.manifest.name, timeoutMs: pluginTimeoutMs(options.timeoutMs) });
+                return openPluginHandle(plugin, options);
+            },
+        })!;
+        expect(opened).toEqual([{ name: "spied", timeoutMs: PLUGIN_TIMEOUT_MS }]);
+        expect(capability.timeoutMs).toBe(PLUGIN_TIMEOUT_MS);
+
+        // The one construction site is the module: the resolver has no transport of its own.
+        const source = readFileSync(join(import.meta.dir, "../src/plugins/registry.ts"), "utf-8");
+        expect(source).not.toMatch(/new (Mcp|McpHttp|Script)PluginClient|openMcpPlugin\(/);
+        expect(source).toContain('from "./runtime"');
+    });
+
+    test("the eval path stays lazy: resolving a capability starts nothing", async () => {
+        const marker = join(tmp, "lazy-start.txt");
+        rmSync(marker, { force: true });
+        const script = loaded(manifest({ name: "lazy", transport: { type: "script", command: "sh", args: ["-c", `echo started > ${marker}`] } }));
+        const neverStarts = loaded(manifest({ name: "never", transport: { type: "mcp", command: "definitely-not-a-real-command-dataclaw" } }));
+        const lazy = resolveCapability(compareEvalRuns, { plugins: [script] })!;
+        const never = resolveCapability(compareEvalRuns, { plugins: [neverStarts] })!;
+        try {
+            // Closing a capability nothing called must not start it (and must not throw).
+            await lazy.close();
+            await never.close();
+            expect(existsSync(marker)).toBe(false);
+        } finally {
+            await lazy.close();
+            await never.close();
+        }
     });
 });
 

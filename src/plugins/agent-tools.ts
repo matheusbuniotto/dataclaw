@@ -17,16 +17,14 @@
  */
 import { Type } from "@earendil-works/pi-ai";
 import { defineExtension, defineTool, section, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
-import { discoverPlugins, type DiscoverOptions } from "./manifest";
-import { openMcpPlugin, type McpToolClient } from "./transports";
-import type { LoadedPlugin } from "./types";
+import type { DiscoverOptions } from "./manifest";
+import { discoverPluginHandles, type PluginHandle } from "./runtime";
 
-const DEFAULT_TIMEOUT_MS = 60_000;
 /** Longest tool name most providers accept. */
 const MAX_TOOL_NAME = 64;
 
 export interface PluginAgentToolsOptions extends DiscoverOptions {
-    /** Per-request timeout for the plugin's MCP server. Default 60s. */
+    /** Start and call timeout, shared with the eval capability path. Default `pluginTimeoutMs()`. */
     timeoutMs?: number;
     /** Add tools as deferred, so the model loads them through `tool_search`. Default true. */
     deferred?: boolean;
@@ -47,6 +45,10 @@ export interface PluginAgentToolsSummary {
     tools: string[];
     /** The same tools under the names the plugin's server uses. */
     mcpTools: string[];
+    /** The timeout its tools start and answer with: the plugin module's one timeout. */
+    timeoutMs: number;
+    /** True for a `script` transport: it serves capabilities only, so it contributes no tools. */
+    capabilitiesOnly: boolean;
 }
 
 export interface PluginAgentTools {
@@ -59,6 +61,8 @@ export interface PluginAgentTools {
     errors: string[];
     /** Every harness tool name, flattened. */
     toolNames: string[];
+    /** Plugins that serve capabilities only. Described, not an error: they have no tools by design. */
+    capabilitiesOnly: string[];
     deferred: boolean;
     /** Plugin names that were switched off before anything started. */
     disabled: string[];
@@ -70,6 +74,20 @@ function toolName(plugin: string, tool: string): string {
     return `${plugin}__${tool}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, MAX_TOOL_NAME);
 }
 
+const summarize = (handle: PluginHandle, tools: string[], mcpTools: string[]): PluginAgentToolsSummary => {
+    const manifest = handle.plugin.manifest;
+    return {
+        name: manifest.name,
+        version: manifest.version,
+        domain: manifest.domain,
+        description: manifest.description,
+        tools,
+        mcpTools,
+        timeoutMs: handle.timeoutMs,
+        capabilitiesOnly: !handle.publishesTools,
+    };
+};
+
 function render(value: unknown): string {
     if (typeof value === "string") return value;
     try {
@@ -80,9 +98,10 @@ function render(value: unknown): string {
 }
 
 /**
- * Discover installed plugins and build one harness tool per MCP tool. Connects to every
- * MCP plugin once, here, so the schemas are known before the first turn; the connection is
- * reused for calls until `close()`.
+ * Discover installed plugins and build one harness tool per MCP tool. Discovery, startup and
+ * the timeout come from `runtime.ts`, the module the eval capability path uses too. Every MCP
+ * plugin is started once, here, so the schemas are known before the first turn; the connection
+ * is reused for calls until `close().`
  */
 export async function createPluginAgentTools(options: PluginAgentToolsOptions = {}): Promise<PluginAgentTools> {
     const deferred = options.deferred ?? true;
@@ -92,22 +111,19 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
         options.onError?.(message);
     };
 
-    let installed: LoadedPlugin[];
-    try {
-        installed = discoverPlugins(options);
-    } catch (err) {
-        // A bad or duplicated manifest must not keep the analyst agent from starting.
-        report(err instanceof Error ? err.message : String(err));
-        installed = [];
-    }
+    // Discovery and startup come from the plugin module, so this path and the eval capability
+    // path report the same plugin the same way. A bad manifest never keeps the agent from starting.
+    const { handles, errors: discoveryErrors } = discoverPluginHandles(options);
+    for (const error of discoveryErrors) report(error.message);
 
-    const clients: McpToolClient[] = [];
+    const started: PluginHandle[] = [];
     const extensions: Extension<ToolRegistration>[] = [];
     const plugins: PluginAgentToolsSummary[] = [];
+    const capabilitiesOnly: string[] = [];
     const disabled = [...(options.disabled ?? [])];
 
-    for (const plugin of installed) {
-        const manifest = plugin.manifest;
+    for (const handle of handles) {
+        const manifest = handle.plugin.manifest;
         if (options.only && !options.only.includes(manifest.name)) continue;
         if (disabled.includes(manifest.name)) continue;
         if (manifest.dataSource) {
@@ -115,27 +131,28 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
             // Listing its tools here would reach the warehouse before anyone asked for it.
             continue;
         }
-        const client = openMcpPlugin(plugin, { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS });
-        if (!client) {
-            // Script transports are one call per capability and publish no tool inventory.
-            report(`plugin ${manifest.name}: script plugins provide capabilities only, so no agent tools`);
+        if (!handle.publishesTools) {
+            // A script answers one capability per invocation and publishes no inventory. That is
+            // what the plugin is, not a startup problem, so it is described and not reported.
+            capabilitiesOnly.push(manifest.name);
+            plugins.push(summarize(handle, [], []));
             continue;
         }
         let definitions;
         try {
-            definitions = await client.listToolDefinitions();
+            definitions = await handle.tools();
         } catch (err) {
-            await client.close();
+            await handle.close();
             report(err instanceof Error ? err.message : String(err));
             continue;
         }
         if (definitions.length === 0) {
-            await client.close();
+            await handle.close();
             report(`plugin ${manifest.name}: its MCP server lists no tools`);
             continue;
         }
 
-        clients.push(client);
+        started.push(handle);
         const names: string[] = [];
         const tools: ToolRegistration[] = [];
         for (const definition of definitions) {
@@ -151,7 +168,7 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
                 ...(deferred ? { deferred: true as const } : {}),
                 execute: async (args: unknown) => {
                     try {
-                        const value = await client.callTool(definition.name, (args ?? {}) as Record<string, unknown>);
+                        const value = await handle.callTool(definition.name, (args ?? {}) as Record<string, unknown>);
                         return { output: [{ type: "text" as const, text: render(value) }] };
                     } catch (err) {
                         return {
@@ -162,14 +179,7 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
                 },
             }));
         }
-        plugins.push({
-            name: manifest.name,
-            version: manifest.version,
-            domain: manifest.domain,
-            description: manifest.description,
-            tools: names,
-            mcpTools: definitions.map((definition) => definition.name),
-        });
+        plugins.push(summarize(handle, names, definitions.map((definition) => definition.name)));
 
         // One extension per plugin: the console toggles plugins one at a time, and a
         // conversation can select `plugin:<name>` exactly like any other extension.
@@ -196,11 +206,12 @@ export async function createPluginAgentTools(options: PluginAgentToolsOptions = 
         plugins,
         errors,
         toolNames: plugins.flatMap((p) => p.tools),
+        capabilitiesOnly,
         deferred,
         disabled,
         async close() {
-            await Promise.all(clients.map((client) => client.close()));
-            clients.length = 0;
+            await Promise.all(started.map((handle) => handle.close()));
+            started.length = 0;
         },
     };
 }

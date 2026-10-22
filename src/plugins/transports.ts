@@ -2,11 +2,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { HttpMcpClient, type McpToolDefinition } from "../mcp/http-mcp-client";
 import { parseCapability } from "./manifest";
-import { PluginError, type CapabilityId, type HttpMcpTransportConfig, type LoadedPlugin, type McpTransportConfig, type PluginClient, type ScriptTransportConfig } from "./types";
+import { PluginError, pluginTimeoutMs, type CapabilityId, type HttpMcpTransportConfig, type LoadedPlugin, type McpTransportConfig, type PluginClient, type ScriptTransportConfig } from "./types";
 
 export type { McpToolDefinition };
 
-const DEFAULT_TIMEOUT_MS = 120_000;
 const STDERR_TAIL = 4000;
 
 function childEnv(extra?: Record<string, string>): Record<string, string> {
@@ -25,7 +24,7 @@ export function toolResultValue(result: Record<string, unknown>, plugin: string)
     const text = Array.isArray(result.content)
         ? result.content.filter((c): c is { type: "text"; text: string } => c?.type === "text").map((c) => c.text).join("\n")
         : "";
-    if (result.isError) throw new PluginError(`tool returned an error: ${text || "(no message)"}`, plugin);
+    if (result.isError) throw new PluginError(`tool returned an error: ${text || "(no message)"}`, { plugin, code: "call" });
     const sc = result.structuredContent;
     if (sc && typeof sc === "object") {
         const keys = Object.keys(sc);
@@ -34,7 +33,7 @@ export function toolResultValue(result: Record<string, unknown>, plugin: string)
     try {
         return JSON.parse(text);
     } catch {
-        throw new PluginError("tool result is neither structured content nor JSON text", plugin);
+        throw new PluginError("tool result is neither structured content nor JSON text", { plugin, code: "call" });
     }
 }
 
@@ -68,7 +67,7 @@ export class McpPluginClient implements PluginClient, McpToolClient {
     private tools?: Set<string>;
     private definitions?: McpToolDefinition[];
 
-    constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = DEFAULT_TIMEOUT_MS) {}
+    constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = pluginTimeoutMs()) {}
 
     private get config(): McpTransportConfig {
         return this.plugin.manifest.transport as McpTransportConfig;
@@ -99,13 +98,13 @@ export class McpPluginClient implements PluginClient, McpToolClient {
             }));
         } catch (err) {
             await this.close();
-            throw new PluginError(`could not start MCP server "${cfg.command}": ${err instanceof Error ? err.message : String(err)}${this.stderrHint()}`, this.plugin.manifest.name);
+            throw new PluginError(`could not start MCP server "${cfg.command}": ${err instanceof Error ? err.message : String(err)}${this.stderrHint()}`, { plugin: this.plugin.manifest.name, code: "startup" });
         }
         for (const cap of this.plugin.manifest.capabilities) {
             const tool = this.toolFor(cap);
             if (!this.tools.has(tool)) {
                 await this.close();
-                throw new PluginError(`declares ${cap} but its MCP server has no tool "${tool}" (tools: ${[...this.tools].sort().join(", ")})`, this.plugin.manifest.name);
+                throw new PluginError(`declares ${cap} but its MCP server has no tool "${tool}" (tools: ${[...this.tools].sort().join(", ")})`, { plugin: this.plugin.manifest.name, code: "startup" });
             }
         }
         this.client = client;
@@ -140,7 +139,7 @@ export class McpPluginClient implements PluginClient, McpToolClient {
     async callTool(name: string, args: Record<string, unknown>, options: { signal?: AbortSignal } = {}): Promise<unknown> {
         const client = await this.connect();
         if (!this.tools?.has(name)) {
-            throw new PluginError(`has no tool "${name}" (tools: ${[...(this.tools ?? [])].sort().join(", ") || "none"})`, this.plugin.manifest.name);
+            throw new PluginError(`has no tool "${name}" (tools: ${[...(this.tools ?? [])].sort().join(", ") || "none"})`, { plugin: this.plugin.manifest.name, code: "call" });
         }
         const result = await client.callTool(
             { name, arguments: args },
@@ -148,14 +147,14 @@ export class McpPluginClient implements PluginClient, McpToolClient {
             { timeout: this.timeoutMs, ...(options.signal ? { signal: options.signal } : {}) },
         ).catch((err: unknown) => {
             // Attribute transport-level failures (a throwing server, a killed process) to the plugin.
-            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), this.plugin.manifest.name);
+            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), { plugin: this.plugin.manifest.name, code: "call" });
         });
         return toolResultValue(result, this.plugin.manifest.name);
     }
 
     async invoke(capability: CapabilityId, input: Record<string, unknown>): Promise<unknown> {
         if (!this.plugin.manifest.capabilities.includes(capability)) {
-            throw new PluginError(`does not provide ${capability}`, this.plugin.manifest.name);
+            throw new PluginError(`does not provide ${capability}`, { plugin: this.plugin.manifest.name, code: "manifest" });
         }
         return this.callTool(this.toolFor(capability), input);
     }
@@ -177,11 +176,11 @@ export class McpPluginClient implements PluginClient, McpToolClient {
  * `{"output": ...}` on success or `{"error": "message"}`. Non-zero exit is an error.
  */
 export class ScriptPluginClient implements PluginClient {
-    constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = DEFAULT_TIMEOUT_MS) {}
+    constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = pluginTimeoutMs()) {}
 
     async invoke(capability: CapabilityId, input: Record<string, unknown>): Promise<unknown> {
         const name = this.plugin.manifest.name;
-        if (!this.plugin.manifest.capabilities.includes(capability)) throw new PluginError(`does not provide ${capability}`, name);
+        if (!this.plugin.manifest.capabilities.includes(capability)) throw new PluginError(`does not provide ${capability}`, { plugin: name, code: "manifest" });
         const cfg = this.plugin.manifest.transport as ScriptTransportConfig;
         let proc: ReturnType<typeof Bun.spawn>;
         try {
@@ -193,7 +192,7 @@ export class ScriptPluginClient implements PluginClient {
                 stderr: "pipe",
             });
         } catch (err) {
-            throw new PluginError(`could not run "${cfg.command}": ${err instanceof Error ? err.message : String(err)}`, name);
+            throw new PluginError(`could not run "${cfg.command}": ${err instanceof Error ? err.message : String(err)}`, { plugin: name, code: "startup" });
         }
         const timer = setTimeout(() => proc.kill(), this.timeoutMs);
         const [stdout, stderr, code] = await Promise.all([
@@ -203,15 +202,15 @@ export class ScriptPluginClient implements PluginClient {
         ]);
         clearTimeout(timer);
         const tail = stderr.trim() ? `\nstderr (tail):\n${stderr.trim().slice(-STDERR_TAIL)}` : "";
-        if (code !== 0) throw new PluginError(`script exited with code ${code}${tail}`, name);
+        if (code !== 0) throw new PluginError(`script exited with code ${code}${tail}`, { plugin: name, code: "call" });
         let reply: unknown;
         try {
             reply = JSON.parse(stdout);
         } catch {
-            throw new PluginError(`script did not print one JSON object on stdout${tail}`, name);
+            throw new PluginError(`script did not print one JSON object on stdout${tail}`, { plugin: name, code: "call" });
         }
-        if (reply && typeof reply === "object" && "error" in reply) throw new PluginError(String((reply as { error: unknown }).error), name);
-        if (!reply || typeof reply !== "object" || !("output" in reply)) throw new PluginError(`script reply has no "output"`, name);
+        if (reply && typeof reply === "object" && "error" in reply) throw new PluginError(String((reply as { error: unknown }).error), { plugin: name, code: "call" });
+        if (!reply || typeof reply !== "object" || !("output" in reply)) throw new PluginError(`script reply has no "output"`, { plugin: name, code: "call" });
         return (reply as { output: unknown }).output;
     }
 
@@ -242,7 +241,7 @@ export class McpHttpPluginClient implements PluginClient, McpToolClient {
     private http?: HttpMcpClient;
     private opening?: Promise<HttpMcpClient>;
 
-    constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = DEFAULT_TIMEOUT_MS) {}
+    constructor(readonly plugin: LoadedPlugin, private readonly timeoutMs = pluginTimeoutMs()) {}
 
     private get config(): HttpMcpTransportConfig {
         return this.plugin.manifest.transport as HttpMcpTransportConfig;
@@ -268,14 +267,14 @@ export class McpHttpPluginClient implements PluginClient, McpToolClient {
                 headers[key] = expandEnv(value, `transport.headers.${key}`);
             }
         } catch (err) {
-            throw new PluginError(err instanceof Error ? err.message : String(err), name);
+            throw new PluginError(err instanceof Error ? err.message : String(err), { plugin: name, code: "startup" });
         }
 
         const bearerEnv = cfg.bearerEnv;
         const tokenProvider = bearerEnv
             ? () => {
                 const token = process.env[bearerEnv];
-                if (!token) throw new PluginError(`requires the environment variable ${bearerEnv}`, name);
+                if (!token) throw new PluginError(`requires the environment variable ${bearerEnv}`, { plugin: name, code: "startup" });
                 return token;
             }
             : undefined;
@@ -286,7 +285,7 @@ export class McpHttpPluginClient implements PluginClient, McpToolClient {
             ...(tokenProvider ? { tokenProvider } : {}),
             timeoutMs: this.timeoutMs,
         }).catch((err: unknown) => {
-            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), name);
+            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), { plugin: name, code: "startup" });
         });
 
         for (const cap of this.plugin.manifest.capabilities) {
@@ -294,7 +293,7 @@ export class McpHttpPluginClient implements PluginClient, McpToolClient {
             if (!http.availableTools.includes(tool)) {
                 const available = http.availableTools.join(", ") || "none";
                 await http.close();
-                throw new PluginError(`declares ${cap} but its MCP server has no tool "${tool}" (tools: ${available})`, name);
+                throw new PluginError(`declares ${cap} but its MCP server has no tool "${tool}" (tools: ${available})`, { plugin: name, code: "startup" });
             }
         }
 
@@ -317,14 +316,14 @@ export class McpHttpPluginClient implements PluginClient, McpToolClient {
     async callTool(name: string, args: Record<string, unknown>, options: { signal?: AbortSignal } = {}): Promise<unknown> {
         const http = await this.connect();
         const result = await http.callTool(name, args, { ...(options.signal ? { signal: options.signal } : {}) }).catch((err: unknown) => {
-            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), this.plugin.manifest.name);
+            throw err instanceof PluginError ? err : new PluginError(err instanceof Error ? err.message : String(err), { plugin: this.plugin.manifest.name, code: "call" });
         });
         return toolResultValue(result as Record<string, unknown>, this.plugin.manifest.name);
     }
 
     async invoke(capability: CapabilityId, input: Record<string, unknown>): Promise<unknown> {
         if (!this.plugin.manifest.capabilities.includes(capability)) {
-            throw new PluginError(`does not provide ${capability}`, this.plugin.manifest.name);
+            throw new PluginError(`does not provide ${capability}`, { plugin: this.plugin.manifest.name, code: "manifest" });
         }
         return this.callTool(this.toolFor(capability), input);
     }
