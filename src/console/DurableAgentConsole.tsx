@@ -112,7 +112,7 @@ export function DurableAgentConsole() {
 
     const notify = (message: string) => {
         setToast(message);
-        window.setTimeout(() => setToast(""), 3200);
+        window.setTimeout(() => setToast(""), 2200);
     };
 
     const askingRef = useRef(false);
@@ -159,7 +159,7 @@ export function DurableAgentConsole() {
                 throw new Error(body.ok === false ? body.error : `${targetName} could not start that turn.`);
             }
             if (stopDuringAsk.current) await postAbort();
-            else notify(`${targetName} picked up the turn. It is checkpointed in SQLite.`);
+            else notify(`⚡ Checkpointed in SQLite · ${targetName} active`);
             setLocation(agentPath(targetAgentId));
             await refresh(targetAgentId);
         } catch (err) {
@@ -555,7 +555,12 @@ export function DurableAgentConsole() {
             />
 
             {/* Toast */}
-            {toast && <div className="toast-local" role="status">{toast}</div>}
+            {toast && (
+                <div className="toast-local" role="status">
+                    <span className="toast-pulse-dot" />
+                    <span>{toast}</span>
+                </div>
+            )}
         </div>
     );
 }

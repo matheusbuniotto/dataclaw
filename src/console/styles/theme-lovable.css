@@ -523,3 +523,16 @@ body.theme-lovable .main-area,
   background: #ff4740 !important;
   box-shadow: 0 4px 14px rgba(255, 94, 87, 0.5) !important;
 }
+
+/* Toast in Lovable Dark Theme */
+.theme-lovable .toast-local {
+  background: rgba(16, 20, 28, 0.94) !important;
+  border-color: rgba(255, 94, 87, 0.3) !important;
+  color: #f1f3f7 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+.theme-lovable .toast-pulse-dot {
+  background: #ff5e57 !important;
+  box-shadow: 0 0 6px #ff5e57 !important;
+}

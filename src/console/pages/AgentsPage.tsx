@@ -2160,6 +2160,9 @@ export function AgentsPage({
                                             <i />
                                             <i />
                                         </div>
+                                        <span style={{ fontSize: 10.5, opacity: 0.75, fontStyle: "normal", marginLeft: 2 }}>
+                                            · Checkpointed in SQLite
+                                        </span>
                                     </div>
                                 </div>
                             </div>
