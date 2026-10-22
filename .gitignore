@@ -66,10 +66,3 @@ workspace/memory/*
 # Local tooling state and backups
 /.pi/arrakis/
 /.pi/*.bak
-
-# Terraform
-**/.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-!*.tfvars.example
