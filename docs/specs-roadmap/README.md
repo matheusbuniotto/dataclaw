@@ -86,10 +86,15 @@ deepening. Fix them directly; they do not need a spec.
   (`churn-analyst`, `databricks-explorer`, `quality-auditor`), invented routines, a fake shell log,
   and a model id (`Pi / Claude 3.5 Sonnet`) that no provider resolves.
 - ~~`src/prototype/console.css` is imported nowhere; `index.html` carries a second copy of its rules.~~
-  **Resolved:** `src/console/console.css` is the only stylesheet; it imports
-  `src/console/styles/{base,chat,theme-lovable}.css` and `index.html` no longer carries a `<style>`
-  block.
-- Starter prompts are duplicated between `DurableAgentConsole.tsx:54` and `AgentsPage.tsx:191`.
+  **Resolved, and worse than reported:** `console.css` *was* imported (`entry.tsx`), so the console
+  shipped two overlapping sheets — the inline `<style>` (369 selectors) and `console.css` (198,
+  182 of them shared) — with the later `console.css` copy silently winning ~10 divergent
+  declarations. The move to `src/console/` left that intact; a follow-up then reduced
+  `console.css` to a manifest that `@import`s `styles/{base,chat,theme-lovable}.css`, folded the
+  divergent winners into their seam file, and verified the result is cascade-equivalent (1998
+  effective declarations before and after, none changed).
+- Starter prompts are duplicated between `src/console/pages/Overview.tsx:19` and
+  `src/console/pages/AgentsPage.tsx:757`.
 - `getSharedAdapter()` has no callers.
 - The `beforeTool` SQL guard in `analyst-extension.ts` is a weaker duplicate of
   `isReadOnlySql()`; it blocks a legitimate `WHERE note = 'UPDATE'` and misses `MERGE`/`CREATE`.

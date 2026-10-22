@@ -7,7 +7,7 @@ import {
     Workflow,
 } from "lucide-react";
 import type { DataSource, Run } from "../state/workspace-types";
-import { Header } from "../components/Chrome";
+import { Header } from "../components/Header";
 import { statusClass } from "../components/view-model";
 
 export function DataPage({

@@ -9,7 +9,7 @@ import {
     type DataSourcesResponse,
     type PluginCheckResponse,
 } from "../api/wire";
-import { Header } from "../components/Chrome";
+import { Header } from "../components/Header";
 
 function DataSourcesCard({ agentId }: { agentId: string }) {
     const [summary, setSummary] = useState<DataSourcesFacts | null>(null);

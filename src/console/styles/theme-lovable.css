@@ -513,3 +513,13 @@ body.theme-lovable .main-area,
   background: #141720 !important;
   color: #dce0e8 !important;
 }
+
+/* Carried over from the old `console.css`: declarations the inline stylesheet never had,
+   or where `console.css` was the later, winning copy. Appended in their original order. */
+.theme-lovable .tool-summary{
+  color: #9aa3b2 !important;
+}
+.theme-lovable .chat-send:hover{
+  background: #ff4740 !important;
+  box-shadow: 0 4px 14px rgba(255, 94, 87, 0.5) !important;
+}

@@ -83,7 +83,8 @@ conversation and a profile: `instructions` (persona), `background` + `contextFil
   `loadAgentContextFiles()` in `src/workspace/context.ts`; paths are confined to the workspace/project.
 - Fixed specialists (researcher, writer, reviewer) cannot be widened into managers. Only a coordinator or a
   custom agent with `roster`/`all` manages the roster.
-- The console has one active-agent picker (`AgentPicker` in `DurableAgentConsole.tsx`, sidebar + chat header).
+- The console has one active-agent picker (`AgentPicker` in `src/console/components/AgentPicker.tsx`,
+  sidebar + chat header).
   `GET /api/workspace?agentId=...`, `/api/agent/ask` and `/api/agent/abort` all accept an `agentId`; the
   workspace snapshot is read from that agent's conversation. The UI keeps the choice in `?agent=<id>` and
   `localStorage`.

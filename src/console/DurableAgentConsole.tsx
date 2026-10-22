@@ -13,11 +13,11 @@ import {
     type AgentAskResponse,
     type WorkspaceResponse,
 } from "./api/wire";
-import { AgentPicker } from "./pages/AgentPicker";
+import { AgentPicker } from "./components/AgentPicker";
 import { AgentsPage } from "./pages/AgentsPage";
 import { CapabilitiesPage } from "./pages/CapabilitiesPage";
 import { DataPage } from "./pages/DataPage";
-import { LaunchModal } from "./pages/LaunchModal";
+import { LaunchModal } from "./components/LaunchModal";
 import { NotFound } from "./pages/NotFound";
 import { Overview } from "./pages/Overview";
 import { RunsPage } from "./pages/RunsPage";

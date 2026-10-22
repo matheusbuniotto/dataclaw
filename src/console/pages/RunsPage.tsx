@@ -9,7 +9,7 @@ import {
     Search,
 } from "lucide-react";
 import type { Run, WorkspaceAgent } from "../state/workspace-types";
-import { Header } from "../components/Chrome";
+import { Header } from "../components/Header";
 import { agentById, statusClass } from "../components/view-model";
 
 export function RunsPage({

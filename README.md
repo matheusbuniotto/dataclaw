@@ -454,6 +454,10 @@ bun run console
 # open http://localhost:3000/prototype/settings or /prototype/data
 ```
 
+> The script is `console` and the code lives in `src/console/`, but the URL space is still
+> `/prototype/*`. The prefix is frozen on purpose: every link, the agent's tool descriptions and the
+> tests name those paths, so renaming them is a separate change with its own redirect plan.
+
 - The topbar **Connect Databricks** button (and Settings → Databricks Unity Catalog) opens the auth panel.
 - **CLI profile** tab lists profiles from `~/.databrickscfg` and connects with the profile's OAuth token.
 - **OAuth** tab offers two flows:
