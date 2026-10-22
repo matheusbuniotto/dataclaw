@@ -173,6 +173,8 @@ describe("the catalog and the harness agree on what is off", () => {
         const entry = catalog.entries.find((item) => item.id === "plugin:fake-stats-mcp");
         expect(entry?.enabled).toBe(false);
         expect(entry?.details.transport).toBe("mcp");
+        // Switched off on purpose is not broken: no red error on the page.
+        expect(entry?.error).toBeUndefined();
         expect(off.errors).toEqual([]);
     }, 60_000);
 

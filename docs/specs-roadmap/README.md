@@ -29,9 +29,9 @@ Every spec starts at `proposed`.
 | [01](01-data-source-session.md) | Put the live data source behind one seam, with providers for new data MCPs | Strong | ports & adapters | L | — | `done` |
 | [02](02-transcript-read-model.md) | One transcript read model | Strong | in-process | M | — | `done` |
 | [03](03-tool-inventory.md) | Derive the tool inventory | Strong | in-process | S | — | `done` |
-| [04](04-console-api.md) | Give the console one HTTP seam | Worth exploring | ports & adapters | M | 02 (snapshot), 03 (catalog) | `proposed` |
-| [05](05-document-writes.md) | One writer for the durable documents | Worth exploring | in-process | S–M | 01 (plan record) | `proposed` |
-| [06](06-plugin-startup.md) | Two plugin paths, one module | Speculative | ports & adapters | S | 01 (transport) | `proposed` |
+| [04](04-console-api.md) | Give the console one HTTP seam | Worth exploring | ports & adapters | M | 02 (snapshot), 03 (catalog) | `done` |
+| [05](05-document-writes.md) | One writer for the durable documents | Worth exploring | in-process | S–M | 01 (plan record) | `done` |
+| [06](06-plugin-startup.md) | Two plugin paths, one module | Speculative | ports & adapters | S | 01 (transport) | `done` |
 
 **Size** is the shape of the change, not a deadline: S ≈ one module plus its tests, M ≈ a module
 plus its call sites, L ≈ a subsystem.
@@ -42,16 +42,15 @@ plus its call sites, L ≈ a subsystem.
    shared state, and it is the one that decides how Snowflake or BigQuery gets added later. Accepted
    2026-10-21: a per-conversation session, providers declared by manifest, dialects in code, seven
    source-neutral tools. Steps: [01-plan.md](01-plan.md).
-2. **03 · tool inventory.** Cheap, independent, and it fixes a user-visible lie: the capabilities
-   page currently shows 11 analyst tools, four of which belong to the Databricks group, and omits
-   17 tools that are installed.
-3. **02 · transcript read model.** Largest testability win. Unblocks 04.
-4. **05 · document writes.** Small, and it removes a real collision (a workflow run appends
+2. **03 · tool inventory.** *Done.* Cheap, independent, and it fixed a user-visible lie: the
+   capabilities page showed 11 analyst tools, four of which belonged to the Databricks group, and
+   omitted 17 tools that were installed.
+3. **02 · transcript read model.** *Done.* Largest testability win; unblocked 04.
+4. **05 · document writes.** *Done.* Small, and it removed a real collision (a workflow run appended
    `find-1` again) once 01 has fixed where the plan record is written.
-5. **04 · console HTTP seam.** Worth doing, but it mostly moves code that 02 and 03 will have
-   already reshaped.
-6. **06 · plugin startup.** Speculative: only take it when the eval pipeline and the agent
-   genuinely diverge in behaviour, not just in code.
+5. **04 · console HTTP seam.** *Done.* It mostly moved code 02 and 03 had already reshaped.
+6. **06 · plugin startup.** *Done.* The eval pipeline and the agent were starting the same plugin
+   two ways with two timeouts; they now share `src/plugins/runtime.ts`.
 
 ## Picking one up
 

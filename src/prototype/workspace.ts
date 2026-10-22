@@ -5,6 +5,7 @@ import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
 import { databricksRecord } from "../datasource/providers/databricks";
 import { bridgedProvider } from "../datasource/providers/bridged";
 import { databricksDialect } from "../datasource/dialects";
+import { readDisabled } from "../capabilities/catalog";
 import { AnalystPlanDoc } from "../docs/plan";
 import { FindingsDoc } from "../docs/findings";
 import { PlaybookDoc } from "../docs/playbook";
@@ -327,7 +328,7 @@ export async function readWorkspace(
         runs,
         transcript,
         activity,
-        plugins: pluginsSummary(analyst.pluginTools, analyst.projectRoot),
+        plugins: pluginsSummary(analyst.pluginTools, analyst.projectRoot, readDisabled(analyst.projectRoot).disabled),
     };
 }
 
@@ -377,6 +378,12 @@ export async function consoleDataSources(agentId?: string): Promise<{
         providers: analyst.dataSources.providers(),
         status: analyst.dataSources.for(target.conversation.id).status(),
     };
+}
+
+/** The live plugin summary, so /api/plugins and /api/capabilities describe plugins the same way. */
+export async function consolePlugins(): Promise<ReturnType<typeof pluginsSummary>> {
+    const analyst = await consoleHarness();
+    return pluginsSummary(analyst.pluginTools, analyst.projectRoot, readDisabled(analyst.projectRoot).disabled);
 }
 
 export async function consoleWorkspace(agentId?: string): Promise<WorkspaceSnapshot> {

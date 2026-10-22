@@ -1,9 +1,14 @@
+/**
+ * The auth panel's domain: what is connected, how to connect, and how a failure is reported.
+ * A failed call throws `DatabricksStatusError`, which carries the status snapshot so the panel
+ * renders what is actually connected next to the message.
+ */
+
 import { randomBytes } from "node:crypto";
 import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
 import {
     describeDatabricksConfig,
     listDatabricksProfiles,
-    type DatabricksProfileInfo,
 } from "../mcp/databricks-config";
 import {
     buildAuthorizeUrl,
@@ -12,40 +17,15 @@ import {
     generatePkcePair,
     normalizeOAuthHost,
 } from "../mcp/databricks-oauth";
-
-export type DatabricksAuthMethod = "env" | "config" | "cli" | "token" | "oauth";
-export type DatabricksOAuthMode = "u2m" | "m2m";
-
-export interface DatabricksUiStatus {
-    connected: boolean;
-    configured: boolean;
-    host?: string;
-    mcpUrl?: string;
-    profile?: string;
-    authMethod?: DatabricksAuthMethod;
-    oauthMode?: DatabricksOAuthMode;
-    tokenExpiresAt?: number;
-    warehouseId?: string;
-    catalogs: string[];
-    user?: string;
-    connectedAt?: number;
-    profiles: DatabricksProfileInfo[];
-    defaultProfile: string;
-    error?: string;
-}
-
-export interface DatabricksConnectInput {
-    profile?: string;
-    host?: string;
-    token?: string;
-    warehouseId?: string;
-    /** Service-principal OAuth (client credentials). */
-    oauth?: {
-        clientId: string;
-        clientSecret: string;
-        scope?: string;
-    };
-}
+import {
+    DatabricksStatusError,
+    ValidationError,
+    type DatabricksAuthMethod,
+    type DatabricksConnectInput,
+    type DatabricksOAuthFlow,
+    type DatabricksOAuthMode,
+    type DatabricksUiStatus,
+} from "./wire";
 
 interface LiveConnection {
     adapter: DatabricksDataAdapter;
@@ -191,10 +171,23 @@ async function establishConnection(
     return getDatabricksUiStatus();
 }
 
+/** Fill in the status snapshot a failed auth call reports next to its message, and record it. */
+function authFailure(err: unknown): never {
+    if (err instanceof DatabricksStatusError) throw err;
+    throw new DatabricksStatusError(recordDatabricksAuthError(err), getDatabricksUiStatus());
+}
+
 /** Authenticate with a CLI profile, PAT, env credentials, or service-principal OAuth. */
 export async function connectDatabricks(input: DatabricksConnectInput = {}): Promise<DatabricksUiStatus> {
     lastError = undefined;
+    try {
+        return await openDatabricksConnection(input);
+    } catch (err) {
+        authFailure(err);
+    }
+}
 
+async function openDatabricksConnection(input: DatabricksConnectInput): Promise<DatabricksUiStatus> {
     if (input.oauth) {
         const host = input.host?.trim() || describeDatabricksConfig().host;
         if (!host) {
@@ -253,19 +246,23 @@ async function completeOAuthConnection(
 
 /** Re-mint the token and reopen the session for the current workspace. */
 export async function reconnectDatabricks(): Promise<DatabricksUiStatus> {
-    if (!connection) throw new Error("Databricks is not connected.");
+    if (!connection) throw new ValidationError("Databricks is not connected.");
 
-    if (connection.oauthSession) {
-        await connection.oauthSession.refresh();
-        return completeOAuthConnection(connection.oauthSession, connection.warehouseId);
+    try {
+        if (connection.oauthSession) {
+            await connection.oauthSession.refresh();
+            return await completeOAuthConnection(connection.oauthSession, connection.warehouseId);
+        }
+
+        const { host, profile, warehouseId } = connection;
+        return await connectDatabricks({
+            host,
+            ...(profile ? { profile } : {}),
+            ...(warehouseId ? { warehouseId } : {}),
+        });
+    } catch (err) {
+        authFailure(err);
     }
-
-    const { host, profile, warehouseId } = connection;
-    return connectDatabricks({
-        host,
-        ...(profile ? { profile } : {}),
-        ...(warehouseId ? { warehouseId } : {}),
-    });
 }
 
 export async function disconnectDatabricks(): Promise<DatabricksUiStatus> {
@@ -276,22 +273,15 @@ export async function disconnectDatabricks(): Promise<DatabricksUiStatus> {
     return getDatabricksUiStatus();
 }
 
-/** Record a failure for the next status read without leaking credentials. */
-export function recordDatabricksAuthError(error: unknown): void {
+/** Record a failure for the next status read without leaking credentials. Returns the message. */
+export function recordDatabricksAuthError(error: unknown): string {
     lastError = errorText(error);
+    return lastError;
 }
 
 // ---------------------------------------------------------------------------
 // Browser OAuth (U2M) flow
 // ---------------------------------------------------------------------------
-
-export interface DatabricksOAuthFlow {
-    state: "idle" | "pending" | "success" | "error";
-    host?: string;
-    authorizeUrl?: string;
-    startedAt?: number;
-    error?: string;
-}
 
 const OAUTH_PORT = 8020;
 const OAUTH_TIMEOUT_MS = 10 * 60_000;
@@ -468,6 +458,19 @@ async function handleOAuthCallbackInner(req: Request): Promise<Response> {
 
 /** Start a browser OAuth flow and return the URL the user must open. */
 export function startBrowserOAuth(input: { host?: string; port?: number } = {}): {
+    authorizeUrl: string;
+    host: string;
+    port: number;
+} {
+    try {
+        return openBrowserOAuth(input);
+    } catch (err) {
+        // A missing host or a busy callback port is something the user fixes in the panel.
+        throw new ValidationError(recordDatabricksAuthError(err));
+    }
+}
+
+function openBrowserOAuth(input: { host?: string; port?: number }): {
     authorizeUrl: string;
     host: string;
     port: number;

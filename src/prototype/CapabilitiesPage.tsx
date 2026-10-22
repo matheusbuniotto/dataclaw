@@ -12,6 +12,13 @@ import {
     Wrench,
 } from "lucide-react";
 import type { CapabilityCatalog, CapabilityEntry, CapabilityKind } from "../capabilities/catalog";
+import {
+    readJson,
+    type ApplyCapabilitiesResponse,
+    type CapabilityChange,
+    type CapabilityChangeResponse,
+    type CapabilitiesResponse,
+} from "./wire";
 import type { WorkspaceSnapshot } from "./workspace-types";
 
 const KIND_LABEL: Record<CapabilityKind, string> = {
@@ -27,18 +34,6 @@ const KIND_ICON: Record<CapabilityKind, React.ReactNode> = {
     skill: <Bot size={13} />,
     mcp: <RefreshCw size={13} />,
 };
-
-async function readJson(response: Response): Promise<Record<string, unknown>> {
-    try {
-        return await response.json() as Record<string, unknown>;
-    } catch {
-        return {};
-    }
-}
-
-function errorOf(body: Record<string, unknown>, fallback: string): string {
-    return typeof body.error === "string" ? body.error : fallback;
-}
 
 /** The whole plugin manifest the UI fills in, so what lands on disk is what the agent reads. */
 function manifestFrom(input: {
@@ -93,9 +88,11 @@ export function CapabilitiesPage({
     const load = async () => {
         try {
             const response = await fetch("/api/capabilities");
-            const body = await readJson(response);
-            if (!response.ok) throw new Error(errorOf(body, `Capabilities unavailable (${response.status})`));
-            setCatalog(body as unknown as CapabilityCatalog);
+            const body = await readJson<CapabilitiesResponse>(response);
+            if (!response.ok || body.ok === false) {
+                throw new Error(body.ok === false ? body.error : `Capabilities unavailable (${response.status})`);
+            }
+            setCatalog(body);
             setError("");
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -106,7 +103,8 @@ export function CapabilitiesPage({
         void load();
     }, []);
 
-    const post = async (path: string, payload: unknown, id: string): Promise<Record<string, unknown> | undefined> => {
+    /** Every capability mutation answers with the catalog it just wrote. */
+    const post = async (path: string, payload: unknown, id: string): Promise<CapabilityChange | undefined> => {
         setPending(id);
         try {
             const response = await fetch(path, {
@@ -114,9 +112,11 @@ export function CapabilitiesPage({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload ?? {}),
             });
-            const body = await readJson(response);
-            if (!response.ok || body.ok === false) throw new Error(errorOf(body, "That change was refused."));
-            if (body.capabilities) setCatalog(body.capabilities as unknown as CapabilityCatalog);
+            const body = await readJson<CapabilityChangeResponse>(response);
+            if (!response.ok || body.ok === false) {
+                throw new Error(body.ok === false ? body.error : "That change was refused.");
+            }
+            setCatalog(body.capabilities);
             return body;
         } catch (err) {
             notify(err instanceof Error ? err.message : String(err));
@@ -137,10 +137,12 @@ export function CapabilitiesPage({
         setApplying(true);
         try {
             const response = await fetch("/api/capabilities/apply", { method: "POST" });
-            const body = await readJson(response);
-            if (!response.ok || !body.ok) throw new Error(errorOf(body, "Could not reopen the agent."));
-            if (body.workspace) onApplied(body.workspace as WorkspaceSnapshot);
-            if (body.capabilities) setCatalog(body.capabilities as unknown as CapabilityCatalog);
+            const body = await readJson<ApplyCapabilitiesResponse>(response);
+            if (!response.ok || body.ok === false) {
+                throw new Error(body.ok === false ? body.error : "Could not reopen the agent.");
+            }
+            onApplied(body.workspace);
+            setCatalog(body.capabilities);
             setDirty(false);
             notify("Applied. The agent resumed its durable conversation.");
         } catch (err) {
@@ -246,7 +248,7 @@ export function CapabilitiesPage({
                                     if (!body) return;
                                     setAdding(null);
                                     setDirty(true);
-                                    notify(`${String(body.name)} installed — apply to load its tools`);
+                                    notify(`${input.name} installed — apply to load its tools`);
                                 }}
                             />
                         )}
@@ -290,7 +292,7 @@ export function CapabilitiesPage({
                                     if (!body) return;
                                     setAdding(null);
                                     setDirty(true);
-                                    notify(`${String(body.name)} added — apply to include it`);
+                                    notify(`${input.name} added — apply to include it`);
                                 }}
                             />
                         )}

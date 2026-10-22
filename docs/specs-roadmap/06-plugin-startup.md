@@ -1,6 +1,6 @@
 # 06 · Two plugin paths, one module
 
-**Status:** `proposed` · **Strength:** Speculative · **Seam:** ports & adapters · **Size:** S
+**Status:** `done` · **Strength:** Speculative · **Seam:** ports & adapters · **Size:** S
 
 ## Problem
 

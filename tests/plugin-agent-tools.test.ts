@@ -5,9 +5,10 @@ import { join, resolve } from "node:path";
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { createAnalystHarness } from "../src/harness";
 import type { ToolRegistration } from "@earendil-works/pi-durable";
-import { createPluginAgentTools } from "../src/plugins";
+import { PLUGIN_TIMEOUT_MS, createPluginAgentTools } from "../src/plugins";
 
 const FAKE_MCP = resolve(import.meta.dir, "fixtures/plugins/fake-stats-mcp");
+const KAPPA_SCRIPT = resolve(import.meta.dir, "../examples/plugins/kappa-script");
 const tmp = mkdtempSync(join(tmpdir(), "dataclaw-agent-tools-"));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -81,6 +82,23 @@ describe("data plugin agent tools", () => {
         try {
             expect(errors.some((m) => m.includes("broken") && m.includes("could not start"))).toBe(true);
             expect(plugins.toolNames).toContain("fake-stats-mcp__compare_eval_runs");
+        } finally {
+            await plugins.close();
+        }
+    });
+
+    test("a script plugin is described as capabilities-only, not as an error", async () => {
+        const errors: string[] = [];
+        const plugins = await createPluginAgentTools({ paths: [KAPPA_SCRIPT], root: tmp, onError: (message) => errors.push(message) });
+        try {
+            expect(errors).toEqual([]);
+            expect(plugins.errors).toEqual([]);
+            expect(plugins.capabilitiesOnly).toEqual(["kappa-script"]);
+            expect(plugins.toolNames).toEqual([]);
+            expect(plugins.extensions).toEqual([]);
+            expect(plugins.plugins).toEqual([
+                expect.objectContaining({ name: "kappa-script", capabilitiesOnly: true, tools: [], mcpTools: [], timeoutMs: PLUGIN_TIMEOUT_MS }),
+            ]);
         } finally {
             await plugins.close();
         }

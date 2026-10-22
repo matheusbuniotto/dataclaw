@@ -1,13 +1,18 @@
 import { defineDoc } from "@earendil-works/pi-durable";
 
-export interface FindingEvidence {
+/** JSON-safe by construction: a document must satisfy the durable store's JsonObject. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export type FindingEvidence = {
     query?: string;
     metricName?: string;
-    sampleResult?: Record<string, unknown> | Array<unknown>;
+    sampleResult?: JsonValue;
     rationale: string;
-}
+};
 
-export interface Finding {
+export type AuditVerdict = "confirmed" | "caution" | "rejected";
+
+export type Finding = {
     id: string;
     hypothesisId?: string;
     title: string;
@@ -16,18 +21,18 @@ export interface Finding {
     confidence: number; // 0.0 - 1.0
     evidence: FindingEvidence;
     audited: boolean;
-    auditVerdict?: "confirmed" | "caution" | "rejected";
+    auditVerdict?: AuditVerdict;
     auditNotes?: string;
     actionableRecommendations: string[];
     discoveredAt: number;
-}
+};
 
-export interface FindingsDocument {
+export type FindingsDocument = {
     findings: Finding[];
     executiveSummary?: string;
     keyTakeaways: string[];
     updatedAt: number;
-}
+};
 
 export const FindingsDoc = defineDoc<FindingsDocument>({
     kind: "analyst.findings",

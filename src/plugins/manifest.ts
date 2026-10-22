@@ -6,7 +6,7 @@ const CAPABILITY = /^[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*@\d+$/;
 const NAME = /^[a-z0-9][a-z0-9_.-]*$/;
 
 export function parseCapability(id: string): { domain: string; name: string; major: number } {
-    if (!CAPABILITY.test(id)) throw new PluginError(`invalid capability id "${id}" (expected domain.name@major)`);
+    if (!CAPABILITY.test(id)) throw new PluginError(`invalid capability id "${id}" (expected domain.name@major)`, { code: "manifest" });
     const [qualified, major] = id.split("@") as [string, string];
     const dot = qualified.indexOf(".");
     return { domain: qualified.slice(0, dot), name: qualified.slice(dot + 1), major: Number(major) };
@@ -108,7 +108,7 @@ function validateDataSource(raw: unknown, transportType: string, fail: (msg: str
 /** Validate a parsed manifest. Throws PluginError naming the source and the first problem. */
 export function validateManifest(raw: unknown, source: string): PluginManifest {
     const fail = (msg: string): never => {
-        throw new PluginError(`${source}: ${msg}`);
+        throw new PluginError(`${source}: ${msg}`, { code: "manifest" });
     };
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("manifest must be a JSON object");
     const m = raw as Record<string, unknown>;
@@ -173,7 +173,7 @@ function readJson(path: string): unknown {
     try {
         return JSON.parse(readFileSync(path, "utf-8"));
     } catch (err) {
-        throw new PluginError(`${path}: ${err instanceof Error ? err.message : String(err)}`);
+        throw new PluginError(`${path}: ${err instanceof Error ? err.message : String(err)}`, { code: "manifest" });
     }
 }
 
@@ -217,13 +217,13 @@ export function discoverPlugins(options: DiscoverOptions = {}): LoadedPlugin[] {
     if (existsSync(join(root, "dataclaw.plugins.json"))) found.push(...loadFile(join(root, "dataclaw.plugins.json")));
     for (const entry of extra) {
         const path = resolve(root, entry);
-        if (!existsSync(path)) throw new PluginError(`DATACLAW_PLUGIN_PATH entry not found: ${path}`);
+        if (!existsSync(path)) throw new PluginError(`DATACLAW_PLUGIN_PATH entry not found: ${path}`, { code: "manifest" });
         found.push(...(statSync(path).isDirectory() ? loadDir(path) : loadFile(path)));
     }
     const seen = new Map<string, string>();
     for (const p of found) {
         const prior = seen.get(p.manifest.name);
-        if (prior) throw new PluginError(`plugin "${p.manifest.name}" is declared twice: ${prior} and ${p.source}`);
+        if (prior) throw new PluginError(`plugin "${p.manifest.name}" is declared twice: ${prior} and ${p.source}`, { code: "manifest" });
         seen.set(p.manifest.name, p.source);
     }
     return found;
@@ -237,7 +237,7 @@ export function providers(plugins: readonly LoadedPlugin[], capability: Capabili
     parseCapability(capability);
     const matches = plugins.filter((p) => p.manifest.capabilities.includes(capability));
     if (prefer && !matches.some((p) => p.manifest.name === prefer)) {
-        throw new PluginError(`plugin "${prefer}" does not provide ${capability}`);
+        throw new PluginError(`plugin "${prefer}" does not provide ${capability}`, { code: "manifest" });
     }
     return matches.sort((a, b) => {
         if (prefer) {

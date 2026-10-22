@@ -17,6 +17,15 @@ import {
 } from "./DatabricksAuth";
 import { AssistantTurnView, groupIntoTurns } from "./ChatComponents";
 import type { PluginCheck, PluginsSummary } from "./plugins-api";
+import {
+    readJson,
+    type AgentAbortResponse,
+    type AgentAskResponse,
+    type DataSourcesFacts,
+    type DataSourcesResponse,
+    type PluginCheckResponse,
+    type WorkspaceResponse,
+} from "./wire";
 import { CapabilitiesPage } from "./CapabilitiesPage";
 import { AgentsPage } from "./AgentsPage";
 import {
@@ -79,26 +88,6 @@ const agentInitials = (name: string) => name
     .slice(0, 2)
     .toUpperCase() || "DC";
 
-/** `response.json()` in Safari throws "The string did not match the expected pattern." for a non-JSON body. */
-async function readJson(response: Response): Promise<Record<string, unknown>> {
-    const text = await response.text();
-    const snippet = text.replace(/\s+/g, " ").trim().slice(0, 180);
-    if (!snippet) throw new Error(`Empty response from the console (${response.status}).`);
-    try {
-        const parsed = JSON.parse(text) as unknown;
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-            throw new Error(`The console returned an unexpected response (${response.status}).`);
-        }
-        return parsed as Record<string, unknown>;
-    } catch (err) {
-        if (err instanceof Error && err.message.startsWith("The console returned")) throw err;
-        if (snippet.startsWith("<")) {
-            throw new Error(`The console returned an unexpected response (${response.status}).`);
-        }
-        throw new Error(snippet);
-    }
-}
-
 export function DurableAgentConsole() {
     const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
     const [loadError, setLoadError] = useState("");
@@ -140,8 +129,10 @@ export function DurableAgentConsole() {
                 ? `/api/workspace?agentId=${encodeURIComponent(agentId)}`
                 : "/api/workspace";
             const response = await fetch(url);
-            const body = await readJson(response) as WorkspaceSnapshot & { error?: string };
-            if (!response.ok) throw new Error(body.error ?? `Workspace unavailable (${response.status})`);
+            const body = await readJson<WorkspaceResponse>(response);
+            if (!response.ok || body.ok === false) {
+                throw new Error(body.ok === false ? body.error : `Workspace unavailable (${response.status})`);
+            }
             setSnapshot(body);
             setLoadError("");
         } catch (err) {
@@ -173,13 +164,11 @@ export function DurableAgentConsole() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ agentId: activeAgentId === "dataclaw" ? undefined : activeAgentId }),
         });
-        const body = await readJson(response);
+        const body = await readJson<AgentAbortResponse>(response);
         if (!response.ok || body.ok === false) {
-            throw new Error(typeof body.error === "string" ? body.error : "Could not stop the turn.");
+            throw new Error(body.ok === false ? body.error : "Could not stop the turn.");
         }
-        if (body.workspace && typeof body.workspace === "object") {
-            setSnapshot(body.workspace as WorkspaceSnapshot);
-        }
+        setSnapshot(body.workspace);
     };
 
     const ask = async (goal: string, agentIdOverride?: string) => {
@@ -204,9 +193,9 @@ export function DurableAgentConsole() {
                     agentId: targetAgentId === "dataclaw" ? undefined : targetAgentId,
                 }),
             });
-            const body = await readJson(response);
-            if (!response.ok || !body.ok) {
-                throw new Error(typeof body.error === "string" ? body.error : `${targetName} could not start that turn.`);
+            const body = await readJson<AgentAskResponse>(response);
+            if (!response.ok || body.ok === false) {
+                throw new Error(body.ok === false ? body.error : `${targetName} could not start that turn.`);
             }
             if (stopDuringAsk.current) await postAbort();
             else notify(`${targetName} picked up the turn. It is checkpointed in SQLite.`);
@@ -1331,16 +1320,13 @@ function DataPage({
 }
 
 function DataSourcesCard({ agentId }: { agentId: string }) {
-    const [summary, setSummary] = useState<{
-        providers: Array<{ id: string; kind: string; dialect: string; label: string }>;
-        status: { state: string; record?: { provider: string; host?: string; dataset?: string }; error?: { message: string } };
-    } | null>(null);
+    const [summary, setSummary] = useState<DataSourcesFacts | null>(null);
 
     useEffect(() => {
         let live = true;
         fetch(`/api/datasources?agentId=${encodeURIComponent(agentId)}`)
-            .then((response) => response.json())
-            .then((body) => { if (live) setSummary(body); })
+            .then((response) => readJson<DataSourcesResponse>(response))
+            .then((body) => { if (live && body.ok !== false) setSummary(body); })
             .catch(() => undefined);
         return () => { live = false; };
     }, [agentId]);
@@ -1488,9 +1474,9 @@ function PluginsCard({
         setChecking(true);
         try {
             const response = await fetch("/api/plugins/check", { method: "POST" });
-            const body = await response.json() as { ok?: boolean; checks?: PluginCheck[]; error?: string };
-            if (!response.ok || body.ok === false) throw new Error(body.error ?? "The plugin check failed.");
-            const results = body.checks ?? [];
+            const body = await readJson<PluginCheckResponse>(response);
+            if (!response.ok || body.ok === false) throw new Error(body.ok === false ? body.error : "The plugin check failed.");
+            const results = body.checks;
             setChecks(results);
             const failed = results.filter((check) => !check.ok);
             notify(failed.length
@@ -1548,13 +1534,17 @@ function PluginsCard({
                                     ))}
                                 </div>
                                 <small style={{ marginTop: 6 }}>
-                                    {plugin.status === "ready"
+                                    {plugin.status === "capabilities-only"
+                                        ? "capabilities only"
+                                        : plugin.status === "ready"
                                         ? `${plugin.tools.length} agent tool${plugin.tools.length === 1 ? "" : "s"}${
                                             plugins?.deferred ? " · deferred behind tool_search" : ""
                                         }`
                                         : plugin.error ?? "manifest only"}
                                     {check && (
-                                        <> · {check.ok ? `answered: ${check.tools?.join(", ") || "no tools"}` : `failed: ${check.error}`}</>
+                                        <> · {check.capabilitiesOnly
+                                            ? "capabilities only"
+                                            : check.ok ? `answered: ${check.tools?.join(", ") || "no tools"}` : `failed: ${check.error}`}</>
                                     )}
                                 </small>
                             </div>

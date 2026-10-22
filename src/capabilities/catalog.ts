@@ -40,6 +40,8 @@ export interface CapabilityEntry {
     source: string;
     /** Set when the capability is installed but not working. */
     error?: string;
+    /** The plugin projection, for `kind: "plugin"` rows: the same facts `/api/plugins` serves. */
+    plugin?: PluginFacts;
     details: {
         version?: string;
         domain?: string;
@@ -113,46 +115,114 @@ export function pluginDisabled(disabled: readonly string[], name: string): boole
     return disabled.includes(`plugin:${name}`);
 }
 
-function pluginEntries(installed: readonly LoadedPlugin[], loaded?: PluginAgentTools, disabled: readonly string[] = []): CapabilityEntry[] {
+/**
+ * A plugin as the console describes it. The Settings page and the Capabilities page used to
+ * project the same `LoadedPlugin` through different field names; this is that one projection.
+ */
+export interface PluginFacts {
+    name: string;
+    version: string;
+    description: string;
+    domain: string;
+    transport: "mcp" | "mcp-http" | "script";
+    priority: number;
+    /** Capability ids the manifest serves, and whether this plugin wins each of them. */
+    capabilities: { id: string; winner: boolean; shadowedBy?: string }[];
+    /** Agent tools: the name the model calls, and the MCP tool behind it. */
+    tools: { name: string; tool: string }[];
+    /** How the transport starts, as a command line. */
+    command: string;
+    /** Manifest file it was read from. */
+    source: string;
+    /**
+     * `ready`: the harness loaded it and its tools exist. `capabilities-only`: a script plugin,
+     * which publishes no tools by design. `declared`: manifest only, nothing loaded it.
+     */
+    status: "ready" | "declared" | "capabilities-only";
+    /** True for a script plugin: it serves capabilities, not agent tools. */
+    capabilitiesOnly?: boolean;
+    error?: string;
+}
+
+/**
+ * One projection of `LoadedPlugin` for both `/api/plugins` and the capability catalog. `loaded`
+ * is the harness's plugin tools when it is open; without it every plugin is `declared`.
+ */
+export function pluginFacts(
+    installed: readonly LoadedPlugin[],
+    loaded?: PluginAgentTools,
+    options: { disabled?: readonly string[] } = {},
+): PluginFacts[] {
     const summaries = new Map((loaded?.plugins ?? []).map((plugin) => [plugin.name, plugin]));
-    return installed.map((plugin): CapabilityEntry => {
+    return installed.map((plugin): PluginFacts => {
         const manifest = plugin.manifest;
         const summary = summaries.get(manifest.name);
-        // The names the model calls, so a row here matches the agent's own tool allowlist.
-        const tools = summary?.tools ?? [];
-        const error = loaded?.errors.find((message) => message.includes(manifest.name));
+        const tools = (summary?.tools ?? []).map((name, index) => ({
+            name,
+            tool: summary?.mcpTools?.[index] ?? name.replace(`${manifest.name}__`, ""),
+        }));
+        const capabilitiesOnly = summary?.capabilitiesOnly ?? false;
+        // Two healthy cases have no summary by design: a data source plugin (opened by the
+        // session, not the tool bridge) and a plugin the user switched off. Neither is broken.
+        const expected = Boolean(manifest.dataSource) || pluginDisabled(options.disabled ?? [], manifest.name);
+        const error = loaded?.errors.find((message) => message.startsWith(`[plugin ${manifest.name}]`))
+            ?? (summary || expected ? undefined : "declared but not loaded by the harness");
+        // An MCP-over-HTTP plugin has no command line; its endpoint is what runs it.
+        const command = manifest.transport.type === "mcp-http"
+            ? manifest.transport.url
+            : [manifest.transport.command, ...(manifest.transport.args ?? [])].join(" ");
         return {
-            id: `plugin:${manifest.name}`,
-            kind: "plugin",
             name: manifest.name,
+            version: manifest.version,
             description: manifest.description,
-            enabled: !pluginDisabled(disabled, manifest.name),
-            toggleable: true,
+            domain: manifest.domain,
+            transport: manifest.transport.type,
+            priority: manifest.priority ?? 0,
+            capabilities: manifest.capabilities.map((id) => {
+                let winner: LoadedPlugin | undefined;
+                try {
+                    [winner] = providers(installed, id);
+                } catch {
+                    winner = undefined;
+                }
+                const isWinner = winner?.manifest.name === manifest.name;
+                return {
+                    id,
+                    winner: isWinner,
+                    ...(!isWinner && winner ? { shadowedBy: winner.manifest.name } : {}),
+                };
+            }),
+            tools,
+            command,
             source: plugin.source,
+            status: capabilitiesOnly ? "capabilities-only" : summary && tools.length > 0 ? "ready" : "declared",
+            ...(capabilitiesOnly ? { capabilitiesOnly: true } : {}),
             ...(error ? { error } : {}),
-            details: {
-                version: manifest.version,
-                domain: manifest.domain,
-                transport: manifest.transport.type,
-                command: [manifest.transport.command, ...(manifest.transport.args ?? [])].join(" "),
-                tools,
-                capabilities: manifest.capabilities.map((id) => {
-                    let winner: LoadedPlugin | undefined;
-                    try {
-                        [winner] = providers(installed, id);
-                    } catch {
-                        winner = undefined;
-                    }
-                    const isWinner = winner?.manifest.name === manifest.name;
-                    return {
-                        id,
-                        winner: isWinner,
-                        ...(!isWinner && winner ? { shadowedBy: winner.manifest.name } : {}),
-                    };
-                }),
-            },
         };
     });
+}
+
+function pluginEntries(installed: readonly LoadedPlugin[], loaded?: PluginAgentTools, disabled: readonly string[] = []): CapabilityEntry[] {
+    return pluginFacts(installed, loaded, { disabled }).map((facts): CapabilityEntry => ({
+        id: `plugin:${facts.name}`,
+        kind: "plugin",
+        name: facts.name,
+        description: facts.description,
+        enabled: !pluginDisabled(disabled, facts.name),
+        toggleable: true,
+        source: facts.source,
+        ...(facts.error ? { error: facts.error } : {}),
+        plugin: facts,
+        details: {
+            version: facts.version,
+            domain: facts.domain,
+            transport: facts.transport,
+            command: facts.command,
+            // The names the model calls, so a row here matches the agent's own tool allowlist.
+            tools: facts.tools.map((tool) => tool.name),
+            capabilities: facts.capabilities,
+        },
+    }));
 }
 
 /**
