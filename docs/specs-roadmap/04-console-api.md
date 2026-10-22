@@ -1,6 +1,6 @@
 # 04 · Give the console one HTTP seam
 
-**Status:** `proposed` · **Strength:** Worth exploring · **Seam:** ports & adapters · **Size:** M
+**Status:** `done` · **Strength:** Worth exploring · **Seam:** ports & adapters · **Size:** M
 
 **Depends on:** 02 (the snapshot it serves), 03 (the catalog it serves).
 

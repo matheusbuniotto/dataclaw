@@ -8,7 +8,7 @@
  * 200, a `DomainError` carries its own status (400 validation, 404 not found, 409 conflict),
  * and anything else is an unexpected failure, 500.
  */
-import { abortMainAgent, askMainAgent, consoleDataSources, consoleWorkspace } from "./workspace";
+import { abortMainAgent, askMainAgent, consoleDataSources, consolePlugins, consoleWorkspace } from "./workspace";
 import {
     applyCapabilities,
     capabilitiesCatalog,
@@ -27,7 +27,7 @@ import {
     reconnectDatabricks,
     startBrowserOAuth,
 } from "./databricks-api";
-import { checkPlugins, pluginsSummary } from "./plugins-api";
+import { checkPlugins } from "./plugins-api";
 import {
     DomainError,
     NotFoundError,
@@ -173,7 +173,7 @@ export const routes: RouteTable = {
     },
 
     "/api/plugins": {
-        GET: { run: () => pluginsSummary() },
+        GET: { run: () => consolePlugins() },
     },
     // The console's twin of `bun run plugins:list --check`. It starts each MCP plugin, so
     // it runs only when asked, never on page load.

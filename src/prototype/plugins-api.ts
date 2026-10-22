@@ -12,7 +12,7 @@
 import { pluginFacts, type PluginFacts } from "../capabilities/catalog";
 import type { PluginAgentTools } from "../plugins/agent-tools";
 import { discoverPlugins } from "../plugins/manifest";
-import { openMcpPlugin } from "../plugins/transports";
+import { discoverPluginHandles } from "../plugins/runtime";
 import type { LoadedPlugin } from "../plugins/types";
 
 export interface PluginsSummary {
@@ -36,7 +36,11 @@ export interface PluginCheck {
 }
 
 /** Best-effort: never throw, return what could be read plus the reason the rest could not. */
-export function pluginsSummary(loaded?: PluginAgentTools, root?: string): PluginsSummary {
+export function pluginsSummary(
+    loaded?: PluginAgentTools,
+    root?: string,
+    disabled: readonly string[] = [],
+): PluginsSummary {
     const errors: string[] = [...(loaded?.errors ?? [])];
     let installed: LoadedPlugin[] = [];
     try {
@@ -46,7 +50,7 @@ export function pluginsSummary(loaded?: PluginAgentTools, root?: string): Plugin
     }
 
     return {
-        plugins: pluginFacts(installed, loaded),
+        plugins: pluginFacts(installed, loaded, { disabled }),
         errors,
         searchPaths: [
             "plugins/<name>/plugin.json",
@@ -61,28 +65,31 @@ export function pluginsSummary(loaded?: PluginAgentTools, root?: string): Plugin
  * Start each MCP plugin, list its tools, stop it. The console's twin of
  * `bun run plugins:list --check`; kept off the page load because it spawns processes.
  */
-export async function checkPlugins(timeoutMs = 20_000): Promise<PluginCheck[]> {
-    let installed: LoadedPlugin[];
+export async function checkPlugins(timeoutMs?: number): Promise<PluginCheck[]> {
+    let discovered;
     try {
-        installed = discoverPlugins();
+        discovered = discoverPluginHandles(timeoutMs !== undefined ? { timeoutMs } : {});
     } catch (err) {
         return [{ name: "(discovery)", ok: false, error: err instanceof Error ? err.message : String(err) }];
     }
 
-    const results: PluginCheck[] = [];
-    for (const plugin of installed) {
-        const name = plugin.manifest.name;
-        const client = openMcpPlugin(plugin, { timeoutMs });
-        if (!client) {
+    const results: PluginCheck[] = discovered.errors.map((error): PluginCheck => ({
+        name: error.plugin ?? "(discovery)",
+        ok: false,
+        error: error.message,
+    }));
+    for (const handle of discovered.handles) {
+        const name = handle.plugin.manifest.name;
+        if (!handle.publishesTools) {
             results.push({ name, ok: true, tools: [], capabilitiesOnly: true });
             continue;
         }
         try {
-            results.push({ name, ok: true, tools: await client.listTools() });
+            results.push({ name, ok: true, tools: (await handle.tools()).map((tool) => tool.name) });
         } catch (err) {
             results.push({ name, ok: false, error: err instanceof Error ? err.message : String(err) });
         } finally {
-            await client.close();
+            await handle.close();
         }
     }
     return results;

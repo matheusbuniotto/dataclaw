@@ -7,7 +7,7 @@
  * error on open, never a crash on list.
  */
 import { discoverPlugins } from "../plugins/manifest";
-import { openMcpPlugin } from "../plugins/transports";
+import { openPluginHandle } from "../plugins/runtime";
 import type { LoadedPlugin } from "../plugins/types";
 import { dialectFor } from "./dialects";
 import { translateProviderError } from "./providers/errors";
@@ -111,7 +111,7 @@ export class DataSourceCatalog implements ProviderCatalog {
         }
 
         const spec = plugin.manifest.dataSource!;
-        const transport = openMcpPlugin(plugin);
+        const transport = openPluginHandle(plugin).mcp();
         if (!transport) {
             throw new SourceError("not-configured", `"${intent.provider}" is not an MCP plugin.`, {
                 provider: intent.provider,

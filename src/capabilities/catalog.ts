@@ -148,7 +148,11 @@ export interface PluginFacts {
  * One projection of `LoadedPlugin` for both `/api/plugins` and the capability catalog. `loaded`
  * is the harness's plugin tools when it is open; without it every plugin is `declared`.
  */
-export function pluginFacts(installed: readonly LoadedPlugin[], loaded?: PluginAgentTools): PluginFacts[] {
+export function pluginFacts(
+    installed: readonly LoadedPlugin[],
+    loaded?: PluginAgentTools,
+    options: { disabled?: readonly string[] } = {},
+): PluginFacts[] {
     const summaries = new Map((loaded?.plugins ?? []).map((plugin) => [plugin.name, plugin]));
     return installed.map((plugin): PluginFacts => {
         const manifest = plugin.manifest;
@@ -158,8 +162,11 @@ export function pluginFacts(installed: readonly LoadedPlugin[], loaded?: PluginA
             tool: summary?.mcpTools?.[index] ?? name.replace(`${manifest.name}__`, ""),
         }));
         const capabilitiesOnly = summary?.capabilitiesOnly ?? false;
-        const error = loaded?.errors.find((message) => message.includes(manifest.name))
-            ?? (summary ? undefined : "declared but not loaded by the harness");
+        // Two healthy cases have no summary by design: a data source plugin (opened by the
+        // session, not the tool bridge) and a plugin the user switched off. Neither is broken.
+        const expected = Boolean(manifest.dataSource) || pluginDisabled(options.disabled ?? [], manifest.name);
+        const error = loaded?.errors.find((message) => message.startsWith(`[plugin ${manifest.name}]`))
+            ?? (summary || expected ? undefined : "declared but not loaded by the harness");
         // An MCP-over-HTTP plugin has no command line; its endpoint is what runs it.
         const command = manifest.transport.type === "mcp-http"
             ? manifest.transport.url
@@ -196,7 +203,7 @@ export function pluginFacts(installed: readonly LoadedPlugin[], loaded?: PluginA
 }
 
 function pluginEntries(installed: readonly LoadedPlugin[], loaded?: PluginAgentTools, disabled: readonly string[] = []): CapabilityEntry[] {
-    return pluginFacts(installed, loaded).map((facts): CapabilityEntry => ({
+    return pluginFacts(installed, loaded, { disabled }).map((facts): CapabilityEntry => ({
         id: `plugin:${facts.name}`,
         kind: "plugin",
         name: facts.name,

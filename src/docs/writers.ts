@@ -7,7 +7,7 @@
  */
 import type { ConversationId, Tx } from "@earendil-works/pi-durable";
 import { FindingsDoc, type AuditVerdict, type Finding, type FindingEvidence } from "./findings";
-import { AnalystPlanDoc, type DatasetMeta } from "./plan";
+import { AnalystPlanDoc, type DatasetMeta, type Hypothesis } from "./plan";
 
 /** What a caller knows about a finding. Audit state is absent: recording one never audits it. */
 export type NewFinding = {
@@ -31,6 +31,16 @@ export function nextFindingId(findings: readonly Finding[]): string {
         if (match) highest = Math.max(highest, Number(match[1]));
     }
     return `find-${highest + 1}`;
+}
+
+/** The next free hypothesis id, for the same reason as findings: a second saga run must not collide. */
+export function nextHypothesisId(hypotheses: readonly Hypothesis[]): string {
+    let highest = 0;
+    for (const hypothesis of hypotheses) {
+        const match = /^hyp-(\d+)$/.exec(hypothesis.id);
+        if (match) highest = Math.max(highest, Number(match[1]));
+    }
+    return `hyp-${highest + 1}`;
 }
 
 /** Append a finding as unaudited. Callers describe it; the writer owns the id and audit state. */
@@ -78,6 +88,8 @@ export async function recordAudit(
     findingId: string,
     report: string,
 ): Promise<Finding | undefined> {
+    // An empty reply is not an audit: nothing is recorded, so the finding stays unaudited.
+    if (!report.trim()) return undefined;
     const findings = await tx.doc(FindingsDoc, conversationId);
     const finding = findings.findings.find((candidate) => candidate.id === findingId);
     if (!finding) return undefined;

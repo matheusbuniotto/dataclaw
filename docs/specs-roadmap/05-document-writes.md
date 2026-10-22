@@ -1,6 +1,6 @@
 # 05 · One writer for the durable documents
 
-**Status:** `proposed` · **Strength:** Worth exploring · **Seam:** in-process · **Size:** S–M
+**Status:** `done` · **Strength:** Worth exploring · **Seam:** in-process · **Size:** S–M
 
 **Depends on:** 01 (who writes the plan's connection record).
 

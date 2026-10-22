@@ -164,6 +164,17 @@ describe("the saga goes through the writers", () => {
             expect(outcome.state.outcome.status).toBe("completed");
         }
 
+        const plan = (await harness.documentState(AnalystPlanDoc, root.id, context))?.value;
+        // The saga writes the dataset through the one writer, and hypothesis ids cannot collide.
+        expect(plan?.activeDataset).toMatchObject({
+            name: "data",
+            provider: "local",
+            sourcePath: "./sample-data/customer_churn.csv",
+        });
+        expect(plan?.activeDataset?.profileSummary).toBeDefined();
+        const hypothesisIds = (plan?.hypotheses ?? []).map((hypothesis) => hypothesis.id);
+        expect(new Set(hypothesisIds).size).toBe(hypothesisIds.length);
+
         const findings = ((await harness.documentState(FindingsDoc, root.id, context))?.value?.findings ?? []) as Finding[];
         expect(findings.length).toBeGreaterThanOrEqual(4);
         expect(new Set(findings.map((item) => item.id)).size).toBe(findings.length);

@@ -1,3 +1,13 @@
+---
+title: DataClaw
+emoji: 🦀
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # DataClaw
 
 DataClaw is a data analyst agent that keeps its work. Its plan, findings, audit verdicts, and playbook are stored as

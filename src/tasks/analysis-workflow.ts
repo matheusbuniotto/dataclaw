@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { SqliteDataAdapter } from "../adapters/sqlite-adapter";
 import { AnalystPlanDoc } from "../docs/plan";
 import { FindingsDoc, type JsonValue } from "../docs/findings";
-import { appendFinding } from "../docs/writers";
+import { appendFinding, nextHypothesisId, recordActiveDataset } from "../docs/writers";
 
 export interface AnalysisWorkflowInput {
     filePath: string;
@@ -43,14 +43,14 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                     plan.goal = task.input.targetQuestion;
                     plan.status = "investigating";
                     plan.currentMilestone = "Hypothesis Formulation";
-                    plan.activeDataset = {
+                    await recordActiveDataset(tx, task.conversationId, {
                         name: profile.tableName,
                         provider: "local",
                         sourcePath: task.input.filePath,
                         rowCount: profile.rowCount,
                         columns: profile.columns.map((c) => c.name),
                         profileSummary: summary,
-                    };
+                    });
                     plan.updatedAt = Date.now();
                 }
 
@@ -79,7 +79,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                     plan.currentMilestone = "Data Exploration & Testing";
                     for (let i = 0; i < hypotheses.length; i++) {
                         plan.hypotheses.push({
-                            id: `hyp-${i + 1}`,
+                            id: nextHypothesisId(plan.hypotheses),
                             title: hypotheses[i],
                             description: `Testing: ${hypotheses[i]}`,
                             status: "testing",
@@ -135,7 +135,6 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
 
             await runtime.commit(async (tx) => {
                 if (task.conversationId) {
-                    const findings = await tx.doc(FindingsDoc, task.conversationId);
                     const plan = await tx.doc(AnalystPlanDoc, task.conversationId);
 
                     // Ids come from the writer: a second run cannot collide with find-1/find-2.

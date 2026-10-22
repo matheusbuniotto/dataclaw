@@ -109,7 +109,13 @@ export function createAuditorReviewTool(options: AuditorToolOptions) {
             (tx) => recordAudit(tx, api.conversationId, args.findingId, auditReportText),
             context,
         );
-        const verdict = auditedFinding?.auditVerdict ?? "caution";
+        if (!auditedFinding) {
+            return {
+                output: [{ type: "text", text: `No verdict was recorded: the audit report was empty or finding [${args.findingId}] no longer exists.` }],
+                isError: true,
+            };
+        }
+        const verdict = auditedFinding.auditVerdict ?? "caution";
 
         api.output(`Auditor completed review: Verdict is ${verdict.toUpperCase()}.\n`);
 
