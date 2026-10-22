@@ -1,5 +1,6 @@
 import { createAnalystHarness } from "../src/harness";
 import { AnalysisWorkflowTask } from "../src/tasks/analysis-workflow";
+import { generateMarkdownReport } from "../src/docs/report-generator";
 
 async function main() {
     console.log("==================================================================");
@@ -22,51 +23,27 @@ async function main() {
     console.log(`\nLaunching AnalysisWorkflowTask for dataset: ${targetData}`);
     console.log(`Analytical Goal: "${targetGoal}"\n`);
 
-    const submission = await analyst.conversation.submit(
-        {
-            type: "input",
-            content: `Please execute an in-depth analysis on ${targetData} to ${targetGoal}. Profile the schema, test hypotheses, and synthesize executive findings.`,
-            requestId: "workflow-run-001",
-        },
-        analyst.context,
-    );
+    const taskId = await analyst.conversation.commit(async (tx) => {
+        return await tx.createTask(
+            AnalysisWorkflowTask,
+            { filePath: targetData, targetQuestion: targetGoal },
+            { ownership: { kind: "conversation" } },
+        );
+    }, analyst.context);
 
-    // Also run the background durable task to guarantee end-to-end execution
-    const taskId = await analyst.conversation.submit(
-        {
-            type: "input",
-            content: "Run full analytical pipeline",
-            requestId: "task-dispatch-001",
-        },
-        analyst.context,
-    );
-
-    // Run the AnalysisWorkflowTask directly on the harness storage
-    const txTask = await analyst.harness.root(analyst.context);
     console.log("Awaiting workflow completion across durable checkpoints...");
-
-    // We can also trigger the durable workflow task directly
-    const workflowId = await analyst.conversation.submit(
-        {
-            type: "input",
-            content: "Consulting playbook and executing hypothesis testing.",
-            requestId: "wf-exec-001",
-        },
-        analyst.context,
-    );
-
-    // Wait for submission
-    const res = await submission.wait(analyst.context);
-    console.log("\nSubmission settled successfully!");
+    const outcome = await analyst.harness.waitForTask(taskId, analyst.context);
+    console.log(`Workflow task finished with status: ${outcome.state.outcome.status}\n`);
 
     // Inspect the resulting durable documents
     const plan = await analyst.getPlan();
     const findings = await analyst.getFindings();
     const playbook = await analyst.getPlaybook();
 
-    console.log("\n------------------------------------------------------------------");
+    console.log("------------------------------------------------------------------");
     console.log("  DURABLE PLAN STATE (AnalystPlanDoc)");
     console.log("------------------------------------------------------------------");
+    console.log(`Goal: ${plan?.goal}`);
     console.log(`Milestone: ${plan?.currentMilestone}`);
     console.log(`Active Hypotheses (${plan?.hypotheses.length ?? 0}):`);
     for (const h of plan?.hypotheses ?? []) {
@@ -79,8 +56,15 @@ async function main() {
     console.log(`Total Findings: ${findings?.findings.length ?? 0}`);
     for (const f of findings?.findings ?? []) {
         console.log(`  * [${f.id}] ${f.title} (${f.impact.toUpperCase()} Impact, Conf: ${f.confidence})`);
-        console.log(`    Audited: ${f.audited ? "YES (" + f.auditVerdict?.toUpperCase() + ")" : "NO"}`);
+        console.log(`    Audited: ${f.audited ? "YES (" + f.auditVerdict?.toUpperCase() + ")" : "NO (Pending Auditor)"}`);
         console.log(`    Observation: ${f.observation}`);
+        console.log(`    Evidence Query: ${f.evidence.query}`);
+        if (f.actionableRecommendations.length > 0) {
+            console.log(`    Recommendations:`);
+            for (const r of f.actionableRecommendations) {
+                console.log(`      - ${r}`);
+            }
+        }
     }
 
     console.log("\n------------------------------------------------------------------");

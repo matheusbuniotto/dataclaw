@@ -29,6 +29,26 @@ export class SqliteDataAdapter implements DataAdapter {
             throw new Error("CSV content is empty");
         }
 
+        const firstLine = lines[0] ?? "";
+        // Auto-detect delimiter: check counts of comma, semicolon, tab outside quotes
+        const countDelimiter = (line: string, delim: string): number => {
+            let count = 0;
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"' || char === "'") inQuotes = !inQuotes;
+                else if (char === delim && !inQuotes) count++;
+            }
+            return count;
+        };
+
+        const commaCount = countDelimiter(firstLine, ",");
+        const tabCount = countDelimiter(firstLine, "\t");
+        const semiCount = countDelimiter(firstLine, ";");
+        const delimiter = (tabCount > commaCount && tabCount > semiCount) ? "\t"
+            : (semiCount > commaCount) ? ";"
+            : ",";
+
         const parseLine = (line: string): string[] => {
             const result: string[] = [];
             let cur = "";
@@ -37,7 +57,7 @@ export class SqliteDataAdapter implements DataAdapter {
                 const char = line[i];
                 if (char === '"' || char === "'") {
                     inQuotes = !inQuotes;
-                } else if (char === "," && !inQuotes) {
+                } else if (char === delimiter && !inQuotes) {
                     result.push(cur.trim());
                     cur = "";
                 } else {
@@ -48,7 +68,6 @@ export class SqliteDataAdapter implements DataAdapter {
             return result;
         };
 
-        const firstLine = lines[0] ?? "";
         const headers = parseLine(firstLine).map((h) => h.replace(/[^a-zA-Z0-9_]/g, "_"));
         const dataRows = lines.slice(1).map(parseLine);
 
@@ -114,8 +133,43 @@ export class SqliteDataAdapter implements DataAdapter {
 
     public async loadJson(tableName: string, jsonContent: string): Promise<DatasetProfile> {
         this.activeTableName = tableName;
-        const parsed = JSON.parse(jsonContent);
-        const records: Array<Record<string, unknown>> = Array.isArray(parsed) ? parsed : [parsed];
+        let records: Array<Record<string, unknown>> = [];
+        const trimmed = jsonContent.trim();
+
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    records = parsed.filter((r) => r && typeof r === "object");
+                } else if (parsed && typeof parsed === "object") {
+                    // Check if the object wraps an array of records (e.g., { data: [...], records: [...] })
+                    const innerArray = Object.values(parsed).find(
+                        (v) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object"
+                    );
+                    records = innerArray
+                        ? (innerArray as Array<Record<string, unknown>>)
+                        : [parsed as Record<string, unknown>];
+                }
+            } catch {
+                // If standard JSON parse fails, it may be JSONL with leading object
+            }
+        }
+
+        if (records.length === 0) {
+            // Attempt line-by-line JSONL / NDJSON parse
+            const lines = trimmed.split(/\r?\n/).filter((l) => l.trim().length > 0);
+            for (const line of lines) {
+                try {
+                    const parsedLine = JSON.parse(line.trim());
+                    if (parsedLine && typeof parsedLine === "object" && !Array.isArray(parsedLine)) {
+                        records.push(parsedLine as Record<string, unknown>);
+                    }
+                } catch {
+                    // Skip malformed individual line in JSONL
+                }
+            }
+        }
+
         if (records.length === 0) {
             throw new Error("JSON content contains no records");
         }

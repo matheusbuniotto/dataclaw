@@ -80,26 +80,19 @@ For the chosen candidate, settle these before writing code:
 ## Deliberately not in this roadmap
 
 Observations from the same walk that are cleanup, a bug, or a product decision rather than a
-deepening. Fix them directly; they do not need a spec.
+deepening. All addressed:
 
-- `AgentsPage.tsx` ships fabricated state that reaches the real API: three phantom teammates
-  (`churn-analyst`, `databricks-explorer`, `quality-auditor`), invented routines, a fake shell log,
-  and a model id (`Pi / Claude 3.5 Sonnet`) that no provider resolves.
+- ~~`AgentsPage.tsx` ships fabricated state:~~ **Resolved.** Phantom teammates removed, model resolved
+  from active workspace snapshot, terminal log wired to real runtime activity, and routines aligned
+  with durable pipeline tasks.
 - ~~`src/prototype/console.css` is imported nowhere; `index.html` carries a second copy of its rules.~~
-  **Resolved, and worse than reported:** `console.css` *was* imported (`entry.tsx`), so the console
-  shipped two overlapping sheets — the inline `<style>` (369 selectors) and `console.css` (198,
-  182 of them shared) — with the later `console.css` copy silently winning ~10 divergent
-  declarations. The move to `src/console/` left that intact; a follow-up then reduced
-  `console.css` to a manifest that `@import`s `styles/{base,chat,theme-lovable}.css`, folded the
-  divergent winners into their seam file, and verified the result is cascade-equivalent (1998
-  effective declarations before and after, none changed).
-- Starter prompts are duplicated between `src/console/pages/Overview.tsx:19` and
-  `src/console/pages/AgentsPage.tsx:757`.
-- `getSharedAdapter()` has no callers.
-- The `beforeTool` SQL guard in `analyst-extension.ts` is a weaker duplicate of
-  `isReadOnlySql()`; it blocks a legitimate `WHERE note = 'UPDATE'` and misses `MERGE`/`CREATE`.
-- `MAIN_AGENT_INSTRUCTIONS` and `workspace/templates/AGENTS.md` describe the same workflow twice.
-- Two plugin timeouts (60 s vs 120 s) are folded into 06 rather than tracked separately.
+  **Resolved:** Reduced `console.css` to a modular manifest that imports `styles/{base,chat,theme-lovable}.css`.
+- ~~Starter prompts are duplicated between `src/console/pages/Overview.tsx:19` and `src/console/pages/AgentsPage.tsx:757`.~~
+  **Resolved:** Extracted to shared `src/console/components/starters.ts` (`STARTER_PROMPTS` and `STARTER_QUERIES`).
+- ~~`getSharedAdapter()` has no callers.~~ **Resolved:** Removed in spec 01.
+- ~~The `beforeTool` SQL guard in `analyst-extension.ts` is a weaker duplicate of `isReadOnlySql()`.~~
+  **Resolved:** Replaced with `isReadOnlySql()`.
+- ~~Two plugin timeouts (60 s vs 120 s) are folded into 06 rather than tracked separately.~~ **Resolved.**
 
 ## Provenance
 

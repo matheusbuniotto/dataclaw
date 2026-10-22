@@ -9,6 +9,8 @@ import { readDisabled } from "../../capabilities/catalog";
 import { AnalystPlanDoc } from "../../docs/plan";
 import { FindingsDoc } from "../../docs/findings";
 import { PlaybookDoc } from "../../docs/playbook";
+import { TelemetryDoc } from "../../docs/telemetry";
+import { generateMarkdownReport, generateHtmlReport, generateJsonReport } from "../../docs/report-generator";
 import {
     adoptDatabricksAdapter,
     getDatabricksUiStatus,
@@ -393,6 +395,35 @@ export async function consoleWorkspace(agentId?: string): Promise<WorkspaceSnaps
         resetConsoleHarness();
         return await readWorkspace(await consoleHarness(), { agentId });
     }
+}
+
+export async function consoleReport(format: string = "json", agentId?: string): Promise<Record<string, unknown>> {
+    const analyst = await consoleHarness();
+    const target = await resolveConsoleTarget(analyst, agentId);
+    const conversationId = target.conversation.id;
+
+    const [planState, findingsState, playbookState, telemetryState] = await Promise.all([
+        analyst.harness.documentState(AnalystPlanDoc, conversationId, analyst.context),
+        analyst.harness.documentState(FindingsDoc, conversationId, analyst.context),
+        analyst.harness.documentState(PlaybookDoc, conversationId, analyst.context),
+        analyst.harness.documentState(TelemetryDoc, conversationId, analyst.context),
+    ]);
+
+    const input = {
+        plan: planState?.value,
+        findings: findingsState?.value,
+        playbook: playbookState?.value,
+        telemetry: telemetryState?.value,
+        agentName: target.rosterAgent?.name ?? MAIN_AGENT_NAME,
+    };
+
+    if (format === "html") {
+        return { format: "html", content: generateHtmlReport(input) };
+    }
+    if (format === "md" || format === "markdown") {
+        return { format: "markdown", content: generateMarkdownReport(input) };
+    }
+    return { format: "json", report: generateJsonReport(input) };
 }
 
 function databricksSources(): DataSource[] {

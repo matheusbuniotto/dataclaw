@@ -6,6 +6,7 @@ import type {
     WorkspaceSkillInfo,
 } from "../state/workspace-types";
 import { AssistantTurnView, groupIntoTurns } from "../components/ChatComponents";
+import { STARTER_PROMPTS } from "../components/starters";
 import {
     AgentEditorModal,
     CreateAgentModal,
@@ -733,47 +734,24 @@ export interface AgentRoutine {
 const DEFAULT_ROUTINES: AgentRoutine[] = [
     {
         id: "1",
-        title: "Morning Data Sweep",
-        frequency: "Weekdays 6am",
+        title: "Automated Data Profiling",
+        frequency: "On intake",
         status: "active",
-        lastRun: "Today 6:00 AM",
+        lastRun: "Event-triggered",
     },
     {
         id: "2",
-        title: "Continuous Drift & Anomaly Check",
-        frequency: "Hourly",
+        title: "Continuous Statistical Audit",
+        frequency: "Per finding",
         status: "active",
-        lastRun: "38m ago",
+        lastRun: "Active",
     },
     {
         id: "3",
-        title: "Databricks Table Freshness Sync",
-        frequency: "Every 4 hours",
+        title: "Playbook Auto-Improvement Cycle",
+        frequency: "Post-session",
         status: "active",
-        lastRun: "2h ago",
-    },
-];
-
-const GROK_STARTERS = [
-    {
-        title: "Databricks Catalog Intake",
-        desc: "List schemas, pick sample customer table, and run automated profile.",
-        query: "Explore the Databricks workspace: list catalogs, pick a table, and profile it.",
-    },
-    {
-        title: "Churn Drivers Analysis",
-        desc: "Scan sample-data/customer_churn.csv and identify top retention risk factors.",
-        query: "Profile sample-data/customer_churn.csv and tell me what is worth testing.",
-    },
-    {
-        title: "Spawn Specialist Agent",
-        desc: "Create a persistent researcher named churn-analyst with isolated workspace.",
-        query: "Create a researcher named churn-analyst and have them profile sample-data/customer_churn.csv.",
-    },
-    {
-        title: "Executive Synthesis",
-        desc: "Distill the current playbook, plan, and findings into an executive update.",
-        query: "Summarize the current plan, findings, and playbook.",
+        lastRun: "Checkpoint-driven",
     },
 ];
 
@@ -955,10 +933,9 @@ export function AgentsPage({
     const [customAgentsList, setCustomAgentsList] = useState<CustomAgentRecord[]>(loadCustomAgents);
 
     const [screenLogs, setScreenLogs] = useState<string[]>([
-        "[sandbox] Initializing isolated compute container...",
-        "[agent] Loaded AGENTS.md instructions and capabilities.",
-        "[databricks-mcp] Connected to unity-catalog HTTP endpoint.",
-        "[runtime] Ready for durable turns. Listening on port 8080.",
+        "[runtime] Durable agent harness online over SQLite WAL storage.",
+        "[agent] Coordinator active with persistent plan and playbook.",
+        "[ready] Ready for exploratory data analysis, hypothesis testing, and queries.",
     ]);
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -975,7 +952,7 @@ export function AgentsPage({
                   description: "Built-in coordinator & analytics pilot",
                   status: "Ready",
                   working,
-                  model: "Pi / Claude 3.5 Sonnet",
+                  model: "Pi Engine",
                   sources: ["Databricks", "Local CSV", "PlaybookDoc"],
               }
             : roster.find((r) => r.id === activeAgentId) ||
@@ -1069,51 +1046,6 @@ export function AgentsPage({
             }
         }
 
-        // If list only has coordinator, add simulated teammates to match the fleet feeling
-        if (list.length === 1) {
-            list.push(
-                {
-                    id: "churn-analyst",
-                    name: "Churn Analyst",
-                    role: "Specialist",
-                    description: "Analyzes retention drivers and cohorts",
-                    lastMessage: "done. 40 accounts researched, 18 risk drivers found",
-                    time: "3:10 AM",
-                    active: false,
-                    color: "#f59e0b",
-                    icon: "dot-eyes",
-                    pinned: false,
-                    isBuiltin: false,
-                },
-                {
-                    id: "unity-explorer",
-                    name: "Databricks Explorer",
-                    role: "Data Scout",
-                    description: "Indexes Unity Catalog schemas and tables",
-                    lastMessage: "unity catalog indexed, 12 schemas mapped",
-                    time: "Yesterday",
-                    active: false,
-                    color: "#8b5cf6",
-                    icon: "database",
-                    pinned: false,
-                    isBuiltin: false,
-                },
-                {
-                    id: "quality-auditor",
-                    name: "Quality Auditor",
-                    role: "Verification",
-                    description: "Audits runs and detects loops or drift",
-                    lastMessage: "eval report passed. 0 stuck loops detected",
-                    time: "Monday",
-                    active: false,
-                    color: "#f43f5e",
-                    icon: "shield",
-                    pinned: false,
-                    isBuiltin: false,
-                }
-            );
-        }
-
         return list.map((b) => {
             const c = customizations[b.id] || {};
             return {
@@ -1175,8 +1107,9 @@ export function AgentsPage({
         setScreenLogs((prev) => [
             ...prev,
             `$ ${cmd}`,
-            `[bash-exec] Executed in /workspace/agents/${activeAgentId}: exit code 0`,
+            `[bash-exec] Submitting command to ${baseAgent.name} execution environment...`,
         ]);
+        ask(`Execute bash command in workspace: ${cmd}`);
     };
 
     const handleSaveCustomization = (custom: AgentCustomization) => {
@@ -2101,7 +2034,7 @@ export function AgentsPage({
                                 </div>
 
                                 <div className="chat-starters" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                                    {GROK_STARTERS.map((s, i) => (
+                                    {STARTER_PROMPTS.map((s, i) => (
                                         <button
                                             key={i}
                                             onClick={() => ask(s.query)}

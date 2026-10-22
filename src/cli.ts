@@ -4,6 +4,7 @@ import { AutoImprovementTask } from "./tasks/auto-improvement";
 import { AnalysisWorkflowTask } from "./tasks/analysis-workflow";
 import { DatabricksDataAdapter } from "./adapters/databricks-adapter";
 import { describeDatabricksConfig } from "./mcp/databricks-config";
+import { generateMarkdownReport, generateHtmlReport, generateJsonReport } from "./docs/report-generator";
 
 async function runCli() {
     const args = process.argv.slice(2);
@@ -19,6 +20,7 @@ Usage:
 
 Commands:
   analyze <filePath> <goal>   Run end-to-end durable analysis on a dataset
+  report [md|html|json] [out] Generate an executive intelligence memo from durable state
   auto-improve [domain]       Run the AutoImprovementTask to upgrade the playbook
   playbook                    Display the active institutional playbook heuristics
   findings                    Display the latest verified findings and audit states
@@ -144,6 +146,32 @@ Environment:
             console.log(`\nHypotheses (${plan?.hypotheses.length ?? 0}):`);
             for (const h of plan?.hypotheses ?? []) {
                 console.log(`  - [${h.id}] (${h.status}): ${h.title}`);
+            }
+        } else if (command === "report") {
+            const formatArg = (args[1] === "html" || args[1] === "json" || args[1] === "md") ? args[1] : "md";
+            const outArg = args[2] ?? (args[1] && !["html", "json", "md"].includes(args[1]) ? args[1] : undefined);
+
+            const plan = await analyst.getPlan();
+            const findings = await analyst.getFindings();
+            const playbook = await analyst.getPlaybook();
+
+            const input = { plan, findings, playbook, agentName: "DataClaw" };
+            let outputContent = "";
+
+            if (formatArg === "html") {
+                outputContent = generateHtmlReport(input);
+            } else if (formatArg === "json") {
+                outputContent = JSON.stringify(generateJsonReport(input), null, 2);
+            } else {
+                outputContent = generateMarkdownReport(input);
+            }
+
+            if (outArg) {
+                const { writeFileSync } = await import("node:fs");
+                writeFileSync(outArg, outputContent, "utf-8");
+                console.log(`\nExecutive intelligence report exported to ${outArg} (${formatArg.toUpperCase()})`);
+            } else {
+                console.log("\n" + outputContent);
             }
         } else {
             console.log(`Unknown command: "${command}". Run "bun run src/cli.ts help" for usage.`);

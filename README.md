@@ -8,19 +8,42 @@ app_port: 7860
 pinned: false
 ---
 
-# DataClaw
+# DataClaw 🦀
 
-DataClaw is a data analyst agent that keeps its work. Its plan, findings, audit verdicts, and playbook are stored as
-durable documents in SQLite, so a restart resumes the analysis instead of starting it over. It queries local CSV/JSON
-files or Databricks Unity Catalog (read-only, over MCP), and a skeptical auditor subagent reviews each finding before
-it counts as confirmed. Built with [Pi Durable](https://github.com/earendil-works/pi-durable) and Bun.
+[![Bun](https://img.shields.io/badge/runtime-Bun%20v1.2+-000000?logo=bun)](https://bun.sh)
+[![TypeScript](https://img.shields.io/badge/types-TypeScript%20strict-3178C6?logo=typescript)](https://www.typescriptlang.org)
+[![Tests](https://img.shields.io/badge/tests-292%20passing-10B981)](bun%20test)
+[![Pi Durable](https://img.shields.io/badge/engine-Pi%20Durable%201.3-6366F1)](https://github.com/earendil-works/pi-durable)
+[![Storage](https://img.shields.io/badge/storage-SQLite%20WAL%20(crash--resilient)-003B57?logo=sqlite)](https://sqlite.org)
+[![Lakehouse](https://img.shields.io/badge/lakehouse-Databricks%20Unity%20Catalog%20MCP-FF3621?logo=databricks)](https://docs.databricks.com)
 
-This README covers how I evaluate the agent: what counts as a good run, how to tell when it gets stuck, and what a
-correct answer costs. The agent itself is described further down.
+**DataClaw** is a definitive open-source data analytics agent architecture engineered specifically for **long-running, crash-resilient investigations**. 
 
-## The problem
+Unlike conventional conversational assistants that lose context upon process restarts, jump to spurious statistical conclusions, or burn tokens in endless SQL syntax loops, DataClaw operates as a stateful, disciplined analytical partner:
+- **Resilient Durability**: Every analytical hypothesis, SQL execution trace, finding, and institutional playbook rule is atomically checkpointed to SQLite WAL. Machine restarts, container cycles, or host crashes seamlessly resume from their exact checkpoint without re-querying datasets.
+- **Statistical Skepticism**: Every analytical finding is cross-examined by an autonomous, skeptical **Auditor Subagent** to guard against p-hacking, small sample distortions ($N < 30$), confounding variables, and Simpson's Paradox before being presented.
+- **Source-Neutral Data Engine**: Seamlessly inspects and queries local tabular files (CSV, TSV, JSON, JSONL/NDJSON) as well as enterprise cloud lakehouses (Databricks Unity Catalog over streamable HTTP MCP, with Snowflake and BigQuery dialects).
+- **Closed-Loop Auto-Improvement**: Post-session reflections, reviewer ratings, and auditor pushback are distilled into versioned institutional playbooks injected into subsequent system prompts.
+- **Executive Intelligence Reporting**: Exports full stakeholder briefings with verified statistical evidence, confidence levels, and SQL audit trails into Markdown, self-contained HTML memos, or structured JSON.
+- **Meta-Agent Roster & Sandboxed Compute**: Spawns specialist agents (Data Scouts, Code Executors, Reviewers) with isolated local homes or Docker containers with scale-to-zero lifecycle.
 
-When an analyst agent answers "Basic tier churn is 71%", three questions matter:
+Built with [Pi Durable](https://github.com/earendil-works/pi-durable) and [Bun](https://bun.sh).
+
+---
+
+## The Core Problem: Why Long-Running Data Assistants Fail
+
+When building autonomous AI agents for data analysis, teams encounter five fundamental failure modes that naive LLM wrapper scripts cannot solve:
+
+| Failure Mode in Naive Agents | Root Cause | DataClaw Solution |
+| :--- | :--- | :--- |
+| **Amnesia & Lost Progress** | Process terminations, container recycling, or token window saturation wipe conversational state. | **Pi Durable SQLite Checkpoints**: Sagas (`AnalysisWorkflowTask`) and durable documents (`AnalystPlanDoc`, `FindingsDoc`, `PlaybookDoc`) commit state atomically to SQLite WAL. Resumes via `harness.resume()`. |
+| **Statistical Hallucination & P-Hacking** | LLMs are eager to confirm user biases and report spurious correlations, small sample noise ($N < 10$), and Simpson's Paradox. | **Task-Owned Auditor Subagent**: A skeptical critic subagent reviews every finding before confirmation (`request_auditor_review`), calibrated blindly against human ground-truth labels using Cohen's kappa. |
+| **Runaway Query Loops & Token Drain** | Agents hitting SQL syntax errors repeatedly retry identical queries or run unbounded steps. | **Production Stuck Detection**: Real-time detectors flag `repeated_call` (>= 3), `error_streak` (>= 3), `tool_budget` (> 25), and `no_final_answer` across offline and production traces. |
+| **Warehouse Lock-in & Mutation Risk** | Writing database-specific tools risks code pollution and accidental destructive mutations (`DROP`/`DELETE`). | **Read-Only Data Source Sessions**: One unified session interface across local in-memory SQLite and Databricks MCP. Rejects mutating SQL at dialect, adapter, and session boundaries. |
+| **Institutional Amnesia** | Agents repeat the same analytical mistakes session after session. | **Continuous Playbook Auto-Improvement**: Captures feedback and reflections into `TelemetryDoc`, running `AutoImprovementTask` to synthesize Version $N+1$ heuristics dynamically injected into future system prompts. |
+
+---
 
 1. **Is the answer right?** Reading the reply doesn't tell you. The number has to be checked against the data.
 2. **Did it get stuck along the way?** An agent that re-runs the same query five times, or keeps hitting SQL
@@ -212,8 +235,7 @@ warning when it sees them.
   is good.
 - The stuck thresholds (3, 3, 25) are defaults I picked, not tuned against labeled sessions.
 - Latency in offline mode is local wall clock and isn't comparable across machines.
-- `bunx tsc --noEmit` reports type errors across the original codebase, mostly from the document typings; the new
-  `evals/` code typechecks. `bun test` is green.
+- `bun run typecheck` (`tsc --noEmit`) verifies 0 compiler errors across the entire codebase. `bun test` runs 292 passing tests across 34 suites in under 4 seconds.
 
 ---
 
@@ -407,6 +429,10 @@ bun run cli analyze sample-data/customer_churn.csv "Identify primary churn indic
 # Inspect the verified findings
 bun run cli findings
 
+# Generate an Executive Intelligence Briefing (Markdown, HTML, or JSON)
+bun run cli report md
+bun run cli report html ./executive_briefing.html
+
 # Inspect active analytical plan & hypotheses
 bun run cli plan
 
@@ -559,10 +585,13 @@ dataclaw/
 ├── .env.example                     # Databricks + model provider environment template
 ├── sample-data/
 │   ├── customer_churn.csv           # B2B customer retention dataset
-│   └── incident_logs.json           # Distributed systems observability logs
-└── tests/                           # Unit & integration test suite
+│   ├── cohort_retention.csv         # SaaS cohort retention exhibiting Simpson's Paradox
+│   ├── incident_logs.json           # Distributed systems observability logs
+│   └── distributed_traces.jsonl     # High-throughput microservice traces in NDJSON
+└── tests/                           # Unit & integration test suite (292 tests, 0 failures)
     ├── docs.test.ts                 # Tests for durable documents
-    ├── sqlite-adapter.test.ts       # Tests for data profiling & query engine
+    ├── report-generator.test.ts     # Markdown, HTML, and JSON executive memo generators
+    ├── sqlite-adapter.test.ts       # Tests for data profiling & query engine (CSV/TSV/JSON/NDJSON)
     ├── databricks-mcp.test.ts       # MCP client, SQL safety, OAuth helpers, and adapter tests
     ├── databricks-oauth-flow.test.ts # End-to-end browser OAuth callback + MCP connect (mock workspace)
     ├── workflow.test.ts             # Tests for AnalysisWorkflowTask

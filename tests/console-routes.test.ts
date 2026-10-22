@@ -115,6 +115,11 @@ describe("the route table is data, not a listener", () => {
         const long = await answer("POST", "/api/agent/ask", { content: "x".repeat(20_001) });
         expect(long.status).toBe(400);
         expect(long.body.error).toBe("That request is too long.");
+
+        const report = await answer("GET", "/api/report?format=json");
+        expect(report.status).toBe(200);
+        expect(report.body.ok).toBe(true);
+        expect(report.body.format).toBe("json");
     });
 
     test("a body field is read once, at the route", async () => {

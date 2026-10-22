@@ -274,10 +274,10 @@ export function createDataSourceTools(options: DataSourceToolsOptions) {
     const loadDatasetTool = defineTool({
         name: "load_dataset",
         description:
-            "Loads a local CSV or JSON file into the local data source and profiles it. Only for local " +
+            "Loads a local CSV, TSV, JSON, or JSONL/NDJSON file into the local data source and profiles it. Only for local " +
             "files; use profile_table for a warehouse table.",
         parameters: Type.Object({
-            filePath: Type.String({ description: "Relative or absolute path to a CSV or JSON file" }),
+            filePath: Type.String({ description: "Relative or absolute path to a CSV, TSV, JSON, or JSONL file" }),
             tableName: Type.Optional(Type.String({ description: "Table name in the local engine; defaults to 'data'" })),
         }),
         replay: "safe",
@@ -306,7 +306,8 @@ export function createDataSourceTools(options: DataSourceToolsOptions) {
 
                 const content = readFileSync(args.filePath, "utf-8");
                 const tableName = args.tableName ?? "data";
-                const profile = args.filePath.endsWith(".json")
+                const isJson = args.filePath.endsWith(".json") || args.filePath.endsWith(".jsonl") || args.filePath.endsWith(".ndjson");
+                const profile = isJson
                     ? await current.intake!.loadJson(tableName, content)
                     : await current.intake!.loadCsv(tableName, content);
                 const text = formatProfile(profile);

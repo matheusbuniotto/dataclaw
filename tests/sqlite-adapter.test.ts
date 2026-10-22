@@ -51,4 +51,44 @@ describe("SqliteDataAdapter", () => {
 
         await adapter.close();
     });
+
+    test("loads TSV and semicolon-delimited CSV formats", async () => {
+        const adapter = await SqliteDataAdapter.create(":memory:");
+        const tsv = `id\tname\tscore\n1\tAlpha\t95\n2\tBeta\t88`;
+        const profileTsv = await adapter.loadCsv("tsv_table", tsv);
+        expect(profileTsv.rowCount).toBe(2);
+        expect(profileTsv.columnCount).toBe(3);
+
+        const semi = `id;name;score\n10;Gamma;77\n20;Delta;82`;
+        const profileSemi = await adapter.loadCsv("semi_table", semi);
+        expect(profileSemi.rowCount).toBe(2);
+        expect(profileSemi.columnCount).toBe(3);
+
+        await adapter.close();
+    });
+
+    test("loads JSONL / NDJSON and wrapped JSON arrays", async () => {
+        const adapter = await SqliteDataAdapter.create(":memory:");
+
+        // JSONL format
+        const jsonl = `{"event": "click", "user_id": 101, "cost": 1.25}\n{"event": "buy", "user_id": 102, "cost": 49.99}`;
+        const profileJsonl = await adapter.loadJson("events_jsonl", jsonl);
+        expect(profileJsonl.rowCount).toBe(2);
+        expect(profileJsonl.columnCount).toBe(3);
+
+        // Wrapped object format
+        const wrapped = JSON.stringify({
+            status: "success",
+            records: [
+                { id: "A", val: 10 },
+                { id: "B", val: 20 },
+                { id: "C", val: 30 },
+            ],
+        });
+        const profileWrapped = await adapter.loadJson("wrapped_table", wrapped);
+        expect(profileWrapped.rowCount).toBe(3);
+        expect(profileWrapped.columnCount).toBe(2);
+
+        await adapter.close();
+    });
 });

@@ -6,6 +6,7 @@ import {
     CheckCircle2,
     Database,
     FileClock,
+    FileText,
     Gauge,
     Plus,
     ShieldCheck,
@@ -15,13 +16,7 @@ import {
 import type { DataSource, Run, WorkspaceAgent, WorkspaceSnapshot } from "../state/workspace-types";
 import { Header } from "../components/Header";
 import { agentById, statusClass } from "../components/view-model";
-
-const STARTERS = [
-    "Explore the Databricks workspace: list catalogs, pick a table, and profile it.",
-    "Profile sample-data/customer_churn.csv and tell me what is worth testing.",
-    "Summarize the current plan, findings, and playbook.",
-    "Create a researcher named churn-analyst and have them profile sample-data/customer_churn.csv.",
-];
+import { STARTER_QUERIES as STARTERS } from "../components/starters";
 
 export function Overview({
     snapshot,
@@ -68,9 +63,21 @@ export function Overview({
                 title={snapshot?.agent.working ? `${agentName} is working.` : `${agentName} is ready.`}
                 subtitle={subtitle}
                 action={
-                    <button className="button-primary" onClick={openLaunch} disabled={!snapshot || asking}>
-                        <Plus size={15} /> Start a task
-                    </button>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <a
+                            href="/api/report?format=html"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="button-secondary"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, textDecoration: "none" }}
+                            title="Export Executive Intelligence Briefing"
+                        >
+                            <FileText size={14} /> Briefing
+                        </a>
+                        <button className="button-primary" onClick={openLaunch} disabled={!snapshot || asking}>
+                            <Plus size={15} /> Start a task
+                        </button>
+                    </div>
                 }
             />
 

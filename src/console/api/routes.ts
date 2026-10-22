@@ -8,7 +8,7 @@
  * 200, a `DomainError` carries its own status (400 validation, 404 not found, 409 conflict),
  * and anything else is an unexpected failure, 500.
  */
-import { abortMainAgent, askMainAgent, consoleDataSources, consolePlugins, consoleWorkspace } from "./workspace";
+import { abortMainAgent, askMainAgent, consoleDataSources, consolePlugins, consoleReport, consoleWorkspace } from "./workspace";
 import {
     applyCapabilities,
     capabilitiesCatalog,
@@ -104,6 +104,18 @@ export const routes: RouteTable = {
         GET: {
             input: async (request) => ({ agentId: text(new URL(request.url).searchParams.get("agentId")) }),
             run: ({ agentId }) => consoleDataSources(agentId),
+        },
+    },
+    "/api/report": {
+        GET: {
+            input: async (request) => {
+                const url = new URL(request.url);
+                return {
+                    format: text(url.searchParams.get("format")) ?? "json",
+                    agentId: text(url.searchParams.get("agentId")),
+                };
+            },
+            run: ({ format, agentId }) => consoleReport(format, agentId),
         },
     },
     "/api/agent/ask": {
