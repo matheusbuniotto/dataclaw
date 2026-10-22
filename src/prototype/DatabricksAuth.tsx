@@ -13,56 +13,21 @@ import {
     X,
 } from "lucide-react";
 
-export type DatabricksProfileInfo = {
-    name: string;
-    host?: string;
-    hasToken: boolean;
-    authType?: string;
-};
-
-export type DatabricksAuthMethod = "env" | "config" | "cli" | "token" | "oauth";
-export type DatabricksOAuthMode = "u2m" | "m2m";
-
-export type DatabricksStatus = {
-    connected: boolean;
-    configured: boolean;
-    host?: string;
-    mcpUrl?: string;
-    profile?: string;
-    authMethod?: DatabricksAuthMethod;
-    oauthMode?: DatabricksOAuthMode;
-    tokenExpiresAt?: number;
-    warehouseId?: string;
-    catalogs: string[];
-    user?: string;
-    connectedAt?: number;
-    profiles: DatabricksProfileInfo[];
-    defaultProfile: string;
-    error?: string;
-};
-
-export type DatabricksConnectInput = {
-    profile?: string;
-    host?: string;
-    token?: string;
-    warehouseId?: string;
-    oauth?: {
-        clientId: string;
-        clientSecret: string;
-        scope?: string;
-    };
-};
-
-export type DatabricksOAuthFlow = {
-    state: "idle" | "pending" | "success" | "error";
-    host?: string;
-    authorizeUrl?: string;
-    startedAt?: number;
-    error?: string;
-};
+import {
+    readJson,
+    type DatabricksAuthMethod,
+    type DatabricksAuthResponse,
+    type DatabricksConnectInput,
+    type DatabricksOAuthMode,
+    type DatabricksOAuthFlow,
+    type DatabricksOAuthFlowResponse,
+    type DatabricksOAuthStartResponse,
+    type DatabricksStatusResponse,
+    type DatabricksUiStatus,
+} from "./wire";
 
 type AuthState = {
-    status: DatabricksStatus | null;
+    status: DatabricksUiStatus | null;
     loading: boolean;
     busy: boolean;
     error: string | null;
@@ -76,31 +41,24 @@ type AuthState = {
     clearError: () => void;
 };
 
-async function readJson(res: Response): Promise<any> {
-    try {
-        return await res.json();
-    } catch {
-        return {};
-    }
-}
-
 function errorText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-function apiError(res: Response, data: any): Error {
+function apiError(res: Response, data: object): Error {
     if (res.status === 404) {
         return new Error(
             "Databricks auth API not found (404). The console server is running an older build — " +
             "restart it with `bun run prototype` and refresh this page.",
         );
     }
-    return new Error(data?.error ?? `Request failed (${res.status})`);
+    const message = "error" in data && typeof data.error === "string" ? data.error : undefined;
+    return new Error(message ?? `Request failed (${res.status})`);
 }
 
 /** Client-side state for the Databricks auth panel, backed by the console server. */
 export function useDatabricksAuth(): AuthState {
-    const [status, setStatus] = useState<DatabricksStatus | null>(null);
+    const [status, setStatus] = useState<DatabricksUiStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -110,9 +68,9 @@ export function useDatabricksAuth(): AuthState {
         if (!quiet) setLoading(true);
         try {
             const res = await fetch("/api/databricks/status");
-            const data = await readJson(res);
-            if (!res.ok) throw apiError(res, data);
-            setStatus(data as DatabricksStatus);
+            const data = await readJson<DatabricksStatusResponse>(res);
+            if (!res.ok || data.ok === false) throw apiError(res, data);
+            setStatus(data);
             setError(null);
         } catch (err) {
             setError(errorText(err));
@@ -126,8 +84,8 @@ export function useDatabricksAuth(): AuthState {
         void (async () => {
             try {
                 const res = await fetch("/api/databricks/oauth/status");
-                const data = await readJson(res);
-                if (data.state === "pending") {
+                const data = await readJson<DatabricksOAuthFlowResponse>(res);
+                if (data.ok === true && data.state === "pending") {
                     setOauthFlow({
                         state: "pending",
                         host: data.host,
@@ -149,12 +107,13 @@ export function useDatabricksAuth(): AuthState {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body ?? {}),
             });
-            const data = await readJson(res);
-            if (data?.status) setStatus(data.status as DatabricksStatus);
-            if (!res.ok || data?.ok === false) {
+            const data = await readJson<DatabricksAuthResponse>(res);
+            // A failed connect still reports what is connected, so the panel never goes blank.
+            if (data.status) setStatus(data.status);
+            if (!res.ok || data.ok === false) {
                 throw apiError(res, data);
             }
-            setStatus(data.status as DatabricksStatus);
+            setStatus(data.status);
             return true;
         } catch (err) {
             setError(errorText(err));
@@ -170,8 +129,8 @@ export function useDatabricksAuth(): AuthState {
         const timer = setInterval(async () => {
             try {
                 const res = await fetch("/api/databricks/oauth/status");
-                const data = await readJson(res);
-                if (cancelled) return;
+                const data = await readJson<DatabricksOAuthFlowResponse>(res);
+                if (cancelled || data.ok === false) return;
                 if (data.state === "success") {
                     setOauthFlow({ state: "success", host: data.host });
                     await refresh(true);
@@ -198,8 +157,8 @@ export function useDatabricksAuth(): AuthState {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ host }),
             });
-            const data = await readJson(res);
-            if (!res.ok || data?.ok === false) {
+            const data = await readJson<DatabricksOAuthStartResponse>(res);
+            if (!res.ok || data.ok === false) {
                 throw apiError(res, data);
             }
             setOauthFlow({
@@ -207,7 +166,7 @@ export function useDatabricksAuth(): AuthState {
                 host: data.host,
                 authorizeUrl: data.authorizeUrl,
             });
-            return typeof data.authorizeUrl === "string" ? data.authorizeUrl : null;
+            return data.authorizeUrl;
         } catch (err) {
             setError(errorText(err));
             return null;
@@ -266,7 +225,7 @@ function expiryLabel(timestamp?: number): string | undefined {
     return minutes < 60 ? `in ${minutes} min` : `in ${Math.round(minutes / 60)} h`;
 }
 
-function StatusPill({ status, loading }: { status: DatabricksStatus | null; loading: boolean }) {
+function StatusPill({ status, loading }: { status: DatabricksUiStatus | null; loading: boolean }) {
     if (loading) return <span className="status-pill status-idle">Checking</span>;
     if (status?.connected) return <span className="status-pill status-connected">Connected</span>;
     if (status?.configured) return <span className="status-pill status-warning">Ready to connect</span>;
