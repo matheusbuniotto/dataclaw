@@ -111,7 +111,7 @@ export function Overview({
                         title="Work in motion"
                         note="Turns in the active context. Older turns stay in SQLite after compaction."
                         action={
-                            <Link href="/prototype/runs" className="text-link">
+                            <Link href="/console/runs" className="text-link">
                                 View all runs <ArrowRight size={12} style={{ verticalAlign: "middle" }} />
                             </Link>
                         }
@@ -133,7 +133,7 @@ export function Overview({
                         title={ops ? "Connected sources" : "Your data"}
                         note={ops ? "Live Databricks catalogs, local files, and durable documents." : `What ${agentName} can read right now.`}
                         action={
-                            <Link href="/prototype/data" className="text-link">
+                            <Link href="/console/data" className="text-link">
                                 Explore data <ArrowRight size={12} style={{ verticalAlign: "middle" }} />
                             </Link>
                         }

@@ -37,7 +37,16 @@ describe("the console's pages", () => {
         const { startServer } = await import("../src/console/api/server");
         const server = startServer({ port: 0, hostname: "127.0.0.1" });
         try {
-            for (const path of ["/prototype", "/prototype/", "/prototype/capabilities", "/prototype/capabilities/"]) {
+            for (const path of [
+                "/console",
+                "/console/",
+                "/console/capabilities",
+                "/console/capabilities/",
+                "/prototype",
+                "/prototype/",
+                "/prototype/capabilities",
+                "/prototype/capabilities/",
+            ]) {
                 const response = await fetch(`http://127.0.0.1:${server.port}${path}`);
                 expect({ path, status: response.status }).toEqual({ path, status: 200 });
                 expect(response.headers.get("content-type")).toContain("text/html");

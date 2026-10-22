@@ -50,7 +50,7 @@ export function RunsPage({
 
     const select = (id: string) => {
         setSelected(id);
-        setLocation(`/prototype/runs?selected=${id}`);
+        setLocation(`/console/runs?selected=${id}`);
     };
 
     return (

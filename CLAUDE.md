@@ -142,7 +142,7 @@ External programs provide versioned capabilities over MCP (stdio) or a JSON scri
 - Report a plugin's `method` and `warnings` verbatim next to any number it produced.
 - The console's Settings page lists them (`src/console/api/plugins-api.ts`, `GET /api/plugins`,
   `POST /api/plugins/check`); the snapshot field is `WorkspaceSnapshot.plugins`.
-- `/prototype/capabilities` is the management page for plugins, skills, built-in tool groups and
+- `/console/capabilities` is the management page for plugins, skills, built-in tool groups and
   the Databricks MCP connection. Toggles persist to `dataclaw.capabilities.json` (gitignored,
   `src/capabilities/catalog.ts`), which the harness reads at startup, so the page and the agent
   agree; **Apply** closes and reopens the harness (`reloadConsoleHarness`) and is refused while a

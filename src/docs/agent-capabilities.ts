@@ -115,7 +115,7 @@ export interface ResolveCapabilitiesOptions {
 }
 
 export function isCapabilityGroup(value: string): value is AgentCapabilityGroup {
-    return Object.prototype.hasOwnProperty.call(AGENT_CAPABILITY_GROUPS, value);
+    return Object.hasOwn(AGENT_CAPABILITY_GROUPS, value);
 }
 
 export function capabilityGroups(tools: readonly string[]): AgentCapabilityGroup[] {

@@ -38,16 +38,16 @@ import {
 } from "lucide-react";
 
 const navItems = [
-    { href: "/prototype", label: "Overview", icon: Gauge },
-    { href: "/prototype/agents", label: "Agent", icon: Bot },
-    { href: "/prototype/runs", label: "Durable runs", icon: Workflow },
-    { href: "/prototype/data", label: "Data health", icon: Database },
-    { href: "/prototype/capabilities", label: "Capabilities", icon: Puzzle },
+    { href: "/console", label: "Overview", icon: Gauge },
+    { href: "/console/agents", label: "Agent", icon: Bot },
+    { href: "/console/runs", label: "Durable runs", icon: Workflow },
+    { href: "/console/data", label: "Data health", icon: Database },
+    { href: "/console/capabilities", label: "Capabilities", icon: Puzzle },
 ];
 
 const agentPath = (id: string) => id === "dataclaw"
-    ? "/prototype/agents"
-    : `/prototype/agents?agent=${encodeURIComponent(id)}`;
+    ? "/console/agents"
+    : `/console/agents?agent=${encodeURIComponent(id)}`;
 
 export function DurableAgentConsole() {
     const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
@@ -201,7 +201,8 @@ export function DurableAgentConsole() {
     const sources = snapshot?.sources ?? [];
     const agent = snapshot?.agent;
 
-    const isAgentsView = location === "/prototype/agents" || location.startsWith("/prototype/agents");
+    const isAgentsView = location === "/console/agents" || location.startsWith("/console/agents")
+        || location === "/prototype/agents" || location.startsWith("/prototype/agents");
 
     return (
         <div
@@ -287,7 +288,9 @@ export function DurableAgentConsole() {
                 <nav className="nav-group">
                     {navItems.map((item) => {
                         const Icon = item.icon;
-                        const isActive = location === item.href || (item.href === "/prototype" && location === "/");
+                        const isActive = location === item.href
+                            || (item.href === "/console" && (location === "/" || location === "/prototype"))
+                            || location === item.href.replace("/console", "/prototype");
                         return (
                             <Link
                                 key={item.href}
@@ -297,7 +300,7 @@ export function DurableAgentConsole() {
                             >
                                 <Icon size={16} />
                                 <span>{item.label}</span>
-                                {item.href === "/prototype/runs" && (
+                                {(item.href === "/console/runs" || item.href === "/prototype/runs") && (
                                     <span className="nav-count">{runs.length}</span>
                                 )}
                             </Link>
@@ -307,9 +310,9 @@ export function DurableAgentConsole() {
 
                 <div className="sidebar-bottom">
                     <Link
-                        href="/prototype/settings"
+                        href="/console/settings"
                         onClick={() => setMenuOpen(false)}
-                        className={`nav-link ${location === "/prototype/settings" ? "active" : ""}`}
+                        className={`nav-link ${location === "/console/settings" || location === "/prototype/settings" ? "active" : ""}`}
                     >
                         <Settings2 size={16} />
                         <span>Settings</span>
@@ -395,6 +398,19 @@ export function DurableAgentConsole() {
                 )}
 
                 <Switch>
+                    <Route path="/console">
+                        <Overview
+                            snapshot={snapshot}
+                            agents={agents}
+                            runs={runs}
+                            sources={sources}
+                            openLaunch={() => setLaunchOpen(true)}
+                            ask={ask}
+                            asking={asking}
+                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
+                            ops={ops}
+                        />
+                    </Route>
                     <Route path="/prototype">
                         <Overview
                             snapshot={snapshot}
@@ -404,7 +420,7 @@ export function DurableAgentConsole() {
                             openLaunch={() => setLaunchOpen(true)}
                             ask={ask}
                             asking={asking}
-                            inspect={(id) => setLocation("/prototype/runs?selected=" + id)}
+                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
                             ops={ops}
                         />
                     </Route>
@@ -417,8 +433,27 @@ export function DurableAgentConsole() {
                             openLaunch={() => setLaunchOpen(true)}
                             ask={ask}
                             asking={asking}
-                            inspect={(id) => setLocation("/prototype/runs?selected=" + id)}
+                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
                             ops={ops}
+                        />
+                    </Route>
+                    <Route path="/console/agents">
+                        <AgentsPage
+                            agents={agents}
+                            roster={snapshot?.roster ?? []}
+                            activeAgentId={activeAgentId}
+                            onSelectAgent={selectAgent}
+                            transcript={snapshot?.transcript ?? []}
+                            skills={snapshot?.home.skills ?? []}
+                            workspacePath={snapshot?.home.path}
+                            working={Boolean(agent?.working) || asking}
+                            stopping={stopping}
+                            onStop={() => void stopAgent()}
+                            ask={ask}
+                            ops={ops}
+                            onToggleOps={() => setOps(!ops)}
+                            onOpenStillworkMenu={() => setMenuOpen(true)}
+                            onOpenSettings={() => setLocation("/console/settings")}
                         />
                     </Route>
                     <Route path="/prototype/agents">
@@ -437,11 +472,23 @@ export function DurableAgentConsole() {
                             ops={ops}
                             onToggleOps={() => setOps(!ops)}
                             onOpenStillworkMenu={() => setMenuOpen(true)}
-                            onOpenSettings={() => setLocation("/prototype/settings")}
+                            onOpenSettings={() => setLocation("/console/settings")}
                         />
+                    </Route>
+                    <Route path="/console/runs">
+                        <RunsPage runs={runs} agents={agents} changeRun={changeRun} notify={notify} />
                     </Route>
                     <Route path="/prototype/runs">
                         <RunsPage runs={runs} agents={agents} changeRun={changeRun} notify={notify} />
+                    </Route>
+                    <Route path="/console/data">
+                        <DataPage
+                            sources={sources}
+                            runs={runs}
+                            ops={ops}
+                            onConnect={() => setAuthOpen(true)}
+                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
+                        />
                     </Route>
                     <Route path="/prototype/data">
                         <DataPage
@@ -449,13 +496,29 @@ export function DurableAgentConsole() {
                             runs={runs}
                             ops={ops}
                             onConnect={() => setAuthOpen(true)}
-                            inspect={(id) => setLocation("/prototype/runs?selected=" + id)}
+                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
+                        />
+                    </Route>
+                    <Route path="/console/capabilities">
+                        <CapabilitiesPage
+                            notify={notify}
+                            onApplied={(workspace) => setSnapshot(workspace)}
                         />
                     </Route>
                     <Route path="/prototype/capabilities">
                         <CapabilitiesPage
                             notify={notify}
                             onApplied={(workspace) => setSnapshot(workspace)}
+                        />
+                    </Route>
+                    <Route path="/console/settings">
+                        <SettingsPage
+                            snapshot={snapshot}
+                            ops={ops}
+                            setOps={setOps}
+                            auth={auth}
+                            notify={notify}
+                            onManageDatabricks={() => setAuthOpen(true)}
                         />
                     </Route>
                     <Route path="/prototype/settings">
@@ -469,7 +532,7 @@ export function DurableAgentConsole() {
                         />
                     </Route>
                     <Route>
-                        <NotFound goHome={() => setLocation("/prototype")} />
+                        <NotFound goHome={() => setLocation("/console")} />
                     </Route>
                 </Switch>
             </main>

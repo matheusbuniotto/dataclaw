@@ -297,7 +297,7 @@ that cannot start is reported by `features_apply`, never fatal (see `src/tools/f
 
 ### In the console
 
-**Capabilities** (`/prototype/capabilities`) is the management page: plugins, skills, built-in
+**Capabilities** (`/console/capabilities`) is the management page: plugins, skills, built-in
 tool groups and the Databricks MCP connection in one list, each with a switch. From there you
 can also install a plugin (name, transport, command, args, env, capabilities — written to
 `plugins/<name>/plugin.json`) and write a skill (`workspace/skills/<name>/SKILL.md`), or remove

@@ -17,14 +17,14 @@ export const MAX_ROSTER_AGENTS = 24;
 /** Delegated runs kept on the roster. Older finished runs drop first. */
 export const MAX_ROSTER_RUNS = 40;
 
-export interface AgentRoleTemplate {
+export type AgentRoleTemplate = {
     title: string;
     purpose: string;
     canManage: boolean;
     /** Capabilities a freshly created agent of this role starts with. */
     capabilities: readonly string[];
     instructions: string;
-}
+};
 
 export const AGENT_ROLES = {
     coordinator: {
@@ -80,7 +80,7 @@ export const AGENT_ROLES = {
 
 export type AgentRoleName = keyof typeof AGENT_ROLES;
 
-export interface RosterAgent {
+export type RosterAgent = {
     id: string;
     name: string;
     role: string;
@@ -108,9 +108,9 @@ export interface RosterAgent {
     createdByTask: string;
     createdAt: number;
     updatedAt: number;
-}
+};
 
-export interface AgentRun {
+export type AgentRun = {
     id: string;
     agentId: string;
     agentName: string;
@@ -121,19 +121,19 @@ export interface AgentRun {
     summary: string;
     startedAt: number;
     finishedAt: number;
-}
+};
 
-export interface AgentRosterDocument {
+export type AgentRosterDocument = {
     agents: RosterAgent[];
     runs: AgentRun[];
-}
+};
 
-export interface AgentBindingDocument {
+export type AgentBindingDocument = {
     /** Empty on the root coordinator. A roster id on a specialist session. */
     agentId: string;
     /** `run` is a one-shot delegation and cannot manage the roster. */
     origin: "roster" | "run";
-}
+};
 
 export const AgentRosterDoc = defineDoc<AgentRosterDocument>({
     kind: "analyst.agent_roster",
@@ -653,5 +653,5 @@ function parseModel(model: string | undefined): {
 }
 
 function isRoleName(role: string): role is AgentRoleName {
-    return Object.prototype.hasOwnProperty.call(AGENT_ROLES, role);
+    return Object.hasOwn(AGENT_ROLES, role);
 }

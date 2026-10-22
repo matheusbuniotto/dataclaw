@@ -5,7 +5,22 @@
 import indexHtml from "../index.html";
 import { handle, respond } from "./routes";
 
-const PAGES = ["/", "/prototype", "/prototype/agents", "/prototype/runs", "/prototype/data", "/prototype/capabilities", "/prototype/settings"];
+const PAGES = [
+    "/",
+    "/console",
+    "/console/agents",
+    "/console/runs",
+    "/console/data",
+    "/console/capabilities",
+    "/console/settings",
+    // Backward compatibility aliases for /prototype
+    "/prototype",
+    "/prototype/agents",
+    "/prototype/runs",
+    "/prototype/data",
+    "/prototype/capabilities",
+    "/prototype/settings",
+];
 
 /**
  * Start the console. `/api/*` is one route table (`handle`); the pages are the same HTML app,
@@ -41,14 +56,14 @@ export function startServer(options: { port?: number; hostname?: string } = {}) 
     console.log("\n==========================================================");
     console.log("  STILLWORK: DURABLE AGENT DATA PLATFORM");
     console.log("==========================================================");
-    console.log(`\n  🚀 URL: ${base}/prototype`);
+    console.log(`\n  🚀 URL: ${base}/console`);
     console.log(`\n  Pages:`);
-    console.log(`  - Overview:     ${base}/prototype`);
-    console.log(`  - Agents:       ${base}/prototype/agents`);
-    console.log(`  - Durable runs: ${base}/prototype/runs`);
-    console.log(`  - Data health:  ${base}/prototype/data`);
-    console.log(`  - Capabilities: ${base}/prototype/capabilities`);
-    console.log(`  - Settings:     ${base}/prototype/settings`);
+    console.log(`  - Overview:     ${base}/console`);
+    console.log(`  - Agents:       ${base}/console/agents`);
+    console.log(`  - Durable runs: ${base}/console/runs`);
+    console.log(`  - Data health:  ${base}/console/data`);
+    console.log(`  - Capabilities: ${base}/console/capabilities`);
+    console.log(`  - Settings:     ${base}/console/settings`);
     console.log(`  - Databricks:   ${base}/api/databricks/status`);
     console.log(`  - Main agent:   ${base}/api/workspace`);
     console.log("==========================================================\n");

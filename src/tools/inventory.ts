@@ -222,7 +222,7 @@ export type ToolName = keyof typeof TOOL_DECLARATIONS;
  */
 export function toolDeclaration(name: string): ToolDeclaration | undefined {
     const key = name.toLowerCase();
-    return Object.prototype.hasOwnProperty.call(TOOL_DECLARATIONS, key)
+    return Object.hasOwn(TOOL_DECLARATIONS, key)
         ? TOOL_DECLARATIONS[key as ToolName]
         : undefined;
 }
