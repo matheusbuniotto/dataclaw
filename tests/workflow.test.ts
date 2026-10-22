@@ -66,8 +66,9 @@ describe("AnalysisWorkflowTask", () => {
         // Verify FindingsDoc has verified findings
         const findings = await harness.documentState(FindingsDoc, root.id, context);
         expect(findings?.value?.findings.length).toBeGreaterThanOrEqual(2);
-        expect(findings?.value?.findings[0].audited).toBe(true);
-        expect(findings?.value?.findings[0].auditVerdict).toBe("confirmed");
+        // The saga records findings but never audits them: only request_auditor_review confirms.
+        expect(findings?.value?.findings[0].audited).toBe(false);
+        expect(findings?.value?.findings[0].auditVerdict).toBeUndefined();
         expect(findings?.value?.executiveSummary).toBeDefined();
 
         await harness.close(context);

@@ -11,6 +11,7 @@ import type { DatasetProfile, QueryResult } from "../adapters/adapter-interface"
 import type { DataSourceRegistry } from "../datasource/session";
 import { SourceError, type Discovery } from "../datasource/types";
 import { AnalystPlanDoc } from "../docs/plan";
+import { recordActiveDataset } from "../docs/writers";
 
 export interface DataSourceToolsOptions {
     /** Late-bound: the registry is created after the harness opens, tools before. */
@@ -186,14 +187,14 @@ export function createDataSourceTools(options: DataSourceToolsOptions) {
                 const provider = status.state === "live" ? status.record.provider : undefined;
 
                 await api.commit(async (tx) => {
-                    const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
-                    plan.activeDataset = {
+                    await recordActiveDataset(tx, api.conversationId, {
                         name: result.profile.tableName,
                         ...(provider ? { provider } : {}),
                         rowCount: result.profile.rowCount,
                         columns: result.profile.columns.map((column) => column.name),
                         profileSummary: text,
-                    };
+                    });
+                    const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
                     plan.status = "investigating";
                     plan.currentMilestone = "Exploratory Analysis & Query Formulation";
                     plan.updatedAt = Date.now();
@@ -311,15 +312,15 @@ export function createDataSourceTools(options: DataSourceToolsOptions) {
                 const text = formatProfile(profile);
 
                 await api.commit(async (tx) => {
-                    const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
-                    plan.activeDataset = {
+                    await recordActiveDataset(tx, api.conversationId, {
                         name: profile.tableName,
                         provider: "local",
                         sourcePath: args.filePath,
                         rowCount: profile.rowCount,
                         columns: profile.columns.map((column) => column.name),
                         profileSummary: text,
-                    };
+                    });
+                    const plan = await tx.doc(AnalystPlanDoc, api.conversationId);
                     plan.status = "investigating";
                     plan.currentMilestone = "Exploratory Analysis & Query Formulation";
                     plan.updatedAt = Date.now();

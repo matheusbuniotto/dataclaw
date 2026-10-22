@@ -2,17 +2,11 @@ import { Type } from "@earendil-works/pi-ai";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { AssistantEntry, configure, defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
 import { FindingsDoc } from "../docs/findings";
+import { recordAudit } from "../docs/writers";
 
-export type AuditVerdict = "confirmed" | "caution" | "rejected";
-
-/**
- * Read the verdict from the auditor's "VERDICT: X" line.
- * A reply without one is "caution": an unreadable audit must not confirm a finding.
- */
-export function parseAuditVerdict(report: string): AuditVerdict {
-    const match = /VERDICT\W*(CONFIRMED|CAUTION|REJECTED)\b/i.exec(report);
-    return (match?.[1]?.toLowerCase() as AuditVerdict | undefined) ?? "caution";
-}
+export type { AuditVerdict } from "../docs/findings";
+/** The verdict parser lives with the write path; re-exported so callers keep one import. */
+export { parseAuditVerdict } from "../docs/writers";
 
 export interface AuditorToolOptions {
     /** The data tools the auditor may re-run the evidence with. */
@@ -110,19 +104,12 @@ export function createAuditorReviewTool(options: AuditorToolOptions) {
             ?.flatMap((c) => (c.type === "text" ? [c.text] : []))
             .join("") ?? "";
 
-        const verdict = parseAuditVerdict(auditReportText);
-
-        // 6. Update FindingsDoc atomically
-        await api.commit(async (tx) => {
-            const doc = await tx.doc(FindingsDoc, api.conversationId);
-            const targetFinding = doc.findings.find((f) => f.id === args.findingId);
-            if (targetFinding) {
-                targetFinding.audited = true;
-                targetFinding.auditVerdict = verdict;
-                targetFinding.auditNotes = auditReportText;
-                doc.updatedAt = Date.now();
-            }
-        }, context);
+        // 6. Attach the verdict through the one audit writer; it parses the report itself.
+        const auditedFinding = await api.commit(
+            (tx) => recordAudit(tx, api.conversationId, args.findingId, auditReportText),
+            context,
+        );
+        const verdict = auditedFinding?.auditVerdict ?? "caution";
 
         api.output(`Auditor completed review: Verdict is ${verdict.toUpperCase()}.\n`);
 

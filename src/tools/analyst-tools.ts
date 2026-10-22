@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import { AnalystPlanDoc } from "../docs/plan";
-import { FindingsDoc } from "../docs/findings";
+import { appendFinding } from "../docs/writers";
 import { PlaybookDoc } from "../docs/playbook";
 
 /**
@@ -98,11 +98,7 @@ export const recordFindingTool = defineTool({
         let findingId = "";
 
         await api.commit(async (tx) => {
-            const findings = await tx.doc(FindingsDoc, api.conversationId);
-            findingId = `find-${findings.findings.length + 1}`;
-
-            findings.findings.push({
-                id: findingId,
+            const finding = await appendFinding(tx, api.conversationId, {
                 title: args.title,
                 observation: args.observation,
                 impact: args.impact,
@@ -111,12 +107,9 @@ export const recordFindingTool = defineTool({
                     ...(args.queryUsed ? { query: args.queryUsed } : {}),
                     rationale: args.rationale,
                 },
-                audited: false,
                 actionableRecommendations: args.recommendations,
-                discoveredAt: Date.now(),
             });
-
-            findings.updatedAt = Date.now();
+            findingId = finding.id;
         }, context);
 
         api.output(`Recorded Finding [${findingId}]: ${args.title} (${args.impact} impact, confidence: ${args.confidence})\n`);

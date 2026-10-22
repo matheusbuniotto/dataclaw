@@ -2,7 +2,8 @@ import { defineTask } from "@earendil-works/pi-durable";
 import { readFileSync } from "fs";
 import { SqliteDataAdapter } from "../adapters/sqlite-adapter";
 import { AnalystPlanDoc } from "../docs/plan";
-import { FindingsDoc } from "../docs/findings";
+import { FindingsDoc, type JsonValue } from "../docs/findings";
+import { appendFinding } from "../docs/writers";
 
 export interface AnalysisWorkflowInput {
     filePath: string;
@@ -137,44 +138,39 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                     const findings = await tx.doc(FindingsDoc, task.conversationId);
                     const plan = await tx.doc(AnalystPlanDoc, task.conversationId);
 
-                    findings.findings.push({
-                        id: "find-1",
+                    // Ids come from the writer: a second run cannot collide with find-1/find-2.
+                    await appendFinding(tx, task.conversationId, {
                         hypothesisId: "hyp-1",
-                        title: findingTitles[0],
+                        title: findingTitles[0]!,
                         observation: `Pearson correlation between support_tickets_30d and churned is ${r.toFixed(3)} over ${churnByTier.rows.reduce((n, x) => n + Number(x.count), 0)} accounts.`,
                         impact: "critical",
                         confidence: 0.95,
                         evidence: {
                             query: "SELECT support_tickets_30d, AVG(churned) FROM data GROUP BY support_tickets_30d;",
-                            sampleResult: correlation,
+                            sampleResult: correlation as unknown as JsonValue,
                             rationale: "Statistical correlation analysis confirms ticket volume is leading indicator of cancellation.",
                         },
-                        audited: false,
                         actionableRecommendations: [
                             "Implement automated CSM outreach triggered when tickets >= 4 in a 30-day window",
                             "Review first-contact resolution rates in support queues",
                         ],
-                        discoveredAt: Date.now(),
                     });
 
-                    findings.findings.push({
-                        id: "find-2",
+                    await appendFinding(tx, task.conversationId, {
                         hypothesisId: "hyp-2",
-                        title: findingTitles[1],
+                        title: findingTitles[1]!,
                         observation: `Basic tier accounts churn at ${basic}% while Enterprise accounts churn at ${enterprise}%.`,
                         impact: "high",
                         confidence: 0.92,
                         evidence: {
                             query: "SELECT plan_tier, AVG(churned)*100 FROM data GROUP BY plan_tier;",
-                            sampleResult: churnByTier.rows,
+                            sampleResult: churnByTier.rows as unknown as JsonValue,
                             rationale: "Cohort aggregation demonstrates tiered vulnerability.",
                         },
-                        audited: false,
                         actionableRecommendations: [
                             "Redesign onboarding for Basic tier self-serve users",
                             "Incentivize annual contract migrations with pricing discounts",
                         ],
-                        discoveredAt: Date.now(),
                     });
 
                     // Mark hypotheses as validated
@@ -207,12 +203,8 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                     const findings = await tx.doc(FindingsDoc, task.conversationId);
                     const plan = await tx.doc(AnalystPlanDoc, task.conversationId);
 
-                    for (const f of findings.findings) {
-                        f.audited = true;
-                        f.auditVerdict = "confirmed";
-                        f.auditNotes = "Scripted workflow: the verdict is set by this saga, not by the auditor subagent. Use request_auditor_review for a real audit.";
-                    }
-
+                    // The saga does not audit: only the auditor path confirms. These findings stay
+                    // unaudited until `request_auditor_review` runs.
                     findings.keyTakeaways = [
                         "Ticket volume >= 4 is a critical predictor of imminent account churn.",
                         "Basic tier onboarding requires structural stabilization.",
@@ -221,7 +213,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
 
                     reportSummary = [
                         `# Executive Analysis Memo: ${task.input.targetQuestion}`,
-                        `**Status**: Completed & Audited | **Dataset**: ${plan.activeDataset?.sourcePath ?? "Loaded Table"}`,
+                        `**Status**: Completed (findings recorded, audit pending) | **Dataset**: ${plan.activeDataset?.sourcePath ?? "Loaded Table"}`,
                         ``,
                         `## Verified Key Findings:`,
                         ...findings.findings.map((f) => `### ${f.title} (${f.impact.toUpperCase()} Impact, Conf: ${f.confidence})\n${f.observation}\n**Recommendations**:\n${f.actionableRecommendations.map((r) => `- ${r}`).join("\n")}\n`),
