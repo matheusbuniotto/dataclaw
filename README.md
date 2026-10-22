@@ -447,12 +447,16 @@ session outlives the token.
 
 ### Console auth UI
 
-The prototype console wraps Databricks authentication in a UI:
+The console wraps Databricks authentication in a UI:
 
 ```bash
-bun run prototype
+bun run console
 # open http://localhost:3000/prototype/settings or /prototype/data
 ```
+
+> The script is `console` and the code lives in `src/console/`, but the URL space is still
+> `/prototype/*`. The prefix is frozen on purpose: every link, the agent's tool descriptions and the
+> tests name those paths, so renaming them is a separate change with its own redirect plan.
 
 - The topbar **Connect Databricks** button (and Settings → Databricks Unity Catalog) opens the auth panel.
 - **CLI profile** tab lists profiles from `~/.databrickscfg` and connects with the profile's OAuth token.
@@ -473,7 +477,7 @@ The HTTP surface is intentionally small: `GET /api/databricks/status`, `POST /ap
 `GET /api/databricks/oauth/status`, and `POST /api/databricks/oauth/cancel`.
 Tokens and OAuth refresh tokens are held in server memory only.
 
-> Restart `bun run prototype` after changing server routes. Bun's HMR reloads the React client, but a
+> Restart `bun run console` after changing server routes. Bun's HMR reloads the React client, but a
 > long-running server process keeps its existing route table.
 
 ## Project structure
@@ -485,13 +489,18 @@ dataclaw/
 │   ├── cli.ts                       # Interactive CLI runner
 │   ├── config.ts                    # Multi-provider model configuration (OpenAI, Anthropic, Gemini, Faux)
 │   ├── harness.ts                   # Bootstraps Harness, SQLite storage, registry, and resumption
-│   ├── prototype/                   # Stillwork console (Bun.serve + React)
-│   │   ├── server.ts                # HTML routes + Databricks auth, plugins, and capabilities API
-│   │   ├── DatabricksAuth.tsx       # Auth modal, status card, and client hook
-│   │   ├── databricks-api.ts        # Server-side session manager for the auth UI
-│   │   ├── CapabilitiesPage.tsx     # /prototype/capabilities: switch skills, plugins, and tools on/off
-│   │   ├── capabilities-api.ts      # Toggle, install, remove, and apply capability changes
-│   │   └── plugins-api.ts           # Read-only plugin inventory for the snapshot and Settings
+│   ├── console/                     # Stillwork console (Bun.serve + React)
+│   │   ├── api/                     # HTTP seam: routes, wire types, server, and the domain APIs
+│   │   │   ├── server.ts            # Bun.serve: page routes + the API table
+│   │   │   ├── routes.ts            # /api/* route table and respond()
+│   │   │   ├── databricks-api.ts    # Server-side session manager for the auth UI
+│   │   │   ├── capabilities-api.ts  # Toggle, install, remove, and apply capability changes
+│   │   │   └── plugins-api.ts       # Read-only plugin inventory for the snapshot and Settings
+│   │   ├── pages/                   # One module per page: overview, agents, runs, data, capabilities, settings
+│   │   ├── components/              # Shared presentational pieces: chat, page chrome, auth, agent editor
+│   │   ├── state/                   # workspace-types.ts, the shapes pages render
+│   │   ├── styles/                  # base.css, chat.css, theme-lovable.css
+│   │   └── DurableAgentConsole.tsx  # The shell: navigation, sidebar, and client route table
 │   ├── capabilities/
 │   │   └── catalog.ts               # dataclaw.capabilities.json: what is installed and what is off
 │   ├── plugins/                     # Data plugins: MCP/script transports and capability contracts

@@ -2,7 +2,7 @@
 //
 // The console's entry point and its only listener. The API itself lives in `routes.ts`, which
 // imports nothing that binds a port, so it can be exercised in a test without starting this.
-import indexHtml from "./index.html";
+import indexHtml from "../index.html";
 import { handle, respond } from "./routes";
 
 const PAGES = ["/", "/prototype", "/prototype/agents", "/prototype/runs", "/prototype/data", "/prototype/capabilities", "/prototype/settings"];

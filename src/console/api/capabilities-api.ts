@@ -18,11 +18,11 @@ import {
     removeSkill,
     setCapabilityEnabled,
     type CapabilityCatalog,
-} from "../capabilities/catalog";
+} from "../../capabilities/catalog";
 import { getDatabricksUiStatus } from "./databricks-api";
 import { consoleHarness, reloadConsoleHarness } from "./workspace";
 import { ConflictError, ValidationError } from "./wire";
-import type { WorkspaceSnapshot } from "./workspace-types";
+import type { WorkspaceSnapshot } from "../state/workspace-types";
 
 type AnalystHarness = Awaited<ReturnType<typeof consoleHarness>>;
 

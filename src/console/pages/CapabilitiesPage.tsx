@@ -11,15 +11,15 @@ import {
     Trash2,
     Wrench,
 } from "lucide-react";
-import type { CapabilityCatalog, CapabilityEntry, CapabilityKind } from "../capabilities/catalog";
+import type { CapabilityCatalog, CapabilityEntry, CapabilityKind } from "../../capabilities/catalog";
 import {
     readJson,
     type ApplyCapabilitiesResponse,
     type CapabilityChange,
     type CapabilityChangeResponse,
     type CapabilitiesResponse,
-} from "./wire";
-import type { WorkspaceSnapshot } from "./workspace-types";
+} from "../api/wire";
+import type { WorkspaceSnapshot } from "../state/workspace-types";
 
 const KIND_LABEL: Record<CapabilityKind, string> = {
     tools: "Built-in tool",

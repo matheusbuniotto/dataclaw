@@ -136,7 +136,7 @@ describe("Databricks browser OAuth flow", () => {
     });
 
     test("completes U2M sign-in and connects the MCP session", async () => {
-        const api = await import("../src/prototype/databricks-api");
+        const api = await import("../src/console/api/databricks-api");
         await api.resetDatabricksConnection();
 
         const start = api.startBrowserOAuth({ host: baseUrl, port: 0 });

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { MAIN_AGENT_INSTRUCTIONS, MAIN_AGENT_NAME } from "../src/agent/instructions";
 import { createAnalystHarness } from "../src/harness";
-import { readWorkspace } from "../src/prototype/workspace";
+import { readWorkspace } from "../src/console/api/workspace";
 
 test("the root conversation is the main data exploration agent", async () => {
     const faux = fauxProvider({

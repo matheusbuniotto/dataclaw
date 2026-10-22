@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "test": "bun test",
-    "prototype": "bun run src/prototype/server.ts",
+    "console": "bun run src/console/api/server.ts",
     "cli": "bun run src/cli.ts",
     "demo": "bun run examples/demo-run.ts",
     "demo:auto-improve": "bun run examples/auto-improve-demo.ts",

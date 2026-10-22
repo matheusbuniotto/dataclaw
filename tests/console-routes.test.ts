@@ -3,10 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addPlugin, capabilityCatalog, type PluginFacts } from "../src/capabilities/catalog";
-import { AGENT_BUSY } from "../src/prototype/capabilities-api";
-import { pluginsSummary } from "../src/prototype/plugins-api";
-import { handle, respond, routes } from "../src/prototype/routes";
-import { ConflictError, DatabricksStatusError, NotFoundError, ValidationError } from "../src/prototype/wire";
+import { AGENT_BUSY } from "../src/console/api/capabilities-api";
+import { pluginsSummary } from "../src/console/api/plugins-api";
+import { handle, respond, routes } from "../src/console/api/routes";
+import { ConflictError, DatabricksStatusError, NotFoundError, ValidationError } from "../src/console/api/wire";
 
 const tmp = mkdtempSync(join(tmpdir(), "dataclaw-routes-"));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -34,7 +34,7 @@ async function answer(method: string, path: string, body?: unknown): Promise<{ s
 
 describe("the console's pages", () => {
     test("a page answers with and without its trailing slash", async () => {
-        const { startServer } = await import("../src/prototype/server");
+        const { startServer } = await import("../src/console/api/server");
         const server = startServer({ port: 0, hostname: "127.0.0.1" });
         try {
             for (const path of ["/prototype", "/prototype/", "/prototype/capabilities", "/prototype/capabilities/"]) {
@@ -51,7 +51,7 @@ describe("the console's pages", () => {
 describe("the route table is data, not a listener", () => {
     test("importing the entry point starts nothing; startServer is the only listener", async () => {
         // The import must not bind a port: a console server would have kept this process alive.
-        const entry = await import("../src/prototype/server");
+        const entry = await import("../src/console/api/server");
         expect(typeof entry.startServer).toBe("function");
         expect(typeof handle).toBe("function");
     });

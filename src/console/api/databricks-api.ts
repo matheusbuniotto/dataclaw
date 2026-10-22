@@ -5,18 +5,18 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
+import { DatabricksDataAdapter } from "../../adapters/databricks-adapter";
 import {
     describeDatabricksConfig,
     listDatabricksProfiles,
-} from "../mcp/databricks-config";
+} from "../../mcp/databricks-config";
 import {
     buildAuthorizeUrl,
     DatabricksOAuthError,
     DatabricksOAuthSession,
     generatePkcePair,
     normalizeOAuthHost,
-} from "../mcp/databricks-oauth";
+} from "../../mcp/databricks-oauth";
 import {
     DatabricksStatusError,
     ValidationError,

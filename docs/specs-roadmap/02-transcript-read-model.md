@@ -13,9 +13,9 @@ turn, an error streak — are only reachable through a full harness.
 
 | Parser | Where | Produces | Consumer |
 | --- | --- | --- | --- |
-| `buildTurns` | `src/prototype/workspace.ts:484` | goals, checkpoints, turn errors | `RunsPage`, `Overview` |
-| `transcriptFrom` | `src/prototype/workspace.ts:712` | `TranscriptItem[]` with tool pairing | workspace snapshot → client |
-| `groupIntoTurns` | `src/prototype/ChatComponents.tsx:963` | `ChatTurn[]` segments | `AssistantTurnView` |
+| `buildTurns` | `src/console/api/workspace.ts:484` | goals, checkpoints, turn errors | `RunsPage`, `Overview` |
+| `transcriptFrom` | `src/console/api/workspace.ts:712` | `TranscriptItem[]` with tool pairing | workspace snapshot → client |
+| `groupIntoTurns` | `src/console/components/ChatComponents.tsx:963` | `ChatTurn[]` segments | `AssistantTurnView` |
 | `extractTrace` | `evals/trace.ts:65` | `TraceToolCall[]`, final text, stop reason | evals + stuck detector |
 
 Helper copies: `asRecord` at `workspace.ts:925`, `evals/trace.ts:27`, `evals/scripted-agent.ts:79`;
@@ -56,7 +56,7 @@ the console, the eval trace, and the stuck detector all depend on.
 - `TranscriptItem` is the wire type for the client and also a parse product. Decide whether events
   are the wire type or whether a thin projection to `TranscriptItem` stays. The latter keeps the UI
   unchanged and is probably right.
-- Where does the module live? `src/transcript/` reads better than either `prototype/` or `evals/`,
+- Where does the module live? `src/transcript/` reads better than either `console/` or `evals/`,
   which is itself the point: it belongs to neither surface.
 - `buildTurns` currently derives "data sources touched" from tool names. That mapping duplicates
   knowledge already listed in 03; move it there rather than into the parser.

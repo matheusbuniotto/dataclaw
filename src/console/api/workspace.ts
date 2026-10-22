@@ -1,26 +1,26 @@
-import { describeDatabricksConfig } from "../mcp/databricks-config";
-import { createAnalystHarness } from "../harness";
-import { MAIN_AGENT_DESCRIPTION, MAIN_AGENT_NAME } from "../agent/instructions";
-import { DatabricksDataAdapter } from "../adapters/databricks-adapter";
-import { databricksRecord } from "../datasource/providers/databricks";
-import { bridgedProvider } from "../datasource/providers/bridged";
-import { databricksDialect } from "../datasource/dialects";
-import { readDisabled } from "../capabilities/catalog";
-import { AnalystPlanDoc } from "../docs/plan";
-import { FindingsDoc } from "../docs/findings";
-import { PlaybookDoc } from "../docs/playbook";
+import { describeDatabricksConfig } from "../../mcp/databricks-config";
+import { createAnalystHarness } from "../../harness";
+import { MAIN_AGENT_DESCRIPTION, MAIN_AGENT_NAME } from "../../agent/instructions";
+import { DatabricksDataAdapter } from "../../adapters/databricks-adapter";
+import { databricksRecord } from "../../datasource/providers/databricks";
+import { bridgedProvider } from "../../datasource/providers/bridged";
+import { databricksDialect } from "../../datasource/dialects";
+import { readDisabled } from "../../capabilities/catalog";
+import { AnalystPlanDoc } from "../../docs/plan";
+import { FindingsDoc } from "../../docs/findings";
+import { PlaybookDoc } from "../../docs/playbook";
 import {
     adoptDatabricksAdapter,
     getDatabricksUiStatus,
     recordDatabricksAuthError,
     subscribeDatabricks,
 } from "./databricks-api";
-import { loadSkills } from "../workspace/context";
-import type { AgentRosterDocument, AgentRun, RosterAgent } from "../docs/agents";
-import { normalizedAgentProfile } from "../docs/agents";
-import { formatCapabilities } from "../docs/agent-capabilities";
-import { toolDeclaration, type ToolSummary } from "../tools/inventory";
-import { formatCompute } from "../compute/agent-compute";
+import { loadSkills } from "../../workspace/context";
+import type { AgentRosterDocument, AgentRun, RosterAgent } from "../../docs/agents";
+import { normalizedAgentProfile } from "../../docs/agents";
+import { formatCapabilities } from "../../docs/agent-capabilities";
+import { toolDeclaration, type ToolSummary } from "../../tools/inventory";
+import { formatCompute } from "../../compute/agent-compute";
 import {
     asRecord,
     isTranscript,
@@ -29,7 +29,7 @@ import {
     type TranscriptEvent,
     type TranscriptToolResult,
     type TranscriptTurn,
-} from "../transcript";
+} from "../../transcript";
 import { pluginsSummary } from "./plugins-api";
 import type {
     ActivityItem,
@@ -40,7 +40,7 @@ import type {
     ToolInvocation,
     TranscriptItem,
     WorkspaceSnapshot,
-} from "./workspace-types";
+} from "../state/workspace-types";
 
 type AnalystHarness = Awaited<ReturnType<typeof createAnalystHarness>>;
 
@@ -369,8 +369,8 @@ async function resolveConsoleTarget(
 
 /** The console's data-source card: what can be connected, and what is live for this agent. */
 export async function consoleDataSources(agentId?: string): Promise<{
-    providers: import("../datasource/session").ProviderDescriptor[];
-    status: import("../datasource/types").SourceStatus;
+    providers: import("../../datasource/session").ProviderDescriptor[];
+    status: import("../../datasource/types").SourceStatus;
 }> {
     const analyst = await consoleHarness();
     const target = await resolveConsoleTarget(analyst, agentId);

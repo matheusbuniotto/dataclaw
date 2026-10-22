@@ -24,7 +24,7 @@ import {
     type DatabricksOAuthStartResponse,
     type DatabricksStatusResponse,
     type DatabricksUiStatus,
-} from "./wire";
+} from "../api/wire";
 
 type AuthState = {
     status: DatabricksUiStatus | null;
@@ -49,7 +49,7 @@ function apiError(res: Response, data: object): Error {
     if (res.status === 404) {
         return new Error(
             "Databricks auth API not found (404). The console server is running an older build — " +
-            "restart it with `bun run prototype` and refresh this page.",
+            "restart it with `bun run console` and refresh this page.",
         );
     }
     const message = "error" in data && typeof data.error === "string" ? data.error : undefined;

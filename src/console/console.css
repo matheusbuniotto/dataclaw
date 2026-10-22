@@ -1,0 +1,7 @@
+/* The console stylesheet: one file to import, three seams behind it.
+   Order matters and is the original cascade order — shell and layout, then the chat surface, then
+   the Lovable theme — so a rule in a later file still wins over an earlier one, exactly as it did
+   when all of this sat in a single <style> block in index.html. */
+@import "./styles/base.css";
+@import "./styles/chat.css";
+@import "./styles/theme-lovable.css";

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { marked, type Tokens } from "marked";
-import { isSyntheticMissingResultText } from "../transcript";
-import { declaredCategory, toolDeclaration, type ToolCategory } from "../tools/inventory";
-import type { ToolInvocation, TranscriptItem } from "./workspace-types";
+import { isSyntheticMissingResultText } from "../../transcript";
+import { declaredCategory, toolDeclaration, type ToolCategory } from "../../tools/inventory";
+import type { ToolInvocation, TranscriptItem } from "../state/workspace-types";
 import {
     AlertCircle,
     AlertTriangle,

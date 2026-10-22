@@ -315,14 +315,14 @@ A disabled plugin is skipped before its process starts; a disabled skill leaves 
 stays on disk.
 
 `src/capabilities/catalog.ts` builds the list (the harness reads the same file, so the page and
-the running agent cannot disagree), and `src/prototype/capabilities-api.ts` adds the mutations:
+the running agent cannot disagree), and `src/console/api/capabilities-api.ts` adds the mutations:
 `GET /api/capabilities`, `POST /api/capabilities/{toggle,apply,plugin,plugin/remove,skill,skill/remove}`.
 
 Settings → **Data plugins** is the read-only view of the same manifests: version, domain,
 transport, priority, the capabilities each plugin serves (struck through when another wins it
 by `priority`), and the tools it contributed. **Check** runs the `plugins:list --check`
 handshake, so it starts the servers, and only when the button is pressed. The workspace
-snapshot (`GET /api/workspace` → `plugins`) carries it, built by `src/prototype/plugins-api.ts`.
+snapshot (`GET /api/workspace` → `plugins`) carries it, built by `src/console/api/plugins-api.ts`.
 
 Per-agent selection is the same mechanism one level up: a conversation stores which extensions
 and tools it runs with, so a later change can switch a capability for one agent without

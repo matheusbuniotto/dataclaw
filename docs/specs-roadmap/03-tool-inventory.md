@@ -14,8 +14,8 @@ already drifted from what is installed, and nothing asserts that any copy equals
 | Registrations | `src/extensions/analyst-extension.ts:186` | 28 tool objects |
 | Capability groups | `src/docs/agent-capabilities.ts:11–55` | 5 string arrays: 11 analyst + 4 Databricks + 7 roster + 6 feature + 4 coding |
 | Console catalog | `src/capabilities/catalog.ts:183–195` | 11 names in one `details.tools` array |
-| Chat labels | `src/prototype/ChatComponents.tsx:640–693` | 21 display phrases, plus substring rules as a second classifier |
-| Run summaries | `src/prototype/workspace.ts:827,868` | 14 tool names across `sourcesForTool` and `summarizeToolArgs` |
+| Chat labels | `src/console/components/ChatComponents.tsx:640–693` | 21 display phrases, plus substring rules as a second classifier |
+| Run summaries | `src/console/api/workspace.ts:827,868` | 14 tool names across `sourcesForTool` and `summarizeToolArgs` |
 | Eval script + prompt | `evals/scripted-agent.ts:68–75`, `src/agent/instructions.ts:23–38` | 5 names; 20 in prose |
 
 The drift, measured against the registrations:
