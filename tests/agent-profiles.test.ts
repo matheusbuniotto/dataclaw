@@ -51,6 +51,16 @@ describe("agent capability resolution", () => {
         expect(narrow.tools).not.toContain("spawn_agent");
         expect(narrow.extensions).toEqual(["durable-analyst", "coding-tools"]);
 
+        const dataAlias = resolveAgentCapabilities(["data"], inventory());
+        expect(dataAlias.tools).toContain("query_data");
+        expect(dataAlias.tools).toContain("discover_data");
+        expect(dataAlias.extensions).toEqual(["durable-analyst"]);
+
+        const dataSourceAlias = resolveAgentCapabilities(["datasource"], inventory());
+        expect(dataSourceAlias.tools).toContain("query_data");
+        expect(dataSourceAlias.tools).toContain("discover_data");
+        expect(dataSourceAlias.extensions).toEqual(["durable-analyst"]);
+
         const plugin = resolveAgentCapabilities(["plugins"], inventory());
         expect(plugin.tools).toContain("demo__echo");
         expect(plugin.tools).toContain("tool_search");
@@ -117,6 +127,53 @@ describe("agent profiles", () => {
         if (defaulted.ok) {
             expect(defaulted.agent.capabilities).toEqual(["analyst", "databricks", "coding", "plugins"]);
             expect(defaulted.agent.contextFiles).toEqual([]);
+        }
+
+        const dataScientist = prepareAgent(emptyRoster(), {
+            name: "Cohort Scientist",
+            role: "Data Scientist",
+        }, 4);
+        expect(dataScientist.ok).toBe(true);
+        if (dataScientist.ok) {
+            expect(dataScientist.agent.role).toBe("data_scientist");
+            expect(dataScientist.agent.capabilities).toEqual(["analyst", "data", "coding", "plugins"]);
+            expect(dataScientist.agent.instructions).toContain("Data Scientist for DataClaw");
+            expect(dataScientist.agent.compute).toEqual({ kind: "local" });
+        }
+
+        const mlops = prepareAgent(emptyRoster(), {
+            name: "Model Guard",
+            role: "mlops",
+            compute: { kind: "docker", image: "oven/bun:1", network: "bridge" },
+        }, 5);
+        expect(mlops.ok).toBe(true);
+        if (mlops.ok) {
+            expect(mlops.agent.role).toBe("mlops");
+            expect(mlops.agent.capabilities).toEqual(["analyst", "data", "coding", "plugins"]);
+            expect(mlops.agent.instructions).toContain("MLOps Engineer for DataClaw");
+            expect(mlops.agent.compute).toEqual({ kind: "docker", image: "oven/bun:1", network: "bridge" });
+        }
+
+        const dataEng = prepareAgent(emptyRoster(), {
+            name: "Pipeline Builder",
+            role: "data-engineer",
+        }, 6);
+        expect(dataEng.ok).toBe(true);
+        if (dataEng.ok) {
+            expect(dataEng.agent.role).toBe("data_engineer");
+            expect(dataEng.agent.capabilities).toEqual(["analyst", "data", "coding", "plugins"]);
+            expect(dataEng.agent.instructions).toContain("Data Engineer for DataClaw");
+        }
+
+        const analyticsEng = prepareAgent(emptyRoster(), {
+            name: "Marts Specialist",
+            role: "Analytics Engineer",
+        }, 7);
+        expect(analyticsEng.ok).toBe(true);
+        if (analyticsEng.ok) {
+            expect(analyticsEng.agent.role).toBe("analytics_engineer");
+            expect(analyticsEng.agent.capabilities).toEqual(["analyst", "data", "coding", "plugins"]);
+            expect(analyticsEng.agent.instructions).toContain("Analytics Engineer for DataClaw");
         }
     });
 

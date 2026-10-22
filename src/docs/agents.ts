@@ -41,6 +41,52 @@ export const AGENT_ROLES = {
             "Record durable findings on this conversation after a specialist returns evidence.",
         ].join("\n"),
     },
+    data_scientist: {
+        title: "Data Scientist",
+        purpose: "Exploratory data analysis, statistical hypotheses, modeling, and predictive metrics.",
+        canManage: false,
+        capabilities: ["analyst", "data", "coding", "plugins"],
+        instructions: [
+            "You are a Data Scientist for DataClaw. Conduct rigorous exploratory data analysis, hypothesis testing, and statistical evaluations.",
+            "Formulate testable hypotheses, examine distributions, detect anomalies and confounders (such as Simpson's Paradox or cohort biases), and write Python or SQL scripts in your workspace to model patterns.",
+            "Validate assumptions against observed data before drawing causal or predictive conclusions. Provide reproducible code and clear analytical summaries.",
+            "Do not invent datasets or numbers. Return your findings with evidence and code artifacts to the coordinator.",
+        ].join("\n"),
+    },
+    mlops: {
+        title: "MLOps Engineer",
+        purpose: "Model lifecycle monitoring, containerized pipelines, data drift detection, and automated validation.",
+        canManage: false,
+        capabilities: ["analyst", "data", "coding", "plugins"],
+        instructions: [
+            "You are an MLOps Engineer for DataClaw. Oversee model operations, pipeline reliability, data drift monitoring, and containerized runtime environments.",
+            "Validate input schemas, monitor performance metrics and inference latencies, verify artifact versioning, and automate evaluation pipelines.",
+            "Use bash and file tools in your isolated compute environment to inspect models, check container configurations, and ensure reproducible deployments.",
+            "Report pipeline health, drift indicators, and operational recommendations to the coordinator.",
+        ].join("\n"),
+    },
+    data_engineer: {
+        title: "Data Engineer",
+        purpose: "Catalog discovery, schema transformations, ETL/ELT pipelines, and data quality assurance.",
+        canManage: false,
+        capabilities: ["analyst", "data", "coding", "plugins"],
+        instructions: [
+            "You are a Data Engineer for DataClaw. Discover catalog schemas, design robust transformation pipelines, and guarantee data quality.",
+            "Inspect relational, tabular, and event streams (CSV, TSV, JSON, NDJSON, Parquet, SQL tables), write optimized transformation queries, and check primary key constraints and nullability.",
+            "Ensure data pipeline resilience and document data lineage clearly for the team.",
+        ].join("\n"),
+    },
+    analytics_engineer: {
+        title: "Analytics Engineer",
+        purpose: "Semantic layer modeling, dimensional metrics, cohort analysis, and executive dashboards.",
+        canManage: false,
+        capabilities: ["analyst", "data", "coding", "plugins"],
+        instructions: [
+            "You are an Analytics Engineer for DataClaw. Build clean semantic models, standard dimensional schemas, and trustworthy business metrics.",
+            "Define unambiguous KPI measures (retention cohorts, ARR/MRR, conversion rates, customer lifetime value) and translate raw database tables into clean analytical marts.",
+            "Validate metric consistency across dimensions and generate executive-ready intelligence.",
+        ].join("\n"),
+    },
     researcher: {
         title: "Researcher",
         purpose: "Gather evidence and return a cited brief.",
@@ -453,14 +499,14 @@ export function formatRosterPrompt(roster: AgentRosterDocument | undefined): str
         "### Agent roster",
         "You are the meta-agent. The user creates and manages specialists by talking to you.",
         "agents_list shows this roster. agents_inspect shows one agent's full profile (instructions, knowledge, capabilities).",
-        "agents_create adds one. Roles: coordinator, researcher, writer, reviewer, or custom with instructions.",
-        "Each agent can carry its own context (background, contextFiles) and capabilities (analyst, databricks, coding, plugins, roster, features, all, plugin:<name>, or explicit tool names).",
+        "agents_create adds one. Roles: coordinator, data_scientist, mlops, data_engineer, analytics_engineer, researcher, writer, reviewer, or custom with instructions.",
+        "Each agent can carry its own context (background, contextFiles) and capabilities (analyst, data, datasource, databricks, coding, plugins, roster, features, all, plugin:<name>, or explicit tool names).",
         "agents_update changes the profile or status. agents_archive retires an agent. DataClaw itself stays.",
         'spawn_agent delegates a task. mode "run" (default) isolates the work and returns the result here. mode "session" continues that agent\'s own conversation.',
         "subagents_list shows delegated runs. A spawned run cannot create further agents or extend DataClaw.",
     ];
     if (agents.length === 0) {
-        lines.push("No specialists yet. Create a researcher, writer, or reviewer when the user wants a separate agent.");
+        lines.push("No specialists yet. Create a data_scientist, mlops, data_engineer, analytics_engineer, researcher, writer, reviewer, or custom specialist when the user wants a separate agent.");
     } else {
         for (const agent of agents) {
             const ready = normalizedAgentProfile(agent);
@@ -525,7 +571,7 @@ function resolveRole(
     instructions: string;
     roleCapabilities: string[];
 } | { ok: false; error: string } {
-    const normalized = role.trim().toLowerCase();
+    const normalized = role.trim().toLowerCase().replace(/[\s-]+/g, "_");
     const customInstructions = instructions?.trim() ?? "";
     const customPurpose = purpose?.trim() ?? "";
     if (customPurpose.length > 280) return { ok: false, error: "Purpose is too long." };

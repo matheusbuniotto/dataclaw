@@ -41,7 +41,7 @@ export interface CapabilityGroup {
 }
 
 /** Group ids that resolve to a fixed list; `all` and `plugins` resolve from the live inventory. */
-type DeclaredGroupId = ToolCapabilityGroup | "all" | "plugins";
+type DeclaredGroupId = ToolCapabilityGroup | "all" | "plugins" | "data" | "datasource";
 
 export const AGENT_CAPABILITY_GROUPS = {
     all: {
@@ -52,8 +52,16 @@ export const AGENT_CAPABILITY_GROUPS = {
         description: "Profile local CSV/JSON, run read-only SQL, hypotheses, findings, playbook, audit.",
         tools: ANALYST_TOOLS,
     },
+    data: {
+        description: "The source-neutral data tools: read-only SQL, discovery, profile and metrics for connected data sources (SQLite, DuckDB, Databricks, PostgreSQL).",
+        tools: DATA_TOOLS,
+    },
+    datasource: {
+        description: "Alias for data: read-only SQL, discovery, profile and metrics for connected sources.",
+        tools: DATA_TOOLS,
+    },
     databricks: {
-        description: "The data-source tools: read-only SQL, discovery, profile and metrics for whichever source is connected.",
+        description: "Legacy alias for data: read-only SQL, discovery, profile and metrics for whichever source is connected.",
         tools: DATABRICKS_TOOLS,
     },
     coding: {
@@ -81,7 +89,7 @@ export const AGENT_CAPABILITY_NAMES = Object.keys(AGENT_CAPABILITY_GROUPS) as Ag
 /** Default for a specialist that only produces work. */
 export const DEFAULT_SPECIALIST_CAPABILITIES: readonly string[] = [
     "analyst",
-    "databricks",
+    "data",
     "coding",
     "plugins",
 ];

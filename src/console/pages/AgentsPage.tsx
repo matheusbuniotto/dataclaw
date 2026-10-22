@@ -962,10 +962,11 @@ export function AgentsPage({
                         name: customMatch.name,
                         role: customMatch.role,
                         purpose: customMatch.description,
-                        compute: "isolated container",
+                        compute: customMatch.compute?.kind ?? "local",
                         status: "active" as const,
-                        capabilities: ["code-execution", "file-edit"],
-                        sources: ["Filesystem", "Sandbox"],
+                        capabilities: customMatch.capabilities ?? ["analyst", "data", "coding", "plugins"],
+                        skills: customMatch.skills ?? [],
+                        sources: ["Filesystem", "Sandbox", "Data Sources"],
                     }
                   : {
                         id: activeAgentId,
@@ -1131,6 +1132,10 @@ export function AgentsPage({
         description: string;
         color: string;
         icon: string;
+        instructions?: string;
+        capabilities?: string[];
+        compute?: { kind: "shared" | "local" | "docker"; image?: string; network?: "none" | "bridge" };
+        skills?: string[];
         initialTask?: string;
     }) => {
         const cleanId =
@@ -1147,6 +1152,10 @@ export function AgentsPage({
             description: newAgentData.description,
             color: newAgentData.color,
             icon: newAgentData.icon,
+            instructions: newAgentData.instructions,
+            capabilities: newAgentData.capabilities,
+            compute: newAgentData.compute,
+            skills: newAgentData.skills,
             initialTask: newAgentData.initialTask,
             createdAt: Date.now(),
         };
@@ -1160,19 +1169,36 @@ export function AgentsPage({
             description: newAgentData.description,
             color: newAgentData.color,
             icon: newAgentData.icon,
+            instructions: newAgentData.instructions,
+            capabilities: newAgentData.capabilities,
+            compute: newAgentData.compute?.kind,
+            skills: newAgentData.skills,
         });
         setCustomizations(loadAgentCustomizations());
 
         onSelectAgent(cleanId);
 
+        const capsStr = newAgentData.capabilities && newAgentData.capabilities.length > 0
+            ? ` capabilities: [${newAgentData.capabilities.map((c) => `"${c}"`).join(", ")}]`
+            : "";
+        const computeStr = newAgentData.compute
+            ? ` compute: ${JSON.stringify(newAgentData.compute)}`
+            : "";
+        const instrStr = newAgentData.instructions
+            ? ` instructions: "${newAgentData.instructions.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`
+            : "";
+        const skillsStr = newAgentData.skills && newAgentData.skills.length > 0
+            ? ` skills: [${newAgentData.skills.map((s) => `"${s}"`).join(", ")}]`
+            : "";
+
         const directive = newAgentData.initialTask
-            ? `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}". Set up their isolated sandbox workspace and run kickoff task: "${newAgentData.initialTask}".`
-            : `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}". Set up their isolated sandbox workspace.`;
+            ? `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${instrStr}${skillsStr} Set up their workspace and run kickoff task: "${newAgentData.initialTask}".`
+            : `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${instrStr}${skillsStr} Set up their workspace.`;
         ask(directive);
         setScreenLogs((prev) => [
             ...prev,
-            `[fleet] Spawned new teammate "${newAgentData.name}" (${cleanId})`,
-            `[workspace] Initialized sandbox /workspace/agents/${cleanId}`,
+            `[fleet] Spawned new ${newAgentData.role} teammate "${newAgentData.name}" (${cleanId})`,
+            `[compute] Configured ${newAgentData.compute?.kind || "local"} runtime at /workspace/agents/${cleanId}`,
         ]);
     };
 
@@ -2271,7 +2297,7 @@ export function AgentsPage({
                         </button>
                     </div>
 
-                    {/* Section 1: Active Data Source & Schema Telemetry */}
+                    {/* Section 1: Specialist Profile & Environment */}
                     <div style={{ padding: "14px 16px 10px" }}>
                         <div
                             style={{
@@ -2283,7 +2309,7 @@ export function AgentsPage({
                                 marginBottom: 8,
                             }}
                         >
-                            Catalog & Telemetry
+                            Specialist Environment
                         </div>
                         <div
                             style={{
@@ -2298,27 +2324,29 @@ export function AgentsPage({
                             }}
                         >
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Dataset:</span>
+                                <span style={{ color: t.textMuted }}>Role Archetype:</span>
+                                <span style={{ fontWeight: 600, color: t.textPrimary, textTransform: "capitalize" }}>
+                                    {baseRole.replace(/_/g, " ")}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <span style={{ color: t.textMuted }}>Compute Sandbox:</span>
                                 <span style={{ fontWeight: 600, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
-                                    sample-data/customer_churn.csv
+                                    {"compute" in baseAgent ? String((baseAgent as any).compute) : "local"}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                                <span style={{ color: t.textMuted }}>Tooling:</span>
+                                <span style={{ color: t.accent, fontWeight: 600, textAlign: "right", wordBreak: "break-word" }}>
+                                    {"capabilities" in baseAgent && Array.isArray((baseAgent as any).capabilities)
+                                        ? (baseAgent as any).capabilities.join(", ")
+                                        : "analyst, data, coding, plugins"}
                                 </span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Catalog:</span>
-                                <span style={{ fontWeight: 600, color: t.textPrimary }}>
-                                    Databricks Unity Catalog
-                                </span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Telemetry:</span>
+                                <span style={{ color: t.textMuted }}>Status:</span>
                                 <span style={{ color: t.accent, fontWeight: 600 }}>
-                                    7,043 rows · 21 columns
-                                </span>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ color: t.textMuted }}>Health:</span>
-                                <span style={{ color: t.accent, fontWeight: 600 }}>
-                                    ✓ 0 schema drift violations
+                                    ✓ Active & isolated
                                 </span>
                             </div>
                         </div>
@@ -2539,6 +2567,7 @@ export function AgentsPage({
                 isOpen={isCreatingAgent}
                 onClose={() => setIsCreatingAgent(false)}
                 onCreate={handleCreateAgent}
+                availableSkills={skills}
             />
 
             {/* Profile & Settings Modal */}

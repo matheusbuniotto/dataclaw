@@ -85,14 +85,14 @@ export const agentsListTool = defineTool({
 
 export const agentsCreateTool = defineTool({
     name: "agents_create",
-    description: "Creates a persistent specialist the user can keep. Roles: coordinator, researcher, writer, reviewer, or custom (custom requires instructions). Each agent gets its own conversation, persona, knowledge context, and capability set.",
+    description: "Creates a persistent specialist the user can keep. Roles: coordinator, data_scientist, mlops, data_engineer, analytics_engineer, researcher, writer, reviewer, or custom (custom requires instructions). Each agent gets its own conversation, persona, knowledge context, and capability set.",
     parameters: Type.Object({
         name: Type.String({ description: "Display name, such as Churn Analyst" }),
-        role: Type.String({ description: "coordinator, researcher, writer, reviewer, or custom" }),
+        role: Type.String({ description: "data_scientist, mlops, data_engineer, analytics_engineer, researcher, writer, reviewer, coordinator, or custom" }),
         instructions: Type.Optional(Type.String({ description: "Operating instructions (persona). Required for custom. Replaces the role template when set." })),
         purpose: Type.Optional(Type.String({ description: "One line describing what this agent is for" })),
         capabilities: Type.Optional(Type.Array(Type.String(), {
-            description: "Tool groups (analyst, databricks, coding, plugins, roster, features, all), plugin:<name>, or explicit tool names. Omit for the role default.",
+            description: "Tool groups (analyst, data, datasource, databricks, coding, plugins, roster, features, all), plugin:<name>, or explicit tool names. Omit for the role default.",
         })),
         contextFiles: Type.Optional(Type.Array(Type.String(), {
             description: "Workspace- or project-relative text files whose content becomes this agent's knowledge.",
