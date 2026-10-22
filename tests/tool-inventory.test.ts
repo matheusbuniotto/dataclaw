@@ -151,6 +151,12 @@ describe("the tool inventory", () => {
 
             const resolution = resolveAgentCapabilities(["coding"], inventory);
             expect(resolution.extensions).not.toContain("coding-tools");
+
+            // The console row keeps the names but reports the group as off, so the page can explain it.
+            const catalog = await capabilityCatalog({ projectRoot: root, workspaceDir: join(root, "workspace") });
+            const codingRow = catalog.entries.find((entry) => entry.id === "tool:coding");
+            expect(codingRow?.enabled).toBe(false);
+            expect(codingRow?.details.tools).toEqual([...CODING_TOOLS]);
         } finally {
             await analyst.close();
         }

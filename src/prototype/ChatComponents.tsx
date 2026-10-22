@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { marked, type Tokens } from "marked";
+import { isSyntheticMissingResultText } from "../transcript";
 import { declaredCategory, toolDeclaration, type ToolCategory } from "../tools/inventory";
 import type { ToolInvocation, TranscriptItem } from "./workspace-types";
 import {
@@ -739,7 +740,7 @@ export function ToolInvocationCard({
     const path = argText(args, "path") ?? argText(args, "filePath");
     const instruction = argText(args, "instruction") ?? argText(args, "instructions") ?? argText(args, "rationale");
     const instructionFile = Boolean(path && isInstructionPath(path) && (tool.toolName === "read" || tool.toolName === "write" || tool.toolName === "edit"));
-    const isSyntheticUnavailable = Boolean(tool.resultText?.includes("Tool result unavailable: history ends before this call completed."));
+    const isSyntheticUnavailable = Boolean(tool.resultText && isSyntheticMissingResultText(tool.resultText));
     const isRunning = tool.status === "running" || isSyntheticUnavailable;
     const failed = !isSyntheticUnavailable && (Boolean(tool.isError) || tool.status === "error" || Boolean(tool.resultText?.includes("<harness>\n[error]")));
     const [open, setOpen] = useState(defaultOpen || isRunning || failed);

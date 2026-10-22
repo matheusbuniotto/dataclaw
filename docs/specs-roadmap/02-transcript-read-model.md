@@ -1,6 +1,6 @@
 # 02 · One transcript read model
 
-**Status:** `proposed` · **Strength:** Strong · **Seam:** in-process · **Size:** M
+**Status:** `done` · **Strength:** Strong · **Seam:** in-process · **Size:** M
 
 ## Problem
 

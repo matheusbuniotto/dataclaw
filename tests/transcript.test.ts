@@ -212,6 +212,37 @@ const FIXTURE = [
     { role: "assistant", content: [{ type: "text", text: "ANSWER: north" }], stopReason: "stop", timestamp: 1_300 },
 ];
 
+describe("turn boundaries", () => {
+    test("an empty user message is still a turn in every surface", () => {
+        const messages = [
+            { role: "user", content: [] },
+            { role: "assistant", content: [{ type: "text", text: "Nothing to do." }], stopReason: "stop" },
+        ];
+        const transcript = parseTranscript(messages);
+
+        expect(transcript.turns).toHaveLength(1);
+        expect(buildTurns(transcript)).toHaveLength(1);
+        expect(transcriptFrom(transcript).filter((item) => item.role === "user")).toHaveLength(1);
+        expect(groupIntoTurns(transcriptFrom(transcript)).filter((turn) => turn.role === "user")).toHaveLength(1);
+    });
+
+    test("events before the first user message are events, not turns", () => {
+        const messages = [
+            { role: "assistant", content: [{ type: "text", text: "Recovered from a restart." }], stopReason: "stop" },
+            { role: "user", content: "Continue." },
+        ];
+        const transcript = parseTranscript(messages);
+
+        expect(kinds(transcript.events)).toEqual(["assistantText", "stop", "turnStart"]);
+        expect(transcript.turns).toHaveLength(1);
+        expect(transcript.turns[0]!.events.map((event) => event.kind)).toEqual(["turnStart"]);
+        // The chat view and the trace see the pre-turn text; the run list has no turn for it.
+        expect(transcriptFrom(transcript).some((item) => item.role === "assistant" && item.text.includes("Recovered"))).toBe(true);
+        expect(extractTrace(messages).finalText).toBe("Recovered from a restart.");
+        expect(buildTurns(transcript)).toHaveLength(1);
+    });
+});
+
 describe("one read model, four consumers", () => {
     test("the run list, the chat view, and the eval trace agree on one fixture", () => {
         const transcript = parseTranscript(FIXTURE);

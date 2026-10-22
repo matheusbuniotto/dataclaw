@@ -478,12 +478,17 @@ function documentSource(id: string, name: string, records: string): DataSource {
 }
 
 function linkRuns(sources: DataSource[], runs: Run[]): DataSource[] {
-    return sources.map((source) => ({
-        ...source,
-        runs: runs
-            .filter((run) => run.dataSources.includes(source.name) || run.goal.includes(source.name))
-            .map((run) => run.id),
-    }));
+    return sources.map((source) => {
+        // Tool arguments name a provider id ("databricks"); the card's name is "Databricks".
+        const name = source.name.toLowerCase();
+        return {
+            ...source,
+            runs: runs
+                .filter((run) => run.dataSources.some((value) => value.toLowerCase() === name)
+                    || run.goal.toLowerCase().includes(name))
+                .map((run) => run.id),
+        };
+    });
 }
 
 interface BuiltTurn {
@@ -732,9 +737,8 @@ export function transcriptFrom(input: readonly unknown[] | Transcript): Transcri
     for (const event of transcript.events) {
         if (event.kind === "turnStart") {
             flush();
-            if (event.text) {
-                items.push({ id: `user-${event.index}`, role: "user", text: event.text, time: formatClock(event.timestamp) });
-            }
+            // Always an item, even with empty text: the run list counts the turn either way.
+            items.push({ id: `user-${event.index}`, role: "user", text: event.text, time: formatClock(event.timestamp) });
             continue;
         }
 

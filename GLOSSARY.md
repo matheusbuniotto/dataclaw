@@ -37,6 +37,18 @@ which is a versioned operation a plugin implements.
 **Compute** — where a specialist's files and shell live: `shared`, `local` (a private home), or
 `docker` (private home plus an isolated container).
 
+## Read models
+
+**Transcript** — the one parse of persisted conversation messages (`src/transcript/`): typed events
+(turn boundaries, assistant text, tool calls with their paired result or none, stop reason) plus the
+turns those events fall into. The console run list, the chat view and the eval trace are projections
+of it; nothing else walks raw messages.
+
+**Tool inventory** — the one declaration per built-in tool (`src/tools/inventory.ts`): capability
+group, chat phrase and category, `runsSql`, and the summary/source argument hints. The capability
+groups, the console catalog, the chat labels, the run summaries and the SQL guard derive from it;
+plugin tools come from the live registry instead.
+
 ## Work
 
 **Finding** — an observation recorded in `FindingsDoc`, with the query or metric that supports it,

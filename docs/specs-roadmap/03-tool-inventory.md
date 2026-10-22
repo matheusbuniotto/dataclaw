@@ -1,6 +1,6 @@
 # 03 · Derive the tool inventory
 
-**Status:** `proposed` · **Strength:** Strong · **Seam:** in-process · **Size:** S
+**Status:** `done` · **Strength:** Strong · **Seam:** in-process · **Size:** S
 
 ## Problem
 

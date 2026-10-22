@@ -94,8 +94,8 @@ describe("trace and stuck detection", () => {
     test("a clean run is not stuck", () => {
         const trace = extractTrace([
             { role: "user", content: "q" },
-            { role: "assistant", content: [call("1", "profile_dataset", { filePath: "a.csv" })], stopReason: "toolUse" },
-            result("1", "profile_dataset", "ok"),
+            { role: "assistant", content: [call("1", "load_dataset", { filePath: "a.csv" })], stopReason: "toolUse" },
+            result("1", "load_dataset", "ok"),
             { role: "assistant", content: [{ type: "text", text: "ANSWER: 3" }], stopReason: "stop" },
         ]);
         expect(trace.toolCalls).toHaveLength(1);
@@ -107,8 +107,8 @@ describe("trace and stuck detection", () => {
         const messages: unknown[] = [{ role: "user", content: "q" }];
         for (let i = 0; i < 3; i++) {
             const args = i % 2 ? { rationale: "r", sql: "SELECT 1" } : { sql: "SELECT 1", rationale: "r" };
-            messages.push({ role: "assistant", content: [call(`c${i}`, "run_analytical_query", args)], stopReason: "toolUse" });
-            messages.push(result(`c${i}`, "run_analytical_query", "| 1 |"));
+            messages.push({ role: "assistant", content: [call(`c${i}`, "query_data", args)], stopReason: "toolUse" });
+            messages.push(result(`c${i}`, "query_data", "| 1 |"));
         }
         messages.push({ role: "assistant", content: [{ type: "text", text: "ANSWER: 1" }], stopReason: "stop" });
         const stuck = assessStuck(extractTrace(messages));
@@ -119,8 +119,8 @@ describe("trace and stuck detection", () => {
     test("an error streak and a missing answer are both reported", () => {
         const messages: unknown[] = [{ role: "user", content: "q" }];
         for (let i = 0; i < 3; i++) {
-            messages.push({ role: "assistant", content: [call(`e${i}`, "run_analytical_query", { sql: `SELEC ${i}` })], stopReason: "toolUse" });
-            messages.push(result(`e${i}`, "run_analytical_query", "SQL Execution Error", true));
+            messages.push({ role: "assistant", content: [call(`e${i}`, "query_data", { sql: `SELEC ${i}` })], stopReason: "toolUse" });
+            messages.push(result(`e${i}`, "query_data", "SQL Execution Error", true));
         }
         messages.push({ role: "assistant", content: [], stopReason: "aborted" });
         const stuck = assessStuck(extractTrace(messages));
@@ -129,7 +129,7 @@ describe("trace and stuck detection", () => {
     });
 
     test("a call that never got a result counts as an error", () => {
-        const trace = extractTrace([{ role: "assistant", content: [call("x", "query_databricks", {})], stopReason: "toolUse" }]);
+        const trace = extractTrace([{ role: "assistant", content: [call("x", "query_data", {})], stopReason: "toolUse" }]);
         expect(trace.toolCalls[0]!.isError).toBe(true);
     });
 

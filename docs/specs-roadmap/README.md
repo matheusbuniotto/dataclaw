@@ -27,8 +27,8 @@ Every spec starts at `proposed`.
 | # | Candidate | Strength | Seam | Size | Depends on | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | [01](01-data-source-session.md) | Put the live data source behind one seam, with providers for new data MCPs | Strong | ports & adapters | L | — | `done` |
-| [02](02-transcript-read-model.md) | One transcript read model | Strong | in-process | M | — | `proposed` |
-| [03](03-tool-inventory.md) | Derive the tool inventory | Strong | in-process | S | — | `proposed` |
+| [02](02-transcript-read-model.md) | One transcript read model | Strong | in-process | M | — | `done` |
+| [03](03-tool-inventory.md) | Derive the tool inventory | Strong | in-process | S | — | `done` |
 | [04](04-console-api.md) | Give the console one HTTP seam | Worth exploring | ports & adapters | M | 02 (snapshot), 03 (catalog) | `proposed` |
 | [05](05-document-writes.md) | One writer for the durable documents | Worth exploring | in-process | S–M | 01 (plan record) | `proposed` |
 | [06](06-plugin-startup.md) | Two plugin paths, one module | Speculative | ports & adapters | S | 01 (transport) | `proposed` |

@@ -24,6 +24,14 @@ function thinkingFromContent(content: unknown): string {
     }).join("\n\n").trim();
 }
 
+/** The text the harness writes into the stand-in result for a call that never finished. */
+export const SYNTHETIC_MISSING_RESULT_TEXT = "Tool result unavailable: history ends before this call completed.";
+
+/** True when a result's text is the harness stand-in, whichever surface is reading it. */
+export function isSyntheticMissingResultText(text: string): boolean {
+    return text.includes(SYNTHETIC_MISSING_RESULT_TEXT);
+}
+
 /**
  * The harness persists a stand-in result when history ends before a call completed. It means
  * "no result yet", not "the call failed", so the parse never pairs it with a call.
@@ -31,8 +39,7 @@ function thinkingFromContent(content: unknown): string {
 export function isSyntheticMissingResult(record: Json): boolean {
     const details = asRecord(record.details);
     if (details?.reason === "missing_result") return true;
-    return textFromContent(record.content)
-        .includes("Tool result unavailable: history ends before this call completed.");
+    return isSyntheticMissingResultText(textFromContent(record.content));
 }
 
 /** True for a value returned by `parseTranscript`, so callers can share one parse across consumers. */

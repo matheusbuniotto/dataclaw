@@ -8,7 +8,9 @@
  * (`prototype/workspace.ts`), and the read-only SQL guard in `extensions/analyst-extension.ts`.
  *
  * Plugin tools are deliberately absent: they are addressed by `plugin:<name>` and come from the
- * live registry, so an installed plugin appears in every reader without an edit here.
+ * live registry, so an installed plugin appears in every reader without an edit here. Framework
+ * tools (`tool_search`) are absent for the same reason: the runtime provides them, not a
+ * declaration.
  *
  * The module imports nothing, so the console bundle can read it. Its declarations must equal
  * what `durable-analyst` registers plus what `coding-tools` publishes;

@@ -52,7 +52,11 @@ export interface Transcript {
     readonly kind: "transcript";
     /** Every event in message order; `turnStart` marks a turn boundary. */
     events: TranscriptEvent[];
-    /** One entry per user message. */
+    /**
+     * One entry per user message. Only a user message opens a turn, so events that precede the
+     * first user message are in `events` but in no turn: the chat view and the trace show them,
+     * the run list has no turn to attach them to.
+     */
     turns: TranscriptTurn[];
     /** Assistant messages seen, including ones that carried no content. */
     assistantMessages: number;
