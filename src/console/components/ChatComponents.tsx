@@ -1005,9 +1005,13 @@ export function groupIntoTurns(items: readonly TranscriptItem[]): ChatTurn[] {
 export function AssistantTurnView({
     turn,
     live = false,
+    hideOuterShell = false,
+    footerExtra,
 }: {
     turn: ChatTurn;
     live?: boolean;
+    hideOuterShell?: boolean;
+    footerExtra?: React.ReactNode;
 }) {
     const { copied, copy } = useClipboard();
     const segments = segmentsOf(turn);
@@ -1016,52 +1020,59 @@ export function AssistantTurnView({
     const last = segments[segments.length - 1];
     const showTyping = Boolean(live) && !hasText && !running && last?.kind !== "thinking";
 
+    const body = (
+        <div className="chat-assistant-body">
+            {segments.map((segment, index) => {
+                if (segment.kind === "thinking") {
+                    const active = Boolean(live) && !hasText && index === segments.length - 1;
+                    return <ThinkingView key={segment.id} text={segment.text} active={active} />;
+                }
+                if (segment.kind === "tools") {
+                    return <ToolTimeline key={segment.id} tools={segment.tools} />;
+                }
+                return (
+                    <div className="chat-text" key={segment.id}>
+                        <MarkdownView content={segment.text} />
+                    </div>
+                );
+            })}
+
+            {showTyping && (
+                <div className="chat-typing-inline" aria-label="Working">
+                    <span>Composing a response…</span>
+                    <div className="chat-typing">
+                        <i /><i /><i />
+                    </div>
+                </div>
+            )}
+
+            {footerExtra}
+
+            <div className="chat-msg-footer">
+                <time>{turn.time}</time>
+                {hasText && (
+                    <button
+                        className="chat-msg-copy-btn"
+                        onClick={() => copy(turn.assistantText)}
+                        title="Copy response"
+                        type="button"
+                    >
+                        {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                        <span>{copied ? "Copied" : "Copy"}</span>
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+
+    if (hideOuterShell) return body;
+
     return (
         <div className="chat-msg chat-assistant" key={turn.id}>
             <span className="chat-avatar" title="DataClaw Agent">
                 <BrainCircuit size={14} />
             </span>
-
-            <div className="chat-assistant-body">
-                {segments.map((segment, index) => {
-                    if (segment.kind === "thinking") {
-                        const active = Boolean(live) && !hasText && index === segments.length - 1;
-                        return <ThinkingView key={segment.id} text={segment.text} active={active} />;
-                    }
-                    if (segment.kind === "tools") {
-                        return <ToolTimeline key={segment.id} tools={segment.tools} />;
-                    }
-                    return (
-                        <div className="chat-text" key={segment.id}>
-                            <MarkdownView content={segment.text} />
-                        </div>
-                    );
-                })}
-
-                {showTyping && (
-                    <div className="chat-typing-inline" aria-label="Working">
-                        <span>Composing a response…</span>
-                        <div className="chat-typing">
-                            <i /><i /><i />
-                        </div>
-                    </div>
-                )}
-
-                <div className="chat-msg-footer">
-                    <time>{turn.time}</time>
-                    {hasText && (
-                        <button
-                            className="chat-msg-copy-btn"
-                            onClick={() => copy(turn.assistantText)}
-                            title="Copy response"
-                            type="button"
-                        >
-                            {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-                            <span>{copied ? "Copied" : "Copy"}</span>
-                        </button>
-                    )}
-                </div>
-            </div>
+            {body}
         </div>
     );
 }
