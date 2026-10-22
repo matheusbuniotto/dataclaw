@@ -147,7 +147,7 @@ export const AutoImprovementTask = defineTask<AutoImprovementInput, AutoImprovem
                     playbook.improvementLog.push({
                         timestamp: Date.now(),
                         reason: `AutoImprovementTask execution (${candidates.length} rules synthesized)`,
-                        addedHeuristicIds: addedRules.map((r) => r.split(" ")[0]),
+                        addedHeuristicIds: addedRules.map((r) => r.split(" ")[0] ?? "").filter(Boolean),
                         notes: `Upgraded playbook from v${newVersion - 1} to v${newVersion}`,
                     });
 

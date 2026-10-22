@@ -1,6 +1,6 @@
 import { defineDoc } from "@earendil-works/pi-durable";
 
-export interface TelemetryRecord {
+export type TelemetryRecord = {
     id: string;
     timestamp: number;
     workflowName: string;
@@ -14,15 +14,15 @@ export interface TelemetryRecord {
     errorsEncountered: string[];
     reflectionNote?: string;
     proposedHeuristics?: string[];
-}
+};
 
-export interface TelemetryDocument {
+export type TelemetryDocument = {
     records: TelemetryRecord[];
     averageRating?: number;
     totalRuns: number;
     totalFindings: number;
     updatedAt: number;
-}
+};
 
 export const TelemetryDoc = defineDoc<TelemetryDocument>({
     kind: "analyst.telemetry",

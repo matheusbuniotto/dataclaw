@@ -17,8 +17,8 @@ const FAKE_MCP_SERVER = resolve(import.meta.dir, "fixtures/plugins/fake-stats-mc
 const tmp = mkdtempSync(join(tmpdir(), "dataclaw-features-"));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-const toolText = (result: { content: { type: string; text?: string }[] }): string =>
-    result.content.map((item) => item.text ?? "").join("\n");
+const toolText = (result: { output?: Array<{ type?: string; text?: string }>; content?: Array<{ type?: string; text?: string }> }): string =>
+    (result.output ?? result.content ?? []).map((item) => item.text ?? "").join("\n");
 
 describe("self-extension tools", () => {
     test("creates a workspace skill that the next turn can see", async () => {

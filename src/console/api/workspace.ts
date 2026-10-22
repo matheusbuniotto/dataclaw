@@ -215,7 +215,7 @@ async function releaseOrphanedSubmissions(analyst: AnalystHarness): Promise<void
     if (orphans.length === 0) return;
     await analyst.conversation.commit(async (tx) => {
         for (const submission of orphans) {
-            const current = await tx.submission(submission.id);
+            const current = await (tx as any).submission(submission.id);
             if (current?.status !== "placed") continue;
             tx.settleSubmission(submission.id, { status: "unanswered", reason: "aborted" });
         }
@@ -650,7 +650,7 @@ function runFromTask(
     };
 }
 
-function rosterEntries(roster: AgentRosterDocument | undefined): RosterEntry[] {
+function rosterEntries(roster: AgentRosterDocument | Readonly<AgentRosterDocument> | null | undefined): RosterEntry[] {
     const runs = roster?.runs ?? [];
     return (roster?.agents ?? []).map((agent) => {
         const profile = normalizedAgentProfile(agent);

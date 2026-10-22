@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "test": "bun test",
+    "typecheck": "tsc --noEmit",
     "console": "bun run src/console/api/server.ts",
     "cli": "bun run src/cli.ts",
     "demo": "bun run examples/demo-run.ts",

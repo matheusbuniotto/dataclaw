@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { marked, type Tokens } from "marked";
+import { marked, type Token, type Tokens } from "marked";
 import { isSyntheticMissingResultText } from "../../transcript";
 import { declaredCategory, toolDeclaration, type ToolCategory } from "../../tools/inventory";
 import type { ToolInvocation, TranscriptItem } from "../state/workspace-types";
@@ -217,7 +217,8 @@ export function parseTabularOutput(text: string): ParsedTable | null {
     // Check if there is a header divider like ---+--- or |---|
     let divIndex = -1;
     for (let i = 0; i < Math.min(lines.length, 6); i++) {
-        if (/^[\s\-+|:]+$/.test(lines[i]) && (lines[i].includes("+") || lines[i].includes("-") || lines[i].includes("|"))) {
+        const line = lines[i];
+        if (line && /^[\s\-+|:]+$/.test(line) && (line.includes("+") || line.includes("-") || line.includes("|"))) {
             divIndex = i;
             break;
         }
@@ -226,6 +227,7 @@ export function parseTabularOutput(text: string): ParsedTable | null {
     if (divIndex <= 0) return null;
 
     const headerLine = lines[divIndex - 1];
+    if (!headerLine) return null;
     const separator = headerLine.includes("|") ? "|" : /\s{2,}/;
     const headers = headerLine.split(separator).map((s) => s.trim()).filter(Boolean);
     if (headers.length < 2) return null;
@@ -234,7 +236,9 @@ export function parseTabularOutput(text: string): ParsedTable | null {
     let rowCountNote: string | undefined;
 
     for (let i = divIndex + 1; i < lines.length; i++) {
-        const line = lines[i].trim();
+        const curLine = lines[i];
+        if (!curLine) continue;
+        const line = curLine.trim();
         if (!line) continue;
         if (/^\(\d+\s+rows?\)/i.test(line)) {
             rowCountNote = line;
@@ -329,7 +333,7 @@ export function TabularOutputView({ text }: { text: string }) {
 // ============================================================================
 // Markdown Renderer (Headings, Paragraphs, Code, Tables, Alerts, Lists)
 // ============================================================================
-export function renderInlineTokens(tokens?: Tokens.Inline[]): React.ReactNode {
+export function renderInlineTokens(tokens?: Token[]): React.ReactNode {
     if (!tokens) return null;
     return tokens.map((token, i) => {
         switch (token.type) {
@@ -482,7 +486,7 @@ export function MarkdownView({ content }: { content: string }) {
             {tokens.map((token, idx) => {
                 switch (token.type) {
                     case "heading": {
-                        const Tag = `h${Math.min(6, Math.max(1, token.depth))}` as keyof JSX.IntrinsicElements;
+                        const Tag = `h${Math.min(6, Math.max(1, token.depth))}` as unknown as React.ElementType;
                         return (
                             <Tag key={idx} className={`chat-heading chat-h${token.depth}`}>
                                 {renderInlineTokens(token.tokens)}
@@ -498,7 +502,7 @@ export function MarkdownView({ content }: { content: string }) {
                     case "code":
                         return <CodeBlock key={idx} code={token.text} lang={token.lang} />;
                     case "table":
-                        return <MarkdownTable key={idx} token={token} />;
+                        return <MarkdownTable key={idx} token={token as Tokens.Table} />;
                     case "blockquote": {
                         const rawText = token.text || "";
                         const alertMatch = rawText.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/im);
@@ -534,7 +538,7 @@ export function MarkdownView({ content }: { content: string }) {
                                 key={idx}
                                 className={token.ordered ? "chat-list-ordered" : "chat-list-unordered"}
                             >
-                                {token.items.map((item, itemIdx) => (
+                                {token.items.map((item: Tokens.ListItem, itemIdx: number) => (
                                     <li
                                         key={itemIdx}
                                         className={item.task ? "chat-list-task-item" : "chat-list-item"}
@@ -550,7 +554,7 @@ export function MarkdownView({ content }: { content: string }) {
                                         )}
                                         <div className="chat-list-content">
                                             {item.tokens ? (
-                                                item.tokens.map((itTok, itIdx) => {
+                                                item.tokens.map((itTok: Token, itIdx: number) => {
                                                     if (itTok.type === "text") {
                                                         return (
                                                             <span key={itIdx}>

@@ -17,13 +17,13 @@ import { join, resolve } from "node:path";
 
 export type AgentComputeKind = "shared" | "local" | "docker";
 
-export interface AgentCompute {
+export type AgentCompute = {
     kind: AgentComputeKind;
     /** Docker only. Defaults to DATACLAW_COMPUTE_IMAGE or "oven/bun:1". */
     image?: string;
     /** Docker only. "none" keeps the container offline; "bridge" gives it internet. */
     network?: "none" | "bridge";
-}
+};
 
 export const DEFAULT_AGENT_COMPUTE: AgentCompute = { kind: "local" };
 export const DEFAULT_DOCKER_IMAGE = "oven/bun:1";

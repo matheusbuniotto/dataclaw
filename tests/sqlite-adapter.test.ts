@@ -24,8 +24,8 @@ describe("SqliteDataAdapter", () => {
 
         const res = await adapter.query("SELECT tier, AVG(score) as avg_score FROM data GROUP BY tier ORDER BY avg_score DESC");
         expect(res.rowCount).toBe(2);
-        expect(res.rows[0].tier).toBe("Pro");
-        expect(res.rows[0].avg_score).toBe(50);
+        expect(res.rows[0]?.tier).toBe("Pro");
+        expect(res.rows[0]?.avg_score).toBe(50);
 
         // Blocks non-SELECT
         expect(adapter.query("DROP TABLE data")).rejects.toThrow();

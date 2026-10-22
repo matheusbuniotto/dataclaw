@@ -48,13 +48,15 @@ export class SqliteDataAdapter implements DataAdapter {
             return result;
         };
 
-        const headers = parseLine(lines[0]).map((h) => h.replace(/[^a-zA-Z0-9_]/g, "_"));
+        const firstLine = lines[0] ?? "";
+        const headers = parseLine(firstLine).map((h) => h.replace(/[^a-zA-Z0-9_]/g, "_"));
         const dataRows = lines.slice(1).map(parseLine);
 
         // Infer types
         const colTypes: Record<string, "INTEGER" | "REAL" | "TEXT"> = {};
         for (let colIdx = 0; colIdx < headers.length; colIdx++) {
             const col = headers[colIdx];
+            if (!col) continue;
             let isInteger = true;
             let isReal = true;
             for (const row of dataRows) {
@@ -68,7 +70,7 @@ export class SqliteDataAdapter implements DataAdapter {
 
         // Drop & Create table
         this.executeRaw(`DROP TABLE IF EXISTS "${tableName}";`);
-        const colDefs = headers.map((h) => `"${h}" ${colTypes[h]}`).join(", ");
+        const colDefs = headers.map((h) => `"${h}" ${colTypes[h] ?? "TEXT"}`).join(", ");
         this.executeRaw(`CREATE TABLE "${tableName}" (${colDefs});`);
 
         // Insert rows
@@ -83,8 +85,9 @@ export class SqliteDataAdapter implements DataAdapter {
                     const typedRow = row.map((val, idx) => {
                         const col = headers[idx];
                         if (val === "" || val === undefined || val === "null" || val === "NULL") return null;
-                        if (colTypes[col] === "INTEGER") return parseInt(val, 10);
-                        if (colTypes[col] === "REAL") return parseFloat(val);
+                        const colType = col ? colTypes[col] : undefined;
+                        if (colType === "INTEGER") return parseInt(val, 10);
+                        if (colType === "REAL") return parseFloat(val);
                         return val;
                     });
                     stmt.run(...typedRow);
@@ -97,8 +100,9 @@ export class SqliteDataAdapter implements DataAdapter {
                 const typedRow = row.map((val, idx) => {
                     const col = headers[idx];
                     if (val === "" || val === undefined || val === "null" || val === "NULL") return null;
-                    if (colTypes[col] === "INTEGER") return parseInt(val, 10);
-                    if (colTypes[col] === "REAL") return parseFloat(val);
+                    const colType = col ? colTypes[col] : undefined;
+                    if (colType === "INTEGER") return parseInt(val, 10);
+                    if (colType === "REAL") return parseFloat(val);
                     return val;
                 });
                 this.db.prepare(insertSql).run(...typedRow);
@@ -226,7 +230,7 @@ export class SqliteDataAdapter implements DataAdapter {
         const executionTimeMs = Number((performance.now() - start).toFixed(2));
 
         const limitedRows = rows.slice(0, maxRows);
-        const columns = limitedRows.length > 0 ? Object.keys(limitedRows[0]) : [];
+        const columns = limitedRows.length > 0 && limitedRows[0] ? Object.keys(limitedRows[0]) : [];
 
         return {
             columns,

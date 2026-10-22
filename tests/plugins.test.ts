@@ -16,6 +16,7 @@ import {
     resolveCapability,
     validateManifest,
     type LoadedPlugin,
+    type McpTransportConfig,
     type PluginManifest,
 } from "../src/plugins";
 import { agreementKappa, compareEvalRuns } from "../src/plugins/capabilities/stats";
@@ -123,7 +124,7 @@ describe("mcp transport (fake stats server over stdio)", () => {
 
     test("output that breaks the contract is rejected with the plugin name", async () => {
         const p = fake()[0]!;
-        const bad = loaded({ ...p.manifest, transport: { ...p.manifest.transport, env: { FAKE_MODE: "bad_output" } } }, p.cwd);
+        const bad = loaded({ ...p.manifest, transport: { ...(p.manifest.transport as McpTransportConfig), env: { FAKE_MODE: "bad_output" } } }, p.cwd);
         const cap = resolveCapability(compareEvalRuns, { plugins: [bad] })!;
         try {
             await expect(cap.call({ scores_a: [[1, 0]], scores_b: [[1, 1]], paired: true, alpha: 0.05, ci_method: "analytic" })).rejects.toThrow(

@@ -77,11 +77,11 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
                 if (task.conversationId) {
                     const plan = await tx.doc(AnalystPlanDoc, task.conversationId);
                     plan.currentMilestone = "Data Exploration & Testing";
-                    for (let i = 0; i < hypotheses.length; i++) {
+                    for (const hyp of hypotheses) {
                         plan.hypotheses.push({
                             id: nextHypothesisId(plan.hypotheses),
-                            title: hypotheses[i],
-                            description: `Testing: ${hypotheses[i]}`,
+                            title: hyp,
+                            description: `Testing: ${hyp}`,
                             status: "testing",
                             evidenceIds: [],
                             proposedAt: Date.now(),

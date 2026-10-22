@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { Context } from "@earendil-works/chord/context";
+import type { Context } from "@earendil-works/chord";
 import {
     AgentDoc,
     AssistantEntry,
@@ -36,7 +36,8 @@ import { removeDockerContainer } from "../compute/docker-env";
 import { currentWorkspace } from "../workspace/context";
 
 function textResult(text: string) {
-    return { content: [{ type: "text" as const, text }] };
+    const blocks = [{ type: "text" as const, text }];
+    return { output: blocks, content: blocks };
 }
 
 const computeSchema = Type.Optional(Type.Union([
@@ -357,9 +358,9 @@ export const spawnAgentTool = defineTool({
                 context,
             );
             const settled = await submission.wait(context);
-            const answer = settled.status === "done"
+            const answer = (settled.status === "done" && settled.answer)
                 ? await api.commit(async (tx) => {
-                    const entry = await tx.entry(AssistantEntry, settled.answer);
+                    const entry = await tx.entry(AssistantEntry, settled.answer!);
                     return assistantText(entry?.model?.[0] as AssistantMessage | undefined);
                 }, context)
                 : "";

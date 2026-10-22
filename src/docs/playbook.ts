@@ -1,6 +1,6 @@
 import { defineDoc } from "@earendil-works/pi-durable";
 
-export interface PlaybookHeuristic {
+export type PlaybookHeuristic = {
     id: string;
     domain: string;
     rule: string;
@@ -8,24 +8,24 @@ export interface PlaybookHeuristic {
     confidence: number;
     timesApplied: number;
     createdTimestamp: number;
-}
+};
 
-export interface QueryPatternTemplate {
+export type QueryPatternTemplate = {
     name: string;
     description: string;
     sqlTemplate: string;
     domain: string;
-}
+};
 
-export interface AntiPatternRule {
+export type AntiPatternRule = {
     id: string;
     name: string;
     pattern: string;
     mitigation: string;
     discoveredFromError?: string;
-}
+};
 
-export interface PlaybookDocument {
+export type PlaybookDocument = {
     version: number;
     heuristics: PlaybookHeuristic[];
     queryTemplates: QueryPatternTemplate[];
@@ -37,7 +37,7 @@ export interface PlaybookDocument {
         notes: string;
     }>;
     lastImprovedAt: number;
-}
+};
 
 export const PlaybookDoc = defineDoc<PlaybookDocument>({
     kind: "analyst.playbook",

@@ -69,7 +69,7 @@ describe("Durable Documents", () => {
 
         const findingsState = await harness.documentState(FindingsDoc, root.id, context);
         expect(findingsState?.value?.findings.length).toBe(1);
-        expect(findingsState?.value?.findings[0].auditVerdict).toBe("confirmed");
+        expect(findingsState?.value?.findings[0]?.auditVerdict).toBe("confirmed");
 
         // Mutate PlaybookDoc
         await root.commit(async (tx) => {
