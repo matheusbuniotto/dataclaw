@@ -32,6 +32,22 @@ async function answer(method: string, path: string, body?: unknown): Promise<{ s
     return { status: response.status, body: await response.json() as Record<string, unknown> };
 }
 
+describe("the console's pages", () => {
+    test("a page answers with and without its trailing slash", async () => {
+        const { startServer } = await import("../src/prototype/server");
+        const server = startServer({ port: 0, hostname: "127.0.0.1" });
+        try {
+            for (const path of ["/prototype", "/prototype/", "/prototype/capabilities", "/prototype/capabilities/"]) {
+                const response = await fetch(`http://127.0.0.1:${server.port}${path}`);
+                expect({ path, status: response.status }).toEqual({ path, status: 200 });
+                expect(response.headers.get("content-type")).toContain("text/html");
+            }
+        } finally {
+            server.stop(true);
+        }
+    });
+});
+
 describe("the route table is data, not a listener", () => {
     test("importing the entry point starts nothing; startServer is the only listener", async () => {
         // The import must not bind a port: a console server would have kept this process alive.

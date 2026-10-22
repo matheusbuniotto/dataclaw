@@ -21,7 +21,11 @@ export function startServer(options: { port?: number; hostname?: string } = {}) 
         hostname,
         // The first workspace open can spend time on Databricks MCP auth.
         idleTimeout: 60,
-        routes: Object.fromEntries(PAGES.map((path) => [path, indexHtml])),
+        // `/prototype/` and `/prototype/agents/` are the same page: people type the slash.
+        routes: Object.fromEntries(
+            PAGES.flatMap((path) => (path === "/" ? [path] : [path, `${path}/`]))
+                .map((path) => [path, indexHtml]),
+        ),
         // Everything else is the API table; an unknown path answers a JSON 404.
         fetch: (request) => handle(request),
         development: {
