@@ -215,3 +215,20 @@
 .composer textarea:focus{border-color:#8eb7a5;box-shadow:0 0 0 3px #3c8b7315}
 .composer-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;color:#8b968d;font-size:10px}
 .composer-error{color:#b15449;font-size:11px;margin-top:6px}
+
+/* Grokbot sidebar row and hover-only actions */
+.bot-row {
+    position: relative;
+    border-radius: 12px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bot-row .bot-row-actions {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+.bot-row:hover .bot-row-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+

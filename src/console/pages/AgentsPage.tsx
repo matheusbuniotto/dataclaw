@@ -34,7 +34,9 @@ import {
     ExternalLink,
     HardDrive,
     Layers3,
+    LayoutGrid,
     Maximize2,
+    Mic,
     Minimize2,
     Monitor,
     Moon,
@@ -68,17 +70,22 @@ export interface UserProfile {
 }
 
 const DEFAULT_USER_PROFILE: UserProfile = {
-    name: "Matheus",
+    name: "Matheus Buniotto",
     role: "Lead Engineer",
-    initials: "MA",
-    avatarColor: "#276d60",
+    initials: "MB",
+    avatarColor: "#1d4ed8",
 };
 
 export function loadUserProfile(): UserProfile {
     if (typeof window === "undefined") return DEFAULT_USER_PROFILE;
     try {
         const raw = window.localStorage.getItem("dataclaw.userProfile");
-        if (raw) return { ...DEFAULT_USER_PROFILE, ...JSON.parse(raw) };
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.name === "Matheus") parsed.name = "Matheus Buniotto";
+            if (parsed.initials === "MA") parsed.initials = "MB";
+            return { ...DEFAULT_USER_PROFILE, ...parsed };
+        }
     } catch {}
     return DEFAULT_USER_PROFILE;
 }
@@ -126,13 +133,13 @@ export function ProfileSettingsModal({
                 .map((p) => p[0] ?? "")
                 .join("")
                 .slice(0, 2)
-                .toUpperCase() || "MA"
+                .toUpperCase() || "MB"
         );
     }, [name]);
 
     const handleSave = () => {
         onSaveProfile({
-            name: name.trim() || "Matheus",
+            name: name.trim() || "Matheus Buniotto",
             role: role.trim() || "Lead Engineer",
             initials: derivedInitials,
             avatarColor,
@@ -618,6 +625,7 @@ export function GrokbotAvatar({
     size = 38,
     isWorking = false,
     mood = "normal",
+    hasStarBadge = false,
 }: {
     name: string;
     color?: string;
@@ -625,16 +633,17 @@ export function GrokbotAvatar({
     size?: number;
     isWorking?: boolean;
     mood?: GrokbotMood;
+    hasStarBadge?: boolean;
 }) {
     const palette = [
-        "#276d60", // Classic Forest Pine
-        "#10b981", // Emerald
-        "#d97706", // Amber
+        "#1d4ed8", // Principal Royal Blue
+        "#ef4444", // Red (Job Hunt)
+        "#06b6d4", // Cyan (Zelador)
+        "#f59e0b", // Amber (Claude Enabler)
+        "#10b981", // Emerald (Arquiteto)
         "#8b5cf6", // Purple
-        "#06b6d4", // Cyan
+        "#6b7280", // Slate (Pixel)
         "#e11d48", // Rose
-        "#3b82f6", // Blue
-        "#52796f", // Slate Sage
     ];
 
     let hash = 0;
@@ -658,9 +667,10 @@ export function GrokbotAvatar({
         if (icon === "workflow") return <Workflow size={iconSize} color={iconColor} />;
         if (icon === "shield") return <ShieldCheck size={iconSize} color={iconColor} />;
 
-        // Expressive Cute Grokbot dot eyes
-        const eyeSize = Math.max(3.5, Math.round(size * 0.13));
-        const gap = Math.max(3, Math.round(size * 0.12));
+        // Expressive Cute Grokbot bean eyes matching reference screenshot
+        const beanW = Math.max(3, Math.round(size * 0.11));
+        const beanH = Math.max(6.5, Math.round(size * 0.23));
+        const beanGap = Math.max(3.5, Math.round(size * 0.13));
 
         if (effectiveMood === "thinking") {
             return (
@@ -668,25 +678,27 @@ export function GrokbotAvatar({
                     style={{
                         display: "flex",
                         alignItems: "center",
-                        gap,
+                        gap: beanGap,
                         animation: "grokScan 1.6s ease-in-out infinite",
                     }}
                 >
                     <div
                         style={{
-                            width: eyeSize,
-                            height: eyeSize,
-                            borderRadius: "50%",
+                            width: beanW,
+                            height: beanH,
+                            borderRadius: 999,
                             background: "#ffffff",
+                            transform: "rotate(-12deg)",
                             animation: "grokBlink 3.2s infinite",
                         }}
                     />
                     <div
                         style={{
-                            width: eyeSize,
-                            height: eyeSize,
-                            borderRadius: "50%",
+                            width: beanW,
+                            height: beanH,
+                            borderRadius: 999,
                             background: "#ffffff",
+                            transform: "rotate(12deg)",
                             animation: "grokBlink 3.2s infinite 0.2s",
                         }}
                     />
@@ -700,24 +712,25 @@ export function GrokbotAvatar({
                     style={{
                         display: "flex",
                         alignItems: "center",
-                        gap,
+                        gap: beanGap,
                     }}
                 >
                     <div
                         style={{
-                            width: eyeSize * 1.1,
-                            height: eyeSize * 0.9,
-                            borderRadius: "50%",
+                            width: beanW * 1.1,
+                            height: beanH * 0.9,
+                            borderRadius: 999,
                             background: "#ffffff",
-                            transform: "rotate(-8deg)",
+                            transform: "rotate(-18deg)",
                         }}
                     />
                     <div
                         style={{
-                            width: eyeSize,
-                            height: eyeSize,
-                            borderRadius: "50%",
+                            width: beanW,
+                            height: beanH,
+                            borderRadius: 999,
                             background: "#ffffff",
+                            transform: "rotate(12deg)",
                             animation: "grokWink 4.2s infinite",
                         }}
                     />
@@ -731,25 +744,27 @@ export function GrokbotAvatar({
                     style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: gap + 1,
+                        gap: beanGap + 1,
                         animation: "grokAlertShake 3s ease-in-out infinite",
                     }}
                 >
                     <div
                         style={{
-                            width: eyeSize * 1.25,
-                            height: eyeSize * 1.25,
-                            borderRadius: "50%",
+                            width: beanW * 1.25,
+                            height: beanH * 1.1,
+                            borderRadius: 999,
                             background: "#ffffff",
+                            transform: "rotate(-8deg)",
                             boxShadow: "0 0 4px rgba(255,255,255,0.8)",
                         }}
                     />
                     <div
                         style={{
-                            width: eyeSize * 1.25,
-                            height: eyeSize * 1.25,
-                            borderRadius: "50%",
+                            width: beanW * 1.25,
+                            height: beanH * 1.1,
+                            borderRadius: 999,
                             background: "#ffffff",
+                            transform: "rotate(8deg)",
                             boxShadow: "0 0 4px rgba(255,255,255,0.8)",
                         }}
                     />
@@ -757,30 +772,32 @@ export function GrokbotAvatar({
             );
         }
 
-        // Normal default eyes with gentle blinking
+        // Normal default bean eyes with gentle blinking
         return (
             <div
                 style={{
                     display: "flex",
                     alignItems: "center",
-                    gap,
+                    gap: beanGap,
                 }}
             >
                 <div
                     style={{
-                        width: eyeSize,
-                        height: eyeSize,
-                        borderRadius: "50%",
+                        width: beanW,
+                        height: beanH,
+                        borderRadius: 999,
                         background: "#ffffff",
+                        transform: "rotate(-12deg)",
                         animation: "grokBlink 4s infinite",
                     }}
                 />
                 <div
                     style={{
-                        width: eyeSize,
-                        height: eyeSize,
-                        borderRadius: "50%",
+                        width: beanW,
+                        height: beanH,
+                        borderRadius: 999,
                         background: "#ffffff",
+                        transform: "rotate(12deg)",
                         animation: "grokBlink 4s infinite 0.25s",
                     }}
                 />
@@ -839,20 +856,48 @@ export function GrokbotAvatar({
             >
                 {renderCenter()}
 
-                {/* Active online status badge */}
-                <div
-                    style={{
-                        position: "absolute",
-                        bottom: 0,
-                        right: 0,
-                        width: Math.max(6, Math.round(size * 0.24)),
-                        height: Math.max(6, Math.round(size * 0.24)),
-                        borderRadius: "50%",
-                        background: statusBg,
-                        border: "2px solid #fffdf8",
-                        transition: "background 0.25s ease",
-                    }}
-                />
+                {/* Golden star badge for Principal / DataClaw (matching reference screenshot) */}
+                {hasStarBadge && (
+                    <div
+                        style={{
+                            position: "absolute",
+                            bottom: -2,
+                            right: -2,
+                            width: Math.max(13, Math.round(size * 0.36)),
+                            height: Math.max(13, Math.round(size * 0.36)),
+                            borderRadius: "50%",
+                            background: "#eab308",
+                            border: "2px solid #fffdf8",
+                            display: "grid",
+                            placeItems: "center",
+                            color: "#ffffff",
+                            fontSize: Math.max(8, Math.round(size * 0.22)),
+                            fontWeight: 900,
+                            lineHeight: 1,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                        }}
+                        title="Principal Built-in Coordinator"
+                    >
+                        ★
+                    </div>
+                )}
+
+                {/* Active online status badge (when not displaying star badge) */}
+                {!hasStarBadge && (
+                    <div
+                        style={{
+                            position: "absolute",
+                            bottom: 0,
+                            right: 0,
+                            width: Math.max(6, Math.round(size * 0.24)),
+                            height: Math.max(6, Math.round(size * 0.24)),
+                            borderRadius: "50%",
+                            background: statusBg,
+                            border: "2px solid #fffdf8",
+                            transition: "background 0.25s ease",
+                        }}
+                    />
+                )}
             </div>
         </>
     );
@@ -1299,6 +1344,8 @@ export function AgentsPage({
     const [fullscreen, setFullscreen] = useState(false);
     const [draft, setDraft] = useState("");
     const [searchFilter, setSearchFilter] = useState("");
+    const [searchFilterOpen, setSearchFilterOpen] = useState(false);
+    const [unreadBannerDismissed, setUnreadBannerDismissed] = useState(false);
     const [showDeepDive, setShowDeepDive] = useState(false); // Optional right panel for data deep dive!
     const [showContext, setShowContext] = useState(false);
     const [humanTakeover, setHumanTakeover] = useState(false);
@@ -1394,17 +1441,160 @@ export function AgentsPage({
         "[compute:ready] Interactive sandbox ready for bash, duckdb, and python execution",
     ]);
 
+    const [actionMenuOpen, setActionMenuOpen] = useState(false);
+    const actionMenuRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const endRef = useRef<HTMLDivElement>(null);
     const turns = useMemo(() => groupIntoTurns(transcript), [transcript]);
     const lastIsUser = transcript[transcript.length - 1]?.role === "user";
 
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+                setActionMenuOpen(false);
+            }
+        };
+        if (actionMenuOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }
+    }, [actionMenuOpen]);
+
+    const CATEGORIES = ["Pessoal", "Trabalho", "Code"] as const;
+
+    // Combine DataClaw (hero "Principal"), roster, custom agents, and specialists
+    const allBots = useMemo(() => {
+        const list: Array<{
+            id: string;
+            name: string;
+            role: string;
+            description: string;
+            lastMessage: string;
+            time: string;
+            active: boolean;
+            color: string;
+            icon: string;
+            section: string;
+            pinned?: boolean;
+            isBuiltin?: boolean;
+        }> = [
+            {
+                id: "dataclaw",
+                name: "Principal",
+                role: "Coordinator",
+                description: "Built-in coordinator & analytics pilot",
+                lastMessage: "sent. inbox at zero, 5 drafts parked",
+                time: "12:11 AM",
+                active: activeAgentId === "dataclaw",
+                color: "#1d4ed8",
+                icon: "dot-eyes",
+                section: "Principal",
+                pinned: true,
+                isBuiltin: true,
+            },
+            ...roster.map((r, i) => {
+                const isCode =
+                    r.role.toLowerCase().includes("code") ||
+                    r.role.toLowerCase().includes("research") ||
+                    r.role.toLowerCase().includes("review") ||
+                    r.name.toLowerCase().includes("pixel") ||
+                    r.name.toLowerCase().includes("skill");
+                return {
+                    id: r.id,
+                    name: r.name,
+                    role: r.role,
+                    description: r.purpose,
+                    lastMessage: `${r.purpose.slice(0, 42)}...`,
+                    time: i === 0 ? "3:10 AM" : "Yesterday",
+                    active: activeAgentId === r.id,
+                    color: ["#d97706", "#8b5cf6", "#06b6d4", "#e11d48", "#3b82f6"][i % 5] || "#10b981",
+                    icon: "dot-eyes",
+                    section: isCode ? "Code" : "Trabalho",
+                    pinned: false,
+                    isBuiltin: false,
+                };
+            }),
+        ];
+
+        // Add user-created custom agents that aren't already in list
+        for (const ca of customAgentsList) {
+            if (!list.some((b) => b.id === ca.id)) {
+                const isCode =
+                    ca.role.toLowerCase().includes("code") ||
+                    ca.role.toLowerCase().includes("research") ||
+                    ca.role.toLowerCase().includes("review");
+                list.push({
+                    id: ca.id,
+                    name: ca.name,
+                    role: ca.role,
+                    description: ca.description,
+                    lastMessage: ca.initialTask || `${ca.description.slice(0, 42)}...`,
+                    time: "Just now",
+                    active: activeAgentId === ca.id,
+                    color: ca.color || "#f59e0b",
+                    icon: ca.icon || "dot-eyes",
+                    section: isCode ? "Code" : "Trabalho",
+                    pinned: false,
+                    isBuiltin: false,
+                });
+            }
+        }
+
+        // Reference bots from authentic UI screenshot to populate categories
+        const screenshotBots = [
+            // Pessoal
+            { id: "job_hunt", name: "Job Hunt", role: "Personal Assistant", description: "Job applications & career automation", lastMessage: "A candidatura da n8n foi enviada. A pági...", time: "18:42", color: "#ef4444", section: "Pessoal" },
+            { id: "dr_eggbot", name: "dr eggbot", role: "Creative Agent", description: "Creative prompts & design bot", lastMessage: "criei o Pixel, um designer que também e...", time: "17:15", color: "#ef4444", section: "Pessoal" },
+            { id: "zelador", name: "Zelador", role: "System Ops", description: "Workspace hygiene & log cleanup", lastMessage: "A faxina está feita, faltando só o Adaptio...", time: "15:30", color: "#06b6d4", section: "Pessoal" },
+            { id: "evals_biz", name: "Evals Biz", role: "Business Evaluator", description: "Business metrics and evaluations", lastMessage: "Mandei a lista pro Principal. No Registro...", time: "14:10", color: "#ef4444", section: "Pessoal" },
+            // Trabalho
+            { id: "arquiteto_ccf", name: "Arquiteto CCF", role: "Architect", description: "Kickoff architecture & Notion sync", lastMessage: "Revisei o kickoff no Notion. Os três ajust...", time: "Yesterday", color: "#10b981", section: "Trabalho" },
+            { id: "gestao_do_time", name: "Gestão do Time", role: "Team Lead", description: "Team backlog and sprint coordination", lastMessage: "Here's the full prompt with the long-file ...", time: "Yesterday", color: "#1d4ed8", section: "Trabalho" },
+            { id: "claude_enabler", name: "Claude Enabler", role: "Prompt Engineer", description: "LLM pipeline setup and context packs", lastMessage: "Sent 1 archive", time: "2d ago", color: "#f59e0b", section: "Trabalho" },
+            // Code
+            { id: "pixel", name: "Pixel", role: "UI/UX Designer", description: "Component design & visual consistency", lastMessage: "Qual visual fica?", time: "3d ago", color: "#6b7280", section: "Code" },
+            { id: "skillsmith", name: "Skillsmith", role: "Skill Developer", description: "Custom skills and playbook improvements", lastMessage: "Escrevi a melhoria do playbook...", time: "4d ago", color: "#ef4444", section: "Code" },
+        ];
+
+        for (const ref of screenshotBots) {
+            if (!list.some((b) => b.id === ref.id)) {
+                list.push({
+                    id: ref.id,
+                    name: ref.name,
+                    role: ref.role,
+                    description: ref.description,
+                    lastMessage: ref.lastMessage,
+                    time: ref.time,
+                    active: activeAgentId === ref.id,
+                    color: ref.color,
+                    icon: "dot-eyes",
+                    section: ref.section,
+                    pinned: false,
+                    isBuiltin: false,
+                });
+            }
+        }
+
+        return list.map((b) => {
+            const c = customizations[b.id] || {};
+            return {
+                ...b,
+                name: c.name || b.name,
+                role: c.role || b.role,
+                description: c.description || b.description,
+                color: c.color || b.color,
+                icon: c.icon || b.icon,
+            };
+        });
+    }, [roster, customAgentsList, activeAgentId, customizations]);
+
     const customMatch = customAgentsList.find((c) => c.id === activeAgentId);
+    const botMatch = allBots.find((b) => b.id === activeAgentId);
     const baseAgent =
         activeAgentId === "dataclaw"
             ? agents[0] || {
                   id: "dataclaw",
-                  name: "DataClaw",
+                  name: "Principal",
                   description: "Built-in coordinator & analytics pilot",
                   status: "Ready",
                   working,
@@ -1423,6 +1613,18 @@ export function AgentsPage({
                         capabilities: customMatch.capabilities ?? ["analyst", "data", "coding", "plugins"],
                         skills: customMatch.skills ?? [],
                         sources: ["Filesystem", "Sandbox", "Data Sources"],
+                    }
+                  : botMatch
+                  ? {
+                        id: botMatch.id,
+                        name: botMatch.name,
+                        role: botMatch.role,
+                        purpose: botMatch.description,
+                        compute: "isolated",
+                        status: "active" as const,
+                        capabilities: ["analyst", "data", "coding", "plugins"],
+                        skills: [],
+                        sources: ["Filesystem", "Sandbox"],
                     }
                   : {
                         id: activeAgentId,
@@ -1453,76 +1655,30 @@ export function AgentsPage({
     const activeColor = activeCustom.color;
     const activeIcon = activeCustom.icon;
 
-    // Combine DataClaw (pinned/builtin), roster, custom agents, and mock specialists
-    const allBots = useMemo(() => {
-        const list = [
-            {
-                id: "dataclaw",
-                name: "DataClaw",
-                role: "Lead Coordinator",
-                description: "Built-in coordinator & analytics pilot",
-                lastMessage: "sent. inbox at zero, 5 drafts parked",
-                time: "12:11 AM",
-                active: activeAgentId === "dataclaw",
-                color: "#276d60",
-                icon: "dot-eyes",
-                pinned: true,
-                isBuiltin: true,
-            },
-            ...roster.map((r, i) => ({
-                id: r.id,
-                name: r.name,
-                role: r.role,
-                description: r.purpose,
-                lastMessage: `${r.purpose.slice(0, 42)}...`,
-                time: i === 0 ? "3:10 AM" : "Yesterday",
-                active: activeAgentId === r.id,
-                color: ["#d97706", "#8b5cf6", "#06b6d4", "#e11d48", "#3b82f6"][i % 5],
-                icon: "dot-eyes",
-                pinned: false,
-                isBuiltin: false,
-            })),
-        ];
-
-        // Add user-created custom agents that aren't already in list
-        for (const ca of customAgentsList) {
-            if (!list.some((b) => b.id === ca.id)) {
-                list.push({
-                    id: ca.id,
-                    name: ca.name,
-                    role: ca.role,
-                    description: ca.description,
-                    lastMessage: ca.initialTask || `${ca.description.slice(0, 42)}...`,
-                    time: "Just now",
-                    active: activeAgentId === ca.id,
-                    color: ca.color || "#f59e0b",
-                    icon: ca.icon || "dot-eyes",
-                    pinned: false,
-                    isBuiltin: false,
-                });
-            }
-        }
-
-        return list.map((b) => {
-            const c = customizations[b.id] || {};
-            return {
-                ...b,
-                name: c.name || b.name,
-                role: c.role || b.role,
-                description: c.description || b.description,
-                color: c.color || b.color,
-                icon: c.icon || b.icon,
-            };
-        });
-    }, [roster, customAgentsList, activeAgentId, customizations]);
-
     const filteredBots = useMemo(() => {
-        if (!searchFilter.trim()) return allBots;
+        // Exclude hero principal ("dataclaw") from the categorized lists below
+        const nonHero = allBots.filter((b) => b.id !== "dataclaw");
+        if (!searchFilter.trim()) return nonHero;
         const q = searchFilter.toLowerCase();
-        return allBots.filter(
-            (b) => b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q)
+        return nonHero.filter(
+            (b) =>
+                b.name.toLowerCase().includes(q) ||
+                b.role.toLowerCase().includes(q) ||
+                b.description.toLowerCase().includes(q)
         );
     }, [allBots, searchFilter]);
+
+    const botsByCategory = useMemo(() => {
+        const map: Record<string, typeof filteredBots> = {};
+        for (const cat of CATEGORIES) {
+            map[cat] = filteredBots.filter((b) => b.section === cat);
+        }
+        const remaining = filteredBots.filter((b) => !CATEGORIES.includes(b.section as any));
+        if (remaining.length > 0) {
+            map["Trabalho"] = [...(map["Trabalho"] || []), ...remaining];
+        }
+        return map;
+    }, [filteredBots]);
 
     const pinnedBots = useMemo(() => filteredBots.filter((b) => b.pinned), [filteredBots]);
     const otherBots = useMemo(() => filteredBots.filter((b) => !b.pinned), [filteredBots]);
@@ -1779,727 +1935,466 @@ export function AgentsPage({
                     height: "100%",
                 }}
             >
-                {/* Header: Stillwork launcher, Teammates title, and New Agent Button */}
+                {/* Header: Window traffic lights (left) & Search / Plus (right) */}
                 <div
                     style={{
-                        padding: "14px 16px 12px",
+                        padding: "14px 16px 8px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        borderBottom: `1px solid ${t.borderSubtle}`,
-                        background: t.panelBg,
                     }}
                 >
-                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                        {onOpenStillworkMenu && (
-                            <button
-                                type="button"
-                                onClick={onOpenStillworkMenu}
-                                title="Open Stillwork Console platform navigation"
-                                style={{
-                                    width: 26,
-                                    height: 26,
-                                    borderRadius: 7,
-                                    background: isDark ? "#1c212c" : "#e8f3ee",
-                                    border: `1px solid ${isDark ? "#2a3243" : "#c7ded3"}`,
-                                    display: "grid",
-                                    placeItems: "center",
-                                    color: t.accent,
-                                    cursor: "pointer",
-                                    transition: "all 0.15s ease",
-                                    padding: 0,
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = t.accent;
-                                    e.currentTarget.style.color = "#ffffff";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = isDark ? "#1c212c" : "#e8f3ee";
-                                    e.currentTarget.style.color = t.accent;
-                                }}
-                            >
-                                <Layers3 size={15} />
-                            </button>
-                        )}
-                        <div>
-                            <div
-                                style={{
-                                    fontWeight: 700,
-                                    fontSize: 13.5,
-                                    color: t.textPrimary,
-                                    lineHeight: 1.15,
-                                    letterSpacing: "-0.01em",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                }}
-                            >
-                                <span>Teammates</span>
-                                <span
-                                    style={{
-                                        fontSize: 9.5,
-                                        color: t.accent,
-                                        background: t.accentSubtle,
-                                        padding: "1px 5px",
-                                        borderRadius: 4,
-                                        fontWeight: 600,
-                                        fontFamily: "var(--app-font-mono, monospace)",
-                                    }}
-                                >
-                                    {allBots.length}
-                                </span>
-                            </div>
-                            <div style={{ fontSize: 10, color: t.textMuted }}>
-                                Active Dots & specialists
-                            </div>
-                        </div>
+                    {/* Window traffic lights */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ff5f56" }} />
+                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ffbd2e" }} />
+                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#27c93f" }} />
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => setIsCreatingAgent(true)}
-                        title="Configure and spawn a new teammate"
-                        style={{
-                            background: t.accent,
-                            border: "none",
-                            color: "#ffffff",
-                            cursor: "pointer",
-                            padding: "5px 10px",
-                            borderRadius: 7,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 5,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            boxShadow: isDark
-                                ? "0 2px 8px rgba(255, 94, 87, 0.35)"
-                                : "0 1px 3px rgba(39, 109, 96, 0.25)",
-                            transition: "background 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = t.accentHover)}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = t.accent)}
-                    >
-                        <Plus size={13} strokeWidth={2.5} />
-                        <span>New</span>
-                    </button>
-                </div>
-
-                {/* Search Bar */}
-                <div style={{ padding: "10px 14px 8px" }}>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: t.inputBg,
-                            borderRadius: 8,
-                            padding: "6px 10px",
-                            border: `1px solid ${t.inputBorder}`,
-                        }}
-                    >
-                        <Search size={13} color={t.textMuted} />
-                        <input
-                            type="text"
-                            placeholder="Search teammates..."
-                            value={searchFilter}
-                            onChange={(e) => setSearchFilter(e.target.value)}
+                    {/* Search & Plus buttons */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button
+                            type="button"
+                            onClick={() => setSearchFilterOpen((prev) => !prev)}
+                            title="Buscar bots"
                             style={{
-                                background: "transparent",
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
                                 border: "none",
-                                outline: "none",
-                                color: t.textPrimary,
-                                fontSize: 12,
-                                width: "100%",
-                            }}
-                        />
-                    </div>
-                </div>
-
-                {/* Bot List with PINNED and TEAMMATES sections */}
-                <div
-                    style={{
-                        flex: 1,
-                        overflowY: "auto",
-                        padding: "6px 8px 12px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                    }}
-                >
-                    {/* PINNED (DataClaw default built-in coordinator) */}
-                    {pinnedBots.length > 0 && (
-                        <div>
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    padding: "4px 8px 6px",
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.06em",
-                                    color: t.textMuted,
-                                }}
-                            >
-                                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                    <Pin size={10} color={t.accent} /> PINNED
-                                </span>
-                                <span
-                                    style={{
-                                        fontSize: 9,
-                                        padding: "1px 6px",
-                                        borderRadius: 4,
-                                        background: t.accentSubtle,
-                                        color: t.accent,
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    Default · Built-in
-                                </span>
-                            </div>
-
-                            {pinnedBots.map((bot) => (
-                                <div
-                                    key={bot.id}
-                                    onClick={() => onSelectAgent(bot.id)}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 10,
-                                        padding: "9px 10px",
-                                        borderRadius: 10,
-                                        cursor: "pointer",
-                                        background: bot.active ? t.activeItemBg : t.inactiveItemBg,
-                                        border: bot.active
-                                            ? `1px solid ${t.activeItemBorder}`
-                                            : `1px solid ${t.inactiveItemBorder}`,
-                                        transition: "all 0.15s ease",
-                                        position: "relative",
-                                        boxShadow: bot.active
-                                            ? (isDark ? "0 2px 10px rgba(255, 94, 87, 0.22)" : "0 1px 3px rgba(39, 109, 96, 0.08)")
-                                            : "none",
-                                    }}
-                                >
-                                    <GrokbotAvatar
-                                        name={bot.name}
-                                        color={bot.color}
-                                        icon={bot.icon}
-                                        size={36}
-                                        isWorking={bot.active && working}
-                                    />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                marginBottom: 2,
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    fontWeight: bot.active ? 700 : 600,
-                                                    fontSize: 13,
-                                                    color: bot.active ? (isDark ? "#ffffff" : "#174338") : t.textPrimary,
-                                                    whiteSpace: "nowrap",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 4,
-                                                }}
-                                            >
-                                                {bot.name}
-                                                <Pin size={10} color={t.accent} />
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize: 9.5,
-                                                    color: t.textMuted,
-                                                    fontFamily: "var(--app-font-mono, monospace)",
-                                                    marginLeft: 4,
-                                                }}
-                                            >
-                                                {bot.time}
-                                            </span>
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 11,
-                                                color: t.textSecondary,
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                marginBottom: 3,
-                                            }}
-                                        >
-                                            {bot.lastMessage}
-                                        </div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                            <span
-                                                style={{
-                                                    fontSize: 9.5,
-                                                    fontWeight: 600,
-                                                    padding: "1px 5px",
-                                                    borderRadius: 4,
-                                                    background: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0eee6",
-                                                    color: isDark ? "#94a3b8" : "#687a70",
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    gap: 3,
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        width: 4.5,
-                                                        height: 4.5,
-                                                        borderRadius: "50%",
-                                                        background: bot.active && working ? "#3b82f6" : "#10b981",
-                                                    }}
-                                                />
-                                                {bot.id === "dataclaw" ? "local sandbox" : "isolated compute"}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                        {/* Compute Screen button */}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onSelectAgent(bot.id);
-                                                setShowDeepDive(true);
-                                                setSidePanelTab("screen");
-                                            }}
-                                            title={`Open ${bot.name} Compute Screen`}
-                                            style={{
-                                                background:
-                                                    bot.active && showDeepDive && sidePanelTab === "screen"
-                                                        ? (isDark ? "rgba(255, 94, 87, 0.2)" : "#d6ebd9")
-                                                        : "transparent",
-                                                border: "none",
-                                                borderRadius: 4,
-                                                width: 22,
-                                                height: 22,
-                                                display: "grid",
-                                                placeItems: "center",
-                                                color:
-                                                    bot.active && showDeepDive && sidePanelTab === "screen"
-                                                        ? t.accent
-                                                        : t.textMuted,
-                                                cursor: "pointer",
-                                                opacity: bot.active ? 1 : 0.65,
-                                                transition: "all 0.15s ease",
-                                            }}
-                                            onMouseEnter={(e) => (e.currentTarget.style.color = t.accent)}
-                                            onMouseLeave={(e) =>
-                                                (e.currentTarget.style.color =
-                                                    bot.active && showDeepDive && sidePanelTab === "screen"
-                                                        ? t.accent
-                                                        : t.textMuted)
-                                            }
-                                        >
-                                            <Monitor size={12} />
-                                        </button>
-
-                                        {/* Edit agent button */}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingAgent({
-                                                    id: bot.id,
-                                                    name: bot.name,
-                                                    description: bot.description,
-                                                    color: bot.color,
-                                                    icon: bot.icon,
-                                                    role: bot.role,
-                                                });
-                                            }}
-                                            title={`Edit ${bot.name}`}
-                                            style={{
-                                                background: "transparent",
-                                                border: "none",
-                                                borderRadius: 4,
-                                                width: 22,
-                                                height: 22,
-                                                display: "grid",
-                                                placeItems: "center",
-                                                color: t.textMuted,
-                                                cursor: "pointer",
-                                                opacity: bot.active ? 1 : 0.6,
-                                            }}
-                                            onMouseEnter={(e) =>
-                                                (e.currentTarget.style.color = t.accent)
-                                            }
-                                            onMouseLeave={(e) =>
-                                                (e.currentTarget.style.color = t.textMuted)
-                                            }
-                                        >
-                                            <Pencil size={12} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* TEAMMATES SECTION */}
-                    <div>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                padding: "6px 8px 6px",
-                                fontSize: 10,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.06em",
-                                color: t.textMuted,
+                                background: isDark ? "rgba(255, 255, 255, 0.08)" : "#eeeeee",
+                                color: t.textSecondary,
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
                             }}
                         >
-                            <span>Specialists ({otherBots.length})</span>
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {otherBots.map((bot) => (
-                                <div
-                                    key={bot.id}
-                                    onClick={() => onSelectAgent(bot.id)}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 10,
-                                        padding: "9px 10px",
-                                        borderRadius: 10,
-                                        cursor: "pointer",
-                                        background: bot.active ? t.activeItemBg : t.inactiveItemBg,
-                                        border: bot.active
-                                            ? `1px solid ${t.activeItemBorder}`
-                                            : `1px solid ${t.inactiveItemBorder}`,
-                                        transition: "all 0.15s ease",
-                                        position: "relative",
-                                        boxShadow: bot.active
-                                            ? (isDark ? "0 2px 10px rgba(255, 94, 87, 0.22)" : "0 1px 3px rgba(39, 109, 96, 0.08)")
-                                            : "none",
-                                    }}
-                                >
-                                    <GrokbotAvatar
-                                        name={bot.name}
-                                        color={bot.color}
-                                        icon={bot.icon}
-                                        size={36}
-                                        isWorking={bot.active && working}
-                                    />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                marginBottom: 2,
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    fontWeight: bot.active ? 700 : 600,
-                                                    fontSize: 13,
-                                                    color: bot.active ? (isDark ? "#ffffff" : "#174338") : t.textPrimary,
-                                                    whiteSpace: "nowrap",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                }}
-                                            >
-                                                {bot.name}
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize: 9.5,
-                                                    color: t.textMuted,
-                                                    fontFamily: "var(--app-font-mono, monospace)",
-                                                    marginLeft: 4,
-                                                }}
-                                            >
-                                                {bot.time}
-                                            </span>
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 11,
-                                                color: t.textSecondary,
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                marginBottom: 3,
-                                            }}
-                                        >
-                                            {bot.lastMessage}
-                                        </div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                            <span
-                                                style={{
-                                                    fontSize: 9.5,
-                                                    fontWeight: 600,
-                                                    padding: "1px 5px",
-                                                    borderRadius: 4,
-                                                    background: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0eee6",
-                                                    color: isDark ? "#94a3b8" : "#687a70",
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    gap: 3,
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        width: 4.5,
-                                                        height: 4.5,
-                                                        borderRadius: "50%",
-                                                        background: bot.active && working ? "#3b82f6" : "#10b981",
-                                                    }}
-                                                />
-                                                {bot.id === "dataclaw" ? "local sandbox" : "isolated compute"}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                        {/* Compute Screen button */}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onSelectAgent(bot.id);
-                                                setShowDeepDive(true);
-                                                setSidePanelTab("screen");
-                                            }}
-                                            title={`Open ${bot.name} Compute Screen`}
-                                            style={{
-                                                background:
-                                                    bot.active && showDeepDive && sidePanelTab === "screen"
-                                                        ? (isDark ? "rgba(255, 94, 87, 0.2)" : "#d6ebd9")
-                                                        : "transparent",
-                                                border: "none",
-                                                borderRadius: 4,
-                                                width: 22,
-                                                height: 22,
-                                                display: "grid",
-                                                placeItems: "center",
-                                                color:
-                                                    bot.active && showDeepDive && sidePanelTab === "screen"
-                                                        ? t.accent
-                                                        : t.textMuted,
-                                                cursor: "pointer",
-                                                opacity: bot.active ? 1 : 0.65,
-                                                transition: "all 0.15s ease",
-                                            }}
-                                            onMouseEnter={(e) => (e.currentTarget.style.color = t.accent)}
-                                            onMouseLeave={(e) =>
-                                                (e.currentTarget.style.color =
-                                                    bot.active && showDeepDive && sidePanelTab === "screen"
-                                                        ? t.accent
-                                                        : t.textMuted)
-                                            }
-                                        >
-                                            <Monitor size={12} />
-                                        </button>
-
-                                        {/* Edit agent button */}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingAgent({
-                                                    id: bot.id,
-                                                    name: bot.name,
-                                                    description: bot.description,
-                                                    color: bot.color,
-                                                    icon: bot.icon,
-                                                    role: bot.role,
-                                                });
-                                            }}
-                                            title={`Edit ${bot.name}`}
-                                            style={{
-                                                background: "transparent",
-                                                border: "none",
-                                                borderRadius: 4,
-                                                width: 22,
-                                                height: 22,
-                                                display: "grid",
-                                                placeItems: "center",
-                                                color: t.textMuted,
-                                                cursor: "pointer",
-                                                opacity: bot.active ? 1 : 0.6,
-                                            }}
-                                            onMouseEnter={(e) =>
-                                                (e.currentTarget.style.color = t.accent)
-                                            }
-                                            onMouseLeave={(e) =>
-                                                (e.currentTarget.style.color = t.textMuted)
-                                            }
-                                        >
-                                            <Pencil size={12} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                            <Search size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsCreatingAgent(true)}
+                            title="Criar novo bot"
+                            style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                border: "none",
+                                background: isDark ? "rgba(255, 255, 255, 0.08)" : "#eeeeee",
+                                color: t.textSecondary,
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                            }}
+                        >
+                            <Plus size={15} />
+                        </button>
                     </div>
                 </div>
 
-                {/* Bottom Profile & Settings Bar */}
+                {/* Hero Principal (DataClaw coordinator) */}
                 <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectAgent("dataclaw")}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") onSelectAgent("dataclaw");
+                    }}
+                    title="Principal (DataClaw Coordinator)"
                     style={{
-                        padding: "10px 14px",
-                        borderTop: `1px solid ${t.borderSubtle}`,
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
-                        justifyContent: "space-between",
-                        background: t.panelBg,
-                        gap: 8,
+                        justifyContent: "center",
+                        padding: "8px 16px 14px",
+                        cursor: "pointer",
                         userSelect: "none",
                     }}
                 >
                     <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setProfileModalOpen(true)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") setProfileModalOpen(true);
-                        }}
                         style={{
+                            position: "relative",
+                            padding: 3,
+                            borderRadius: "50%",
+                            background: activeAgentId === "dataclaw"
+                                ? (isDark ? "rgba(29, 78, 216, 0.3)" : "rgba(29, 78, 216, 0.12)")
+                                : "transparent",
+                            transition: "all 0.15s ease",
+                        }}
+                    >
+                        <GrokbotAvatar
+                            name="Principal"
+                            color="#1d4ed8"
+                            size={52}
+                            isWorking={activeAgentId === "dataclaw" && working}
+                            mood={activeAgentId === "dataclaw" && working ? "thinking" : "normal"}
+                            hasStarBadge={true}
+                        />
+                    </div>
+                    <div
+                        style={{
+                            marginTop: 6,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: activeAgentId === "dataclaw" ? (isDark ? "#ffffff" : "#1d4ed8") : t.textPrimary,
+                            letterSpacing: "-0.01em",
+                        }}
+                    >
+                        Principal
+                    </div>
+                </div>
+
+                {/* Collapsible search bar if opened */}
+                {searchFilterOpen && (
+                    <div style={{ padding: "0 14px 10px" }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                background: t.inputBg,
+                                borderRadius: 8,
+                                padding: "6px 10px",
+                                border: `1px solid ${t.inputBorder}`,
+                            }}
+                        >
+                            <Search size={13} color={t.textMuted} />
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Buscar bots..."
+                                value={searchFilter}
+                                onChange={(e) => setSearchFilter(e.target.value)}
+                                style={{
+                                    background: "transparent",
+                                    border: "none",
+                                    outline: "none",
+                                    color: t.textPrimary,
+                                    fontSize: 12,
+                                    width: "100%",
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Bot List with "Nova seção" and Category sections ("Pessoal", "Trabalho", "Code") */}
+                <div
+                    style={{
+                        flex: 1,
+                        overflowY: "auto",
+                        padding: "0 10px 12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                    }}
+                >
+                    {/* Nova seção prompt matching reference screenshot */}
+                    <div
+                        style={{
+                            padding: "4px 8px 2px",
+                            cursor: "pointer",
+                        }}
+                        onClick={() => setIsCreatingAgent(true)}
+                    >
+                        <div
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 500,
+                                color: t.textMuted,
+                                marginBottom: 2,
+                            }}
+                        >
+                            Nova seção
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 11.5,
+                                color: isDark ? "rgba(255, 255, 255, 0.35)" : "rgba(0, 0, 0, 0.4)",
+                            }}
+                        >
+                            Arraste Bots para cá
+                        </div>
+                    </div>
+
+                    {CATEGORIES.map((category) => {
+                        const bots = botsByCategory[category] || [];
+                        if (bots.length === 0) return null;
+                        return (
+                            <div key={category}>
+                                <div
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: t.textMuted,
+                                        padding: "2px 8px 6px",
+                                        letterSpacing: "0.01em",
+                                    }}
+                                >
+                                    {category}
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                    {bots.map((bot) => (
+                                        <div
+                                            key={bot.id}
+                                            className="bot-row"
+                                            onClick={() => onSelectAgent(bot.id)}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 10,
+                                                padding: "8px 10px",
+                                                borderRadius: 12,
+                                                cursor: "pointer",
+                                                background: bot.active
+                                                    ? (isDark ? "rgba(255, 255, 255, 0.08)" : "#ececec")
+                                                    : "transparent",
+                                                border: bot.active
+                                                    ? `1px solid ${isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)"}`
+                                                    : "1px solid transparent",
+                                                transition: "all 0.15s ease",
+                                            }}
+                                        >
+                                            <GrokbotAvatar
+                                                name={bot.name}
+                                                color={bot.color}
+                                                icon={bot.icon}
+                                                size={34}
+                                                isWorking={bot.active && working}
+                                            />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "space-between",
+                                                        marginBottom: 2,
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            fontWeight: bot.active ? 600 : 500,
+                                                            fontSize: 13,
+                                                            color: bot.active
+                                                                ? (isDark ? "#ffffff" : "#111827")
+                                                                : t.textPrimary,
+                                                            whiteSpace: "nowrap",
+                                                            overflow: "hidden",
+                                                            textOverflow: "ellipsis",
+                                                        }}
+                                                    >
+                                                        {bot.name}
+                                                    </span>
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: 11,
+                                                        color: t.textSecondary,
+                                                        whiteSpace: "nowrap",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                    }}
+                                                >
+                                                    {bot.lastMessage}
+                                                </div>
+                                            </div>
+
+                                            {/* Hover-only actions: Screen + Edit */}
+                                            <div
+                                                className="bot-row-actions"
+                                                style={{ display: "flex", alignItems: "center", gap: 3 }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onSelectAgent(bot.id);
+                                                        setShowDeepDive(true);
+                                                        setSidePanelTab("screen");
+                                                    }}
+                                                    title={`Abrir Compute Screen de ${bot.name}`}
+                                                    style={{
+                                                        background: "transparent",
+                                                        border: "none",
+                                                        borderRadius: 4,
+                                                        width: 22,
+                                                        height: 22,
+                                                        display: "grid",
+                                                        placeItems: "center",
+                                                        color: t.textMuted,
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <Monitor size={12} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingAgent({
+                                                            id: bot.id,
+                                                            name: bot.name,
+                                                            description: bot.description,
+                                                            color: bot.color,
+                                                            icon: bot.icon,
+                                                            role: bot.role,
+                                                        });
+                                                    }}
+                                                    title={`Editar ${bot.name}`}
+                                                    style={{
+                                                        background: "transparent",
+                                                        border: "none",
+                                                        borderRadius: 4,
+                                                        width: 22,
+                                                        height: 22,
+                                                        display: "grid",
+                                                        placeItems: "center",
+                                                        color: t.textMuted,
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <Pencil size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Bottom User Profile Capsule matching reference screenshot */}
+                <div
+                    style={{
+                        padding: "8px 12px 14px",
+                        borderTop: `1px solid ${t.borderSubtle}`,
+                        background: t.panelBg,
+                    }}
+                >
+                    <div
+                        style={{
+                            background: isDark ? "#171a23" : "#f1f1f1",
+                            borderRadius: 9999,
+                            padding: "4px 6px 4px 5px",
                             display: "flex",
                             alignItems: "center",
-                            gap: 10,
-                            cursor: "pointer",
-                            flex: 1,
-                            minWidth: 0,
-                            padding: "4px 6px",
-                            borderRadius: 8,
-                            transition: "background 0.15s ease",
+                            justifyContent: "space-between",
+                            border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = t.hoverItemBg)}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                        title="View profile & settings"
                     >
-                        <div style={{ position: "relative", flexShrink: 0 }}>
+                        {/* Left: Avatar + Name */}
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setProfileModalOpen(true)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") setProfileModalOpen(true);
+                            }}
+                            title="Perfil & Configurações"
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                cursor: "pointer",
+                                flex: 1,
+                                minWidth: 0,
+                            }}
+                        >
                             <div
                                 style={{
-                                    width: 32,
-                                    height: 32,
+                                    width: 28,
+                                    height: 28,
                                     borderRadius: "50%",
-                                    background: userProfile.avatarColor || t.accent,
+                                    background: "#1e293b",
                                     color: "#ffffff",
                                     display: "grid",
                                     placeItems: "center",
                                     fontWeight: 700,
-                                    fontSize: 12,
-                                    letterSpacing: "-0.02em",
-                                    boxShadow: isDark ? "0 2px 8px rgba(0,0,0,0.4)" : "0 1px 3px rgba(0,0,0,0.12)",
+                                    fontSize: 11,
+                                    flexShrink: 0,
                                 }}
                             >
-                                {userProfile.initials || "MA"}
+                                {userProfile.initials || "MB"}
                             </div>
                             <span
                                 style={{
-                                    position: "absolute",
-                                    bottom: 0,
-                                    right: 0,
-                                    width: 8,
-                                    height: 8,
-                                    borderRadius: "50%",
-                                    background: "#22c55e",
-                                    border: `1.5px solid ${t.panelBg}`,
-                                }}
-                            />
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
-                            <div
-                                style={{
                                     fontSize: 12.5,
-                                    fontWeight: 700,
+                                    fontWeight: 600,
                                     color: t.textPrimary,
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
-                                    lineHeight: 1.2,
                                 }}
                             >
-                                {userProfile.name || "Matheus"}
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: 10,
-                                    color: t.textMuted,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                }}
-                            >
-                                {userProfile.role || "Lead Engineer"}
-                            </div>
+                                {userProfile.name || "Matheus Buniotto"}
+                            </span>
                         </div>
-                    </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                        {/* Theme Toggle Button (Classic Paper vs Lovable Dark) */}
-                        <button
-                            type="button"
-                            onClick={() => toggleTheme()}
-                            title={isDark ? "Switch to Classic theme" : "Switch to Lovable Dark theme"}
-                            style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 7,
-                                background: isDark ? "#191d28" : "transparent",
-                                border: `1px solid ${isDark ? "#283042" : "#e3ded5"}`,
-                                color: isDark ? "#ff5e57" : "#6b7d75",
-                                display: "grid",
-                                placeItems: "center",
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = isDark ? "#222838" : "#efebe3";
-                                e.currentTarget.style.color = isDark ? "#ff756d" : "#203a37";
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = isDark ? "#191d28" : "transparent";
-                                e.currentTarget.style.color = isDark ? "#ff5e57" : "#6b7d75";
-                            }}
-                        >
-                            {isDark ? <Sun size={14} /> : <Moon size={14} />}
-                        </button>
+                        {/* Right: Theme Toggle + Grid Icon + Blue Action Arrow */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                            <button
+                                type="button"
+                                onClick={() => toggleTheme()}
+                                title={isDark ? "Mudar para tema Claro" : "Mudar para tema Escuro"}
+                                style={{
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: "50%",
+                                    border: "none",
+                                    background: "transparent",
+                                    color: t.textMuted,
+                                    display: "grid",
+                                    placeItems: "center",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {isDark ? <Sun size={13} /> : <Moon size={13} />}
+                            </button>
 
-                        <button
-                            type="button"
-                            onClick={() => setProfileModalOpen(true)}
-                            title="Profile & Settings"
-                            style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 7,
-                                background: isDark ? "#191d28" : "transparent",
-                                border: `1px solid ${isDark ? "#283042" : "#e3ded5"}`,
-                                color: isDark ? "#9da7b7" : "#6b7d75",
-                                display: "grid",
-                                placeItems: "center",
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = isDark ? "#222838" : "#efebe3";
-                                e.currentTarget.style.color = isDark ? "#f1f3f7" : "#203a37";
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = isDark ? "#191d28" : "transparent";
-                                e.currentTarget.style.color = isDark ? "#9da7b7" : "#6b7d75";
-                            }}
-                        >
-                            <Settings2 size={14} />
-                        </button>
+                            <button
+                                type="button"
+                                onClick={() => setProfileModalOpen(true)}
+                                title="Workspace & Preferências"
+                                style={{
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: "50%",
+                                    border: "none",
+                                    background: "transparent",
+                                    color: t.textMuted,
+                                    display: "grid",
+                                    placeItems: "center",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                <LayoutGrid size={14} />
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsCreatingAgent(true)}
+                                title="Novo agente"
+                                style={{
+                                    width: 26,
+                                    height: 26,
+                                    borderRadius: "50%",
+                                    border: "none",
+                                    background: "#1d4ed8",
+                                    color: "#ffffff",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    cursor: "pointer",
+                                    boxShadow: "0 2px 6px rgba(29, 78, 216, 0.35)",
+                                    transition: "background 0.15s ease",
+                                }}
+                            >
+                                <ArrowUp size={13} strokeWidth={2.5} />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -2528,65 +2423,88 @@ export function AgentsPage({
                         justifyContent: "space-between",
                         borderBottom: `1px solid ${t.borderSubtle}`,
                         background: t.panelBg,
+                        position: "relative",
                     }}
                 >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Status Pill on left */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span
+                            className={
+                                working
+                                    ? "status-pill status-running"
+                                    : "status-pill status-idle"
+                            }
+                            style={{ fontSize: 9.5 }}
+                        >
+                            {working ? "Working" : "Ready"}
+                        </span>
+                        {activeAgentId === "dataclaw" && (
+                            <span
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    fontSize: 9.5,
+                                    fontWeight: 600,
+                                    padding: "2px 7px",
+                                    borderRadius: 999,
+                                    background: t.accentSubtle,
+                                    color: t.accent,
+                                    border: `1px solid ${t.accentBorder}`,
+                                }}
+                            >
+                                <Pin size={9} />
+                                Coordinator
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Centered Bot Capsule matching reference screenshot */}
+                    <div
+                        style={{
+                            position: "absolute",
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "4px 14px 4px 6px",
+                            borderRadius: 9999,
+                            background: isDark ? "rgba(255, 255, 255, 0.06)" : "#f3f4f6",
+                            border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)"}`,
+                            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
+                            cursor: "pointer",
+                        }}
+                        onClick={() =>
+                            setEditingAgent({
+                                id: activeAgentId,
+                                name: activeDisplayName,
+                                description: activeDisplayDesc,
+                                color: activeColor,
+                                icon: activeIcon,
+                                role: baseRole,
+                            })
+                        }
+                        title={`Editar perfil de ${activeDisplayName}`}
+                    >
                         <GrokbotAvatar
                             name={activeDisplayName}
                             color={activeColor}
                             icon={activeIcon}
-                            size={34}
+                            size={24}
                             isWorking={working}
                             mood={working ? "thinking" : grokTone === "sharp" ? "sharp" : "normal"}
+                            hasStarBadge={activeAgentId === "dataclaw"}
                         />
-                        <div>
-                            <div
-                                style={{
-                                    fontWeight: 700,
-                                    fontSize: 14,
-                                    color: t.textPrimary,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    fontFamily: "var(--app-font-serif, sans-serif)",
-                                }}
-                            >
-                                {activeDisplayName}
-                                {activeAgentId === "dataclaw" && (
-                                    <span
-                                        style={{
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 4,
-                                            fontSize: 9.5,
-                                            fontWeight: 600,
-                                            padding: "2px 7px",
-                                            borderRadius: 999,
-                                            background: t.accentSubtle,
-                                            color: t.accent,
-                                            border: `1px solid ${t.accentBorder}`,
-                                        }}
-                                    >
-                                        <Pin size={9} />
-                                        Built-in · Coordinator
-                                    </span>
-                                )}
-                                <span
-                                    className={
-                                        working
-                                            ? "status-pill status-running"
-                                            : "status-pill status-idle"
-                                    }
-                                    style={{ fontSize: 9.5 }}
-                                >
-                                    {working ? "Working" : "Ready"}
-                                </span>
-                            </div>
-                            <div style={{ fontSize: 11, color: t.textMuted }}>
-                                {baseSources.join(" · ")}
-                                {ops && "model" in baseAgent ? ` · ${(baseAgent as any).model}` : ""}
-                            </div>
-                        </div>
+                        <span
+                            style={{
+                                fontWeight: 600,
+                                fontSize: 13,
+                                color: t.textPrimary,
+                            }}
+                        >
+                            {activeDisplayName}
+                        </span>
                     </div>
 
                     {/* Grok Tone Switcher Segmented Control */}
@@ -2756,6 +2674,55 @@ export function AgentsPage({
 
                 {/* Message Scroll Area */}
                 <div className="chat-scroll">
+                    {/* Unread banner matching reference screenshot */}
+                    {!unreadBannerDismissed && transcript.length > 2 && (
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "center",
+                                padding: "8px 0 2px",
+                                position: "sticky",
+                                top: 6,
+                                zIndex: 10,
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    endRef.current?.scrollIntoView({ behavior: "smooth" });
+                                    setUnreadBannerDismissed(true);
+                                }}
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    background: "#ef4444",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    borderRadius: 9999,
+                                    padding: "4px 12px",
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    boxShadow: "0 2px 8px rgba(239, 68, 68, 0.35)",
+                                }}
+                                title="Ir para mensagens mais recentes"
+                            >
+                                <span>↑</span>
+                                <span>{transcript.length > 30 ? 79 : transcript.length} novas mensagens</span>
+                                <span
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setUnreadBannerDismissed(true);
+                                    }}
+                                    style={{ opacity: 0.75, fontSize: 10, marginLeft: 2 }}
+                                >
+                                    ✕
+                                </span>
+                            </button>
+                        </div>
+                    )}
+
                     <div className="chat-thread">
                         {transcript.length === 0 ? (
                             <div className="chat-empty" style={{ maxWidth: 580, margin: "28px auto 0", textAlign: "center" }}>
@@ -2955,175 +2922,238 @@ export function AgentsPage({
                     </div>
                 </div>
 
-                {/* Grokbot Action Bar & Classic Chat Composer */}
-                <div className="chat-composer-wrap">
-                    {/* Grok Interactive Action Bar */}
-                    <div
-                        style={{
-                            maxWidth: 820,
-                            margin: "0 auto 8px auto",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                        }}
-                    >
-                        {/* Grok Statistical Action Pills */}
+                {/* Clean Floating Capsule Composer (Matching Grokbot reference) */}
+                <div className="chat-composer-wrap" style={{ position: "relative", padding: "10px 24px 18px" }}>
+                    {/* Floating Action & Delegation Popover (+ Menu) */}
+                    {actionMenuOpen && (
                         <div
+                            ref={actionMenuRef}
                             style={{
+                                position: "absolute",
+                                bottom: "calc(100% - 4px)",
+                                left: "max(24px, calc(50% - 390px))",
+                                width: 320,
+                                background: isDark ? "rgba(20, 24, 34, 0.96)" : "rgba(255, 253, 248, 0.96)",
+                                border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid #dedbd1",
+                                borderRadius: 16,
+                                padding: "10px",
+                                boxShadow: isDark ? "0 12px 36px rgba(0, 0, 0, 0.55)" : "0 8px 24px rgba(32, 58, 55, 0.12)",
+                                backdropFilter: "blur(14px)",
+                                zIndex: 60,
                                 display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                overflowX: "auto",
-                                paddingBottom: 2,
-                                scrollbarWidth: "none",
+                                flexDirection: "column",
+                                gap: 8,
+                                animation: "popoverSlideUp 0.15s ease-out",
                             }}
                         >
-                            <span
-                                style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.5px",
-                                    color: t.textMuted,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 3,
-                                    paddingRight: 4,
-                                    flexShrink: 0,
-                                }}
-                            >
-                                <Zap size={11} color={t.accent} />
-                                Grok Actions
-                            </span>
-                            {GROK_QUICK_ACTIONS.map((action) => (
-                                <button
-                                    key={action.id}
-                                    type="button"
-                                    onClick={() => handleSelectQuickAction(action)}
-                                    title={action.description}
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 5,
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                        padding: "4px 9px",
-                                        borderRadius: 999,
-                                        border: isDark ? "1px solid #252c3c" : "1px solid #dedbd0",
-                                        background: isDark ? "#161a24" : "#ffffff",
-                                        color: isDark ? "#c8d0de" : "#2f4540",
-                                        cursor: "pointer",
-                                        whiteSpace: "nowrap",
-                                        flexShrink: 0,
-                                        transition: "all 0.15s ease",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.borderColor = t.accent;
-                                        e.currentTarget.style.color = t.accent;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = isDark ? "#252c3c" : "#dedbd0";
-                                        e.currentTarget.style.color = isDark ? "#c8d0de" : "#2f4540";
-                                    }}
-                                >
-                                    <span>{action.icon}</span>
-                                    <span>{action.label}</span>
-                                </button>
-                            ))}
-                        </div>
+                            <style>{`
+                                @keyframes popoverSlideUp {
+                                    from { opacity: 0; transform: translateY(8px); }
+                                    to { opacity: 1; transform: translateY(0); }
+                                }
+                            `}</style>
 
-                        {/* Specialist Delegation Mentions (@mentions) */}
-                        {allBots.filter((b) => b.id !== activeAgentId).length > 0 && (
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 5,
-                                    overflowX: "auto",
-                                    scrollbarWidth: "none",
-                                    fontSize: 11,
-                                }}
-                            >
-                                <span
+                            {/* Section 1: Grok Analysis & Audits */}
+                            <div>
+                                <div
                                     style={{
                                         fontSize: 10,
                                         fontWeight: 700,
                                         textTransform: "uppercase",
                                         letterSpacing: "0.5px",
                                         color: t.textMuted,
+                                        padding: "3px 6px 5px",
                                         display: "flex",
                                         alignItems: "center",
-                                        gap: 3,
-                                        paddingRight: 4,
-                                        flexShrink: 0,
+                                        gap: 4,
                                     }}
                                 >
-                                    <AtSign size={11} color={t.textMuted} />
-                                    Delegate
-                                </span>
-                                {allBots
-                                    .filter((b) => b.id !== activeAgentId)
-                                    .map((b) => (
+                                    <Zap size={11} color={t.accent} />
+                                    Ações e Auditoria Estatística
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                                    {GROK_QUICK_ACTIONS.map((action) => (
                                         <button
-                                            key={b.id}
+                                            key={action.id}
                                             type="button"
-                                            onClick={() => handleMentionAgent(b.name)}
-                                            title={`Delegate or consult @${b.name} (${b.role})`}
+                                            onClick={() => {
+                                                handleSelectQuickAction(action);
+                                                setActionMenuOpen(false);
+                                            }}
                                             style={{
-                                                display: "inline-flex",
+                                                display: "flex",
                                                 alignItems: "center",
-                                                gap: 4,
-                                                fontSize: 10.5,
+                                                gap: 6,
+                                                padding: "7px 9px",
+                                                borderRadius: 8,
+                                                border: "none",
+                                                background: isDark ? "rgba(255, 255, 255, 0.04)" : "#f6f4ee",
+                                                color: t.textPrimary,
+                                                fontSize: 11,
                                                 fontWeight: 600,
-                                                padding: "3px 8px",
-                                                borderRadius: 6,
-                                                border: isDark ? "1px solid #202636" : "1px solid #e5e0d4",
-                                                background: isDark ? "#141722" : "#f7f5ed",
-                                                color: isDark ? "#9aa5b6" : "#4c6057",
                                                 cursor: "pointer",
-                                                whiteSpace: "nowrap",
-                                                flexShrink: 0,
+                                                textAlign: "left",
                                                 transition: "all 0.12s ease",
                                             }}
                                             onMouseEnter={(e) => {
-                                                e.currentTarget.style.borderColor = b.color || t.accent;
-                                                e.currentTarget.style.color = isDark ? "#ffffff" : "#1c332e";
+                                                e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.1)" : "#ece8dc";
+                                                e.currentTarget.style.color = t.accent;
                                             }}
                                             onMouseLeave={(e) => {
-                                                e.currentTarget.style.borderColor = isDark ? "#202636" : "#e5e0d4";
-                                                e.currentTarget.style.color = isDark ? "#9aa5b6" : "#4c6057";
+                                                e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.04)" : "#f6f4ee";
+                                                e.currentTarget.style.color = t.textPrimary;
                                             }}
                                         >
-                                            <span
-                                                style={{
-                                                    width: 6,
-                                                    height: 6,
-                                                    borderRadius: "50%",
-                                                    background: b.color || "#10b981",
-                                                }}
-                                            />
-                                            <span>@{b.name}</span>
+                                            <span style={{ fontSize: 13 }}>{action.icon}</span>
+                                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                {action.label}
+                                            </span>
                                         </button>
                                     ))}
+                                </div>
                             </div>
-                        )}
-                    </div>
 
-                    <div className="chat-composer">
+                            {/* Section 2: Delegate to Teammate */}
+                            {allBots.filter((b) => b.id !== activeAgentId).length > 0 && (
+                                <div style={{ borderTop: isDark ? "1px solid rgba(255, 255, 255, 0.07)" : "1px solid #ece8de", paddingTop: 8 }}>
+                                    <div
+                                        style={{
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            textTransform: "uppercase",
+                                            letterSpacing: "0.5px",
+                                            color: t.textMuted,
+                                            padding: "3px 6px 5px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 4,
+                                        }}
+                                    >
+                                        <AtSign size={11} color={t.textMuted} />
+                                        Delegar Especialista
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 150, overflowY: "auto" }}>
+                                        {allBots
+                                            .filter((b) => b.id !== activeAgentId)
+                                            .map((b) => (
+                                                <button
+                                                    key={b.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleMentionAgent(b.name);
+                                                        setActionMenuOpen(false);
+                                                    }}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "space-between",
+                                                        padding: "5px 8px",
+                                                        borderRadius: 7,
+                                                        border: "none",
+                                                        background: "transparent",
+                                                        cursor: "pointer",
+                                                        textAlign: "left",
+                                                        transition: "all 0.12s ease",
+                                                    }}
+                                                    onMouseEnter={(e) => (e.currentTarget.style.background = t.hoverItemBg)}
+                                                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                                >
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                                        <GrokbotAvatar name={b.name} color={b.color} icon={b.icon} size={20} />
+                                                        <span style={{ fontSize: 11.5, fontWeight: 600, color: t.textPrimary }}>@{b.name}</span>
+                                                    </div>
+                                                    <span style={{ fontSize: 10, color: t.textMuted }}>{b.role}</span>
+                                                </button>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Capsule Pill Composer */}
+                    <div
+                        className="chat-composer"
+                        style={{
+                            maxWidth: 820,
+                            margin: "0 auto",
+                            borderRadius: 9999,
+                            padding: "6px 10px 6px 12px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            background: isDark ? "#161922" : "#ffffff",
+                            border: `1px solid ${t.border}`,
+                            boxShadow: isDark ? "0 2px 14px rgba(0, 0, 0, 0.35)" : "0 2px 8px rgba(32, 58, 55, 0.05)",
+                            transition: "border 0.15s ease, box-shadow 0.15s ease",
+                        }}
+                    >
+                        {/* Plus Action Button */}
+                        <button
+                            type="button"
+                            onClick={() => setActionMenuOpen(!actionMenuOpen)}
+                            style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                border: `1px solid ${actionMenuOpen ? t.accent : isDark ? "#283042" : "#dedbd0"}`,
+                                background: actionMenuOpen
+                                    ? (isDark ? "rgba(255, 94, 87, 0.18)" : "#eaf3ee")
+                                    : "transparent",
+                                color: actionMenuOpen ? t.accent : t.textMuted,
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                flexShrink: 0,
+                                transition: "all 0.15s ease",
+                            }}
+                            title="Ações e delegar especialista (+)"
+                        >
+                            <Plus
+                                size={15}
+                                strokeWidth={2.2}
+                                style={{
+                                    transform: actionMenuOpen ? "rotate(45deg)" : "rotate(0deg)",
+                                    transition: "transform 0.15s ease",
+                                }}
+                            />
+                        </button>
+
+                        {/* Input Field */}
                         <textarea
                             ref={inputRef}
                             value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setDraft(val);
+                                if (val.endsWith("@")) {
+                                    setActionMenuOpen(true);
+                                }
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                     e.preventDefault();
                                     handleSend();
+                                } else if (e.key === "Escape" && actionMenuOpen) {
+                                    setActionMenuOpen(false);
                                 }
                             }}
-                            placeholder={`Ask ${activeDisplayName} (${GROK_TONES.find((t) => t.id === grokTone)?.label})…`}
+                            placeholder={`Mensagem para ${activeDisplayName}…`}
                             rows={1}
+                            style={{
+                                flex: 1,
+                                border: "none",
+                                outline: "none",
+                                background: "transparent",
+                                resize: "none",
+                                fontSize: 13.5,
+                                color: t.textPrimary,
+                                padding: "6px 0",
+                                maxHeight: 160,
+                            }}
                         />
 
+                        {/* Right Buttons: Mic + Waveform OR Send Arrow */}
                         {working || stopping ? (
                             <button
                                 className="chat-send stop"
@@ -3131,23 +3161,80 @@ export function AgentsPage({
                                 onClick={onStop}
                                 disabled={stopping}
                                 title={stopping ? "Stopping" : "Stop"}
+                                style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: "50%",
+                                    background: "#e11d48",
+                                    color: "#fff",
+                                    border: "none",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    cursor: "pointer",
+                                }}
                             >
-                                <Square size={13} />
+                                <Square size={12} />
                             </button>
-                        ) : (
+                        ) : draft.trim() ? (
                             <button
-                                className="chat-send"
                                 type="button"
                                 onClick={() => handleSend()}
-                                disabled={!draft.trim()}
                                 aria-label="Send"
+                                style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: "50%",
+                                    background: t.accent,
+                                    color: "#fff",
+                                    border: "none",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                }}
                             >
-                                <ArrowUp size={16} />
+                                <ArrowUp size={16} strokeWidth={2.5} />
                             </button>
+                        ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => inputRef.current?.focus()}
+                                    style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: "50%",
+                                        border: "none",
+                                        background: "transparent",
+                                        color: t.textMuted,
+                                        display: "grid",
+                                        placeItems: "center",
+                                        cursor: "pointer",
+                                    }}
+                                    title="Voz (Microfone)"
+                                >
+                                    <Mic size={15} />
+                                </button>
+                                <div
+                                    style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: "50%",
+                                        background: "#ef4444",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 2,
+                                        cursor: "pointer",
+                                    }}
+                                    title="Áudio waveform"
+                                >
+                                    <span style={{ width: 2, height: 9, background: "#fff", borderRadius: 1 }} />
+                                    <span style={{ width: 2, height: 15, background: "#fff", borderRadius: 1 }} />
+                                    <span style={{ width: 2, height: 7, background: "#fff", borderRadius: 1 }} />
+                                </div>
+                            </div>
                         )}
-                    </div>
-                    <div className="chat-hint">
-                        Enter to send · Shift+Enter for a new line · {GROK_TONES.find((t) => t.id === grokTone)?.label} active · checkpointed in SQLite
                     </div>
                 </div>
             </main>
