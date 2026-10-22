@@ -6,12 +6,12 @@
  * Nothing here listens or reads a request: this module is types, the failure classes a domain
  * function throws, and `readJson`.
  */
-import type { CapabilityCatalog } from "../capabilities/catalog";
-import type { ProviderDescriptor } from "../datasource/session";
-import type { SourceStatus } from "../datasource/types";
-import type { DatabricksProfileInfo } from "../mcp/databricks-config";
+import type { CapabilityCatalog } from "../../capabilities/catalog";
+import type { ProviderDescriptor } from "../../datasource/session";
+import type { SourceStatus } from "../../datasource/types";
+import type { DatabricksProfileInfo } from "../../mcp/databricks-config";
 import type { PluginCheck, PluginsSummary } from "./plugins-api";
-import type { WorkspaceSnapshot } from "./workspace-types";
+import type { WorkspaceSnapshot } from "../state/workspace-types";
 
 // ---------------------------------------------------------------------------
 // Failures

@@ -13,7 +13,7 @@ import {
     Workflow,
     X,
 } from "lucide-react";
-import { GrokbotAvatar } from "./AgentsPage";
+import { GrokbotAvatar } from "../pages/AgentsPage";
 
 export interface AgentCustomization {
     name?: string;

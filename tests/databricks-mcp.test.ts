@@ -59,7 +59,7 @@ describe("Databricks configuration", () => {
             expect(profiles[0]?.host).toBe("https://dbc-test.cloud.databricks.com");
             expect(profiles[0]?.hasToken).toBe(true);
 
-            const { getDatabricksUiStatus } = await import("../src/prototype/databricks-api");
+            const { getDatabricksUiStatus } = await import("../src/console/api/databricks-api");
             const status = getDatabricksUiStatus();
             expect(status.connected).toBe(false);
             expect(status.configured).toBe(true);

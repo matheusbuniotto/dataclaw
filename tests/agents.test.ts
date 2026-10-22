@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { createAnalystHarness } from "../src/harness";
-import { readWorkspace } from "../src/prototype/workspace";
+import { readWorkspace } from "../src/console/api/workspace";
 import {
     MAX_ROSTER_AGENTS,
     MAX_ROSTER_RUNS,

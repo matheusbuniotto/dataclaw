@@ -21,7 +21,7 @@ confirms a finding — is written down in prose and broken by the saga.
 | `src/tasks/analysis-workflow.ts:134,154` | hardcodes `id: "find-1"` and `id: "find-2"` |
 | `src/tasks/analysis-workflow.ts:205` | sets `auditVerdict = "confirmed"` from the saga, with a note admitting it skipped the auditor |
 | `src/tools/analyst-tools.ts:103`, `src/tools/databricks-tools.ts:327`, `src/tasks/analysis-workflow.ts:43` | `plan.activeDataset` written three times |
-| `src/harness.ts:205`, `src/tools/databricks-tools.ts:150`, `src/prototype/workspace.ts:148` | `plan.databricks` written three ways |
+| `src/harness.ts:205`, `src/tools/databricks-tools.ts:150`, `src/console/api/workspace.ts:148` | `plan.databricks` written three ways |
 
 A second run of `AnalysisWorkflowTask` against the same conversation appends a duplicate `find-1`
 and `find-2`; `request_auditor_review` then audits whichever one `find` returns first.

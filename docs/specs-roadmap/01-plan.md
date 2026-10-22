@@ -139,7 +139,7 @@ the dialect and are marked `derivation: "dialect:databricks"`. Credentials come 
 **8. Plan record v2.**
 Bump `AnalystPlanDoc` to version 2 with `migrate(1 → 2)`: `databricks` → `dataSource`, preserving
 `connectedAt`; `DatasetMeta.source` becomes `{ provider, dataset }`. The session is the only writer.
-*Files:* `src/docs/plan.ts`, `src/prototype/workspace.ts`, `src/tools/databricks-tools.ts` (delete its
+*Files:* `src/docs/plan.ts`, `src/console/api/workspace.ts`, `src/tools/databricks-tools.ts` (delete its
 plan writes).
 *Tests:* a version-1 document with `databricks` migrates and reconnects; a version-2 write from the
 console and from the connect tool produce identical fields.
@@ -157,7 +157,7 @@ a cell containing `|` renders intact.
 read-only hook no longer keys on tool names.
 
 **10. Rewire the callers; delete the globals.**
-`harness.ts`, `prototype/workspace.ts`, `prototype/databricks-api.ts`, `tasks/analysis-workflow.ts`,
+`harness.ts`, `console/api/workspace.ts`, `console/api/databricks-api.ts`, `tasks/analysis-workflow.ts`,
 `evals/run.ts`, `cli.ts`, `src/index.ts`: everything asks the session. Delete `sharedAdapter`,
 `getOrCreateAdapter`, `setSharedAdapter`, `releaseSharedAdapter`, `getSharedAdapter`, `bindAbort`,
 `activeDatabricks`, `noteDatabricksAdapter`, `bindSignal`, and the plan-writing blocks. Reduce

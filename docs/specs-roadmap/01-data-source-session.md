@@ -26,10 +26,10 @@ four more tools, a fourth copy of the connection record, and a second bespoke MC
 | `src/tools/analyst-tools.ts:21` | `bindAbort` probes for an optional `bindSignal` by shape |
 | `src/tools/databricks-tools.ts:9–10` | `activeDatabricks`, `lastReconnectAttempt` — a second global for the same adapter |
 | `src/tools/databricks-tools.ts:37` | `requireDatabricks` reconnects from `AnalystPlanDoc` in the middle of a tool call |
-| `src/prototype/databricks-api.ts:65` | `connection` — a third copy of the live adapter |
+| `src/console/api/databricks-api.ts:65` | `connection` — a third copy of the live adapter |
 | `src/adapters/databricks-adapter.ts:137` | `bindSignal` stores the signal in a mutable instance field: two concurrent tool calls trade signals |
-| `src/harness.ts:201`, `src/prototype/workspace.ts:136`, `src/tools/databricks-tools.ts:68,146` | four paired writes: `setSharedAdapter` + `noteDatabricksAdapter` |
-| `src/harness.ts:205`, `src/tools/databricks-tools.ts:150`, `src/prototype/workspace.ts:148` | `plan.databricks` written three ways; the console preserves `connectedAt`, the harness resets it |
+| `src/harness.ts:201`, `src/console/api/workspace.ts:136`, `src/tools/databricks-tools.ts:68,146` | four paired writes: `setSharedAdapter` + `noteDatabricksAdapter` |
+| `src/harness.ts:205`, `src/tools/databricks-tools.ts:150`, `src/console/api/workspace.ts:148` | `plan.databricks` written three ways; the console preserves `connectedAt`, the harness resets it |
 | `src/docs/plan.ts:26–32` | `DatabricksConnectionMeta` is a Databricks-shaped durable field; `DatasetMeta.source` is `"file" \| "databricks"` |
 | `src/tools/databricks-tools.ts:82` vs `src/tools/analyst-tools.ts:143` | two markdown row renderers; only one escapes `\|` and newlines |
 | `src/tools/databricks-tools.ts:94` vs `src/tools/analyst-tools.ts:88` | two profile renderers; the local one has no median column |

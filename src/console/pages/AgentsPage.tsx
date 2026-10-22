@@ -4,8 +4,8 @@ import type {
     TranscriptItem,
     WorkspaceAgent,
     WorkspaceSkillInfo,
-} from "./workspace-types";
-import { AssistantTurnView, groupIntoTurns } from "./ChatComponents";
+} from "../state/workspace-types";
+import { AssistantTurnView, groupIntoTurns } from "../components/ChatComponents";
 import {
     AgentEditorModal,
     CreateAgentModal,
@@ -16,7 +16,7 @@ import {
     saveAgentCustomization,
     loadCustomAgents,
     saveCustomAgent,
-} from "./AgentEditorModal";
+} from "../components/AgentEditorModal";
 import {
     ArrowUp,
     Bot,

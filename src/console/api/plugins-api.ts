@@ -9,11 +9,11 @@
  * Shapes are JSON-safe and never throw: a broken manifest becomes an entry in `errors`, so
  * the Settings page can show it instead of the workspace failing to load.
  */
-import { pluginFacts, type PluginFacts } from "../capabilities/catalog";
-import type { PluginAgentTools } from "../plugins/agent-tools";
-import { discoverPlugins } from "../plugins/manifest";
-import { discoverPluginHandles } from "../plugins/runtime";
-import type { LoadedPlugin } from "../plugins/types";
+import { pluginFacts, type PluginFacts } from "../../capabilities/catalog";
+import type { PluginAgentTools } from "../../plugins/agent-tools";
+import { discoverPlugins } from "../../plugins/manifest";
+import { discoverPluginHandles } from "../../plugins/runtime";
+import type { LoadedPlugin } from "../../plugins/types";
 
 export interface PluginsSummary {
     /** The same plugin facts the Capabilities page shows, one entry per installed manifest. */

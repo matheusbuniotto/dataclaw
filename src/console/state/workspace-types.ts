@@ -1,4 +1,4 @@
-import type { PluginsSummary } from "./plugins-api";
+import type { PluginsSummary } from "../api/plugins-api";
 
 export interface Checkpoint {
     id: string;

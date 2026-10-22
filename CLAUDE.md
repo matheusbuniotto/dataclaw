@@ -62,7 +62,7 @@ Databricks is attached as a read-only data source through its managed SQL MCP se
 - Never persist tokens in durable docs; `AnalystPlanDoc.databricks` stores only host/url/profile/warehouse.
 - The console auth panel supports CLI profiles, browser OAuth (PKCE via the public `databricks-cli` client,
   callback `localhost:8020`), service-principal OAuth (client credentials, `sql` scope), and PATs.
-  Server endpoints live under `/api/databricks/*`; see `src/prototype/databricks-api.ts`.
+  Server endpoints live under `/api/databricks/*`; see `src/console/api/databricks-api.ts`.
 - Always use fully qualified `catalog.schema.table` names in Databricks SQL.
 - Run `bun run cli databricks-status` to check the resolved workspace, and
   `bun run demo:databricks samples.nyctaxi.trips` for a live smoke test.
@@ -139,7 +139,7 @@ External programs provide versioned capabilities over MCP (stdio) or a JSON scri
   `tool_search` and use `replay: "unsafe"`; a plugin that fails to start is skipped, not fatal.
   `createAnalystHarness({ pluginTools: false })` turns the bridge off.
 - Report a plugin's `method` and `warnings` verbatim next to any number it produced.
-- The console's Settings page lists them (`src/prototype/plugins-api.ts`, `GET /api/plugins`,
+- The console's Settings page lists them (`src/console/api/plugins-api.ts`, `GET /api/plugins`,
   `POST /api/plugins/check`); the snapshot field is `WorkspaceSnapshot.plugins`.
 - `/prototype/capabilities` is the management page for plugins, skills, built-in tool groups and
   the Databricks MCP connection. Toggles persist to `dataclaw.capabilities.json` (gitignored,

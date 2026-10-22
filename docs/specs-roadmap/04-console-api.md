@@ -14,17 +14,17 @@ re-declares the server's wire types by hand. No handler can be exercised without
 
 | Where | What |
 | --- | --- |
-| `src/prototype/server.ts:51` | `Bun.serve({...})` at module scope; the module exports nothing |
-| `src/prototype/server.ts:57–246` | 19 API routes + 7 page routes, ~190 lines |
-| `src/prototype/server.ts:21,24,34` | `errorMessage`, `jsonError`, `readBody` — used inconsistently |
-| `src/prototype/server.ts:62` | `/api/workspace` hand-rolls the shape `jsonError` exists for |
-| `src/prototype/server.ts:196` | the four Databricks routes use a third convention (record, then re-serialize status) |
-| `src/prototype/server.ts:178–207` | `/api/databricks/connect` spends 14 of 22 lines rebuilding the `oauth` sub-object |
-| `src/prototype/capabilities-api.ts:33–38` | re-validates `id` / `enabled` that the route already coerced |
-| `src/prototype/DatabricksAuth.tsx:26` vs `src/prototype/databricks-api.ts:19` | the same 16-field status type, copied |
-| `src/prototype/CapabilitiesPage.tsx:98` | `body as unknown as CapabilityCatalog` — the only contract |
-| `src/prototype/DurableAgentConsole.tsx:83`, `CapabilitiesPage.tsx:31`, `DatabricksAuth.tsx:79` | three `readJson` variants that disagree about an empty body |
-| `src/prototype/plugins-api.ts:78` vs `src/capabilities/catalog.ts:111` | two projections of one `LoadedPlugin`: `/api/plugins` and `/api/capabilities` render the same plugins from different field names |
+| `src/console/api/server.ts:51` | `Bun.serve({...})` at module scope; the module exports nothing |
+| `src/console/api/server.ts:57–246` | 19 API routes + 7 page routes, ~190 lines |
+| `src/console/api/server.ts:21,24,34` | `errorMessage`, `jsonError`, `readBody` — used inconsistently |
+| `src/console/api/server.ts:62` | `/api/workspace` hand-rolls the shape `jsonError` exists for |
+| `src/console/api/server.ts:196` | the four Databricks routes use a third convention (record, then re-serialize status) |
+| `src/console/api/server.ts:178–207` | `/api/databricks/connect` spends 14 of 22 lines rebuilding the `oauth` sub-object |
+| `src/console/api/capabilities-api.ts:33–38` | re-validates `id` / `enabled` that the route already coerced |
+| `src/console/components/DatabricksAuth.tsx:26` vs `src/console/api/databricks-api.ts:19` | the same 16-field status type, copied |
+| `src/console/pages/CapabilitiesPage.tsx:98` | `body as unknown as CapabilityCatalog` — the only contract |
+| `src/console/DurableAgentConsole.tsx:83`, `CapabilitiesPage.tsx:31`, `DatabricksAuth.tsx:79` | three `readJson` variants that disagree about an empty body |
+| `src/console/api/plugins-api.ts:78` vs `src/capabilities/catalog.ts:111` | two projections of one `LoadedPlugin`: `/api/plugins` and `/api/capabilities` render the same plugins from different field names |
 
 `readBody` appears 10×, `jsonError` 9×, and `typeof x === "string"` 13× in the route table.
 
@@ -61,8 +61,8 @@ same shape.
 
 - Is a schema library acceptable? Bun's router does not validate. If not, keep coercion helpers but
   move them next to the route they belong to instead of a preamble.
-- `Bun.serve` at import time is convenient for `bun run prototype`. Keep an explicit `startServer()`
-  entry for `bun run prototype` and make the module importable.
+- `Bun.serve` at import time is convenient for `bun run console`. Keep an explicit `startServer()`
+  entry for `bun run console` and make the module importable.
 - The Databricks routes are the exceptional case: they attach a status snapshot to failures. Model
   that as a domain error carrying a payload, not as a fourth convention.
 

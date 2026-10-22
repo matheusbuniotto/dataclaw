@@ -4,8 +4,8 @@
  * Five readers derive from this table instead of keeping their own copy of the names — the
  * capability groups (`docs/agent-capabilities.ts`), the console catalog
  * (`capabilities/catalog.ts`), the chat card's phrase and category
- * (`prototype/ChatComponents.tsx`), the run summary and its source chips
- * (`prototype/workspace.ts`), and the read-only SQL guard in `extensions/analyst-extension.ts`.
+ * (`console/components/ChatComponents.tsx`), the run summary and its source chips
+ * (`console/api/workspace.ts`), and the read-only SQL guard in `extensions/analyst-extension.ts`.
  *
  * Plugin tools are deliberately absent: they are addressed by `plugin:<name>` and come from the
  * live registry, so an installed plugin appears in every reader without an edit here. Framework

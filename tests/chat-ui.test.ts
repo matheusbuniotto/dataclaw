@@ -8,9 +8,9 @@ import {
     MarkdownView,
     AssistantTurnView,
     ToolInvocationCard,
-} from "../src/prototype/ChatComponents";
-import { transcriptFrom, buildTurns } from "../src/prototype/workspace";
-import type { TranscriptItem } from "../src/prototype/workspace-types";
+} from "../src/console/components/ChatComponents";
+import { transcriptFrom, buildTurns } from "../src/console/api/workspace";
+import type { TranscriptItem } from "../src/console/state/workspace-types";
 
 describe("Chat UI Improvements", () => {
     it("groups transcript items into user and assistant turns with toolings", () => {

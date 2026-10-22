@@ -85,7 +85,10 @@ deepening. Fix them directly; they do not need a spec.
 - `AgentsPage.tsx` ships fabricated state that reaches the real API: three phantom teammates
   (`churn-analyst`, `databricks-explorer`, `quality-auditor`), invented routines, a fake shell log,
   and a model id (`Pi / Claude 3.5 Sonnet`) that no provider resolves.
-- `src/prototype/console.css` is imported nowhere; `index.html` carries a second copy of its rules.
+- ~~`src/prototype/console.css` is imported nowhere; `index.html` carries a second copy of its rules.~~
+  **Resolved:** `src/console/console.css` is the only stylesheet; it imports
+  `src/console/styles/{base,chat,theme-lovable}.css` and `index.html` no longer carries a `<style>`
+  block.
 - Starter prompts are duplicated between `DurableAgentConsole.tsx:54` and `AgentsPage.tsx:191`.
 - `getSharedAdapter()` has no callers.
 - The `beforeTool` SQL guard in `analyst-extension.ts` is a weaker duplicate of
@@ -98,3 +101,8 @@ deepening. Fix them directly; they do not need a spec.
 Written 2026-10-21 from two codebase walks (runtime core, then console/entry points/evals) weighted
 toward the most recently changed areas: the plugin and capability work, the eval harness, and agent
 profiles. The rendered review was written to the OS temp directory and is not checked in.
+
+Path citations were remapped after the console moved from `src/prototype/` to `src/console/`, so
+`src/console/api/`, `src/console/components/` and `src/console/pages/` are what the evidence tables
+name. **The line numbers still refer to the tree as walked, before the move and the page split** —
+read them as pointers to a symbol, then search for it. The findings themselves are unchanged.
