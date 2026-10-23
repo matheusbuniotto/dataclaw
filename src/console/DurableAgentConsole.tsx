@@ -159,7 +159,7 @@ export function DurableAgentConsole() {
                 throw new Error(body.ok === false ? body.error : `${targetName} could not start that turn.`);
             }
             if (stopDuringAsk.current) await postAbort();
-            else notify(`⚡ Checkpointed in SQLite · ${targetName} active`);
+            else notify(`Checkpointed in SQLite · ${targetName} active`);
             setLocation(agentPath(targetAgentId));
             await refresh(targetAgentId);
         } catch (err) {

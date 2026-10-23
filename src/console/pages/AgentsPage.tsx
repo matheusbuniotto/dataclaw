@@ -51,6 +51,7 @@ import {
     ShieldCheck,
     Sparkles,
     Square,
+    Star,
     Sun,
     Terminal,
     User,
@@ -871,14 +872,11 @@ export function GrokbotAvatar({
                             display: "grid",
                             placeItems: "center",
                             color: "#ffffff",
-                            fontSize: Math.max(8, Math.round(size * 0.22)),
-                            fontWeight: 900,
-                            lineHeight: 1,
                             boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
                         }}
                         title="Principal Built-in Coordinator"
                     >
-                        ★
+                        <Star size={Math.max(7, Math.round(size * 0.2))} fill="#ffffff" stroke="none" />
                     </div>
                 )}
 
@@ -911,7 +909,6 @@ export type GrokTone = "sharp" | "executive" | "research";
 export interface GrokToneConfig {
     id: GrokTone;
     label: string;
-    icon: string;
     tag: string;
     description: string;
     instruction: string;
@@ -921,7 +918,6 @@ export const GROK_TONES: GrokToneConfig[] = [
     {
         id: "sharp",
         label: "Grok Sharp",
-        icon: "⚡",
         tag: "Witty & Rigorous",
         description: "Direct, witty, mathematically honest, challenges assumptions, catches confounders.",
         instruction: "Adopt Grok Sharp persona: be direct, witty, mathematically honest, rigorously verify statistical claims, and challenge assumptions.",
@@ -929,7 +925,6 @@ export const GROK_TONES: GrokToneConfig[] = [
     {
         id: "executive",
         label: "Executive",
-        icon: "👔",
         tag: "Concise & Decision-Ready",
         description: "High-level, KPI-focused, bottom-line impact with risk mitigations.",
         instruction: "Adopt Executive persona: be concise, prioritize business impact and KPIs, provide high-level summaries with clear action items.",
@@ -937,7 +932,6 @@ export const GROK_TONES: GrokToneConfig[] = [
     {
         id: "research",
         label: "Deep Research",
-        icon: "🔬",
         tag: "Pure Statistical Rigor",
         description: "Formal hypothesis tests, confidence intervals, sample size power, distribution checks.",
         instruction: "Adopt Deep Research persona: provide formal statistical proofs, confidence intervals (95%), hypothesis test p-values, sample distribution checks, and bias audits.",
@@ -950,7 +944,7 @@ export const GROK_TONES: GrokToneConfig[] = [
 export interface GrokQuickAction {
     id: string;
     label: string;
-    icon: string;
+    icon: any;
     prompt: string;
     description: string;
 }
@@ -959,42 +953,42 @@ export const GROK_QUICK_ACTIONS: GrokQuickAction[] = [
     {
         id: "stat-audit",
         label: "Statistical Audit",
-        icon: "⚡",
+        icon: Activity,
         prompt: "Audit recent queries and metrics for sample bias, survivorship bias, data leakage, and p-hacking.",
         description: "Rigorous statistical integrity and bias check",
     },
     {
         id: "profile-table",
         label: "Profile Tables",
-        icon: "📊",
+        icon: Database,
         prompt: "Profile active tables: compute column distributions, null percentage, cardinality, and detect anomalies.",
         description: "Column stats, null rates, and distribution shape",
     },
     {
         id: "hypothesis-test",
         label: "Hypothesis Test",
-        icon: "🧪",
+        icon: BrainCircuit,
         prompt: "Formulate a formal null hypothesis on key metrics, check test assumptions (normality, variance), and report p-values with 95% confidence intervals.",
         description: "Formal hypothesis verification with confidence bounds",
     },
     {
         id: "simpsons-paradox",
         label: "Simpson's Paradox",
-        icon: "🕵️",
+        icon: Search,
         prompt: "Inspect our datasets for Simpson's Paradox: verify if subgroup or cohort stratification reverses the primary aggregate trend.",
         description: "Detect confounding factors and subgroup trend reversals",
     },
     {
         id: "data-drift",
         label: "Data Drift & Outliers",
-        icon: "🛡️",
+        icon: ShieldCheck,
         prompt: "Run an outlier and distribution drift audit on recent feature columns against baseline expectations.",
         description: "Distribution shift and statistical anomaly detection",
     },
     {
         id: "exec-brief",
         label: "Executive Brief",
-        icon: "📄",
+        icon: Terminal,
         prompt: "Generate an executive briefing from recent analysis: highlight top 3 business takeaways, statistical confidence, and recommended action items.",
         description: "High-level summary with key decisions and risks",
     },
@@ -1276,7 +1270,7 @@ export function GrokOutcomeCard({
                                             : (isDark ? "#34d399" : "#166534"),
                                 }}
                             >
-                                {item.status === "flag" ? "!" : item.status === "info" ? "i" : "✓"}
+                                {item.status === "flag" ? "!" : item.status === "info" ? "i" : <Check size={10} strokeWidth={2.8} />}
                             </span>
                             <span style={{ fontWeight: 700, color: isDark ? "#e2e8f0" : "#1c332e" }}>
                                 {item.label}
@@ -2413,58 +2407,24 @@ export function AgentsPage({
                     borderRight: showDeepDive ? `1px solid ${t.border}` : "none",
                 }}
             >
-                {/* Chat Header */}
+                {/* Chat Header (Serene, minimal, perfectly centered, matching reference) */}
                 <header
                     style={{
-                        height: 56,
+                        height: 52,
                         padding: "0 20px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
                         borderBottom: `1px solid ${t.borderSubtle}`,
                         background: t.panelBg,
-                        position: "relative",
                     }}
                 >
-                    {/* Status Pill on left */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span
-                            className={
-                                working
-                                    ? "status-pill status-running"
-                                    : "status-pill status-idle"
-                            }
-                            style={{ fontSize: 9.5 }}
-                        >
-                            {working ? "Working" : "Ready"}
-                        </span>
-                        {activeAgentId === "dataclaw" && (
-                            <span
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    fontSize: 9.5,
-                                    fontWeight: 600,
-                                    padding: "2px 7px",
-                                    borderRadius: 999,
-                                    background: t.accentSubtle,
-                                    color: t.accent,
-                                    border: `1px solid ${t.accentBorder}`,
-                                }}
-                            >
-                                <Pin size={9} />
-                                Coordinator
-                            </span>
-                        )}
-                    </div>
+                    {/* Left spacer for optical center balance */}
+                    <div style={{ width: 36 }} />
 
                     {/* Centered Bot Capsule matching reference screenshot */}
                     <div
                         style={{
-                            position: "absolute",
-                            left: "50%",
-                            transform: "translateX(-50%)",
                             display: "flex",
                             alignItems: "center",
                             gap: 8,
@@ -2474,6 +2434,7 @@ export function AgentsPage({
                             border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)"}`,
                             boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
                             cursor: "pointer",
+                            transition: "all 0.15s ease",
                         }}
                         onClick={() =>
                             setEditingAgent({
@@ -2491,7 +2452,7 @@ export function AgentsPage({
                             name={activeDisplayName}
                             color={activeColor}
                             icon={activeIcon}
-                            size={24}
+                            size={22}
                             isWorking={working}
                             mood={working ? "thinking" : grokTone === "sharp" ? "sharp" : "normal"}
                             hasStarBadge={activeAgentId === "dataclaw"}
@@ -2507,157 +2468,31 @@ export function AgentsPage({
                         </span>
                     </div>
 
-                    {/* Grok Tone Switcher Segmented Control */}
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            background: isDark ? "rgba(255, 255, 255, 0.05)" : "#eeebe3",
-                            borderRadius: 10,
-                            padding: "3px",
-                            gap: 2,
-                        }}
-                        role="radiogroup"
-                        aria-label="Grok Persona Tone"
-                    >
-                        {GROK_TONES.map((tone) => {
-                            const active = grokTone === tone.id;
-                            return (
-                                <button
-                                    key={tone.id}
-                                    type="button"
-                                    onClick={() => handleSelectTone(tone.id)}
-                                    title={`${tone.label} (${tone.tag}): ${tone.description}`}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 5,
-                                        fontSize: 11,
-                                        fontWeight: active ? 700 : 500,
-                                        padding: "4px 9px",
-                                        borderRadius: 7,
-                                        border: "none",
-                                        cursor: "pointer",
-                                        background: active
-                                            ? (isDark ? "#1e2433" : "#ffffff")
-                                            : "transparent",
-                                        color: active
-                                            ? (isDark ? "#f1f3f7" : "#1c332e")
-                                            : (isDark ? "#828d9e" : "#6c7b74"),
-                                        boxShadow: active
-                                            ? (isDark ? "0 1px 3px rgba(0,0,0,0.4)" : "0 1px 3px rgba(0,0,0,0.08)")
-                                            : "none",
-                                        transition: "all 0.15s ease",
-                                    }}
-                                >
-                                    <span>{tone.icon}</span>
-                                    <span>{tone.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {/* Edit Agent Button */}
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setEditingAgent({
-                                    id: activeAgentId,
-                                    name: activeDisplayName,
-                                    description: activeDisplayDesc,
-                                    color: activeColor,
-                                    icon: activeIcon,
-                                    role: baseRole,
-                                })
-                            }
-                            className="button-quiet"
-                            title="Edit agent appearance, name, or role"
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 5,
-                                fontSize: 11.5,
-                                padding: "5px 9px",
-                                color: t.textSecondary,
-                            }}
-                        >
-                            <Pencil size={13} />
-                            <span>Edit</span>
-                        </button>
-
-                        {/* Context Toggle */}
-                        <button
-                            type="button"
-                            className="button-quiet"
-                            onClick={() => setShowContext(!showContext)}
-                            aria-expanded={showContext}
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                                fontSize: 11.5,
-                                padding: "5px 9px",
-                                color: t.textSecondary,
-                            }}
-                        >
-                            <span>Context</span>
-                            <ChevronDown
-                                size={13}
-                                className={
-                                    showContext ? "chat-chevron open" : "chat-chevron"
-                                }
-                            />
-                        </button>
-
-                        {/* Compute Screen Panel Toggle Button */}
+                    {/* Right action: discreet Compute Screen button */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, width: 36, justifyContent: "flex-end" }}>
                         <button
                             type="button"
                             onClick={() => {
                                 setShowDeepDive(!showDeepDive);
                                 if (!showDeepDive) setSidePanelTab("screen");
                             }}
-                            title={
-                                showDeepDive
-                                    ? "Close Compute Screen"
-                                    : "Open Compute Screen monitor, terminal & telemetry"
-                            }
+                            title={showDeepDive ? "Fechar Compute Screen" : "Abrir Compute Screen"}
                             style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                border: `1px solid ${showDeepDive ? t.accent : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
                                 background: showDeepDive
                                     ? (isDark ? "rgba(255, 94, 87, 0.16)" : "#e2eee6")
-                                    : (isDark ? "#171a23" : "#ffffff"),
-                                border: showDeepDive
-                                    ? `1px solid ${t.accent}`
-                                    : `1px solid ${t.border}`,
-                                color: showDeepDive ? t.accent : t.textPrimary,
-                                borderRadius: 8,
-                                padding: "5px 11px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                fontSize: 12,
-                                fontWeight: 600,
+                                    : "transparent",
+                                color: showDeepDive ? t.accent : t.textMuted,
+                                display: "grid",
+                                placeItems: "center",
                                 cursor: "pointer",
-                                boxShadow: showDeepDive
-                                    ? "inset 0 1px 2px rgba(0,0,0,0.12)"
-                                    : "0 1px 2px rgba(0,0,0,0.03)",
                                 transition: "all 0.15s ease",
                             }}
                         >
-                            <Monitor size={13} color={showDeepDive ? t.accent : t.textMuted} />
-                            <span>Compute Screen</span>
-                            {working && (
-                                <span
-                                    style={{
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: "50%",
-                                        background: "#10b981",
-                                        animation: "grokDotPulse 1.2s infinite",
-                                    }}
-                                />
-                            )}
-                            {showDeepDive ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+                            <Monitor size={14} />
                         </button>
                     </div>
                 </header>
@@ -2708,16 +2543,16 @@ export function AgentsPage({
                                 }}
                                 title="Ir para mensagens mais recentes"
                             >
-                                <span>↑</span>
+                                <ArrowUp size={12} strokeWidth={2.5} />
                                 <span>{transcript.length > 30 ? 79 : transcript.length} novas mensagens</span>
                                 <span
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setUnreadBannerDismissed(true);
                                     }}
-                                    style={{ opacity: 0.75, fontSize: 10, marginLeft: 2 }}
+                                    style={{ display: "inline-flex", alignItems: "center", opacity: 0.8, cursor: "pointer", marginLeft: 2 }}
                                 >
-                                    ✕
+                                    <X size={11} strokeWidth={2.5} />
                                 </span>
                             </button>
                         </div>
@@ -2768,7 +2603,9 @@ export function AgentsPage({
                                         fontWeight: 600,
                                     }}
                                 >
-                                    <span>✓ Unity Catalog connected</span>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                        <Check size={12} strokeWidth={2.5} /> Unity Catalog connected
+                                    </span>
                                     <span>·</span>
                                     <span>0 drift violations</span>
                                     <span>·</span>
@@ -2953,6 +2790,56 @@ export function AgentsPage({
                                 }
                             `}</style>
 
+                            {/* Section 0: Tom de Resposta (Grok Tone) */}
+                            <div style={{ marginBottom: 10, paddingBottom: 8, borderBottom: isDark ? "1px solid rgba(255, 255, 255, 0.07)" : "1px solid #ece8de" }}>
+                                <div
+                                    style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.5px",
+                                        color: t.textMuted,
+                                        marginBottom: 6,
+                                        padding: "0 4px",
+                                    }}
+                                >
+                                    Tom de Resposta
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+                                    {GROK_TONES.map((tone) => {
+                                        const active = grokTone === tone.id;
+                                        return (
+                                            <button
+                                                key={tone.id}
+                                                type="button"
+                                                onClick={() => handleSelectTone(tone.id)}
+                                                style={{
+                                                    padding: "6px 8px",
+                                                    borderRadius: 8,
+                                                    border: `1px solid ${active ? t.accent : isDark ? "rgba(255,255,255,0.08)" : "#e6e3da"}`,
+                                                    background: active
+                                                        ? (isDark ? "rgba(255, 94, 87, 0.16)" : "#eaf3ee")
+                                                        : "transparent",
+                                                    color: active ? t.accent : t.textPrimary,
+                                                    fontSize: 11,
+                                                    fontWeight: active ? 700 : 500,
+                                                    cursor: "pointer",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    alignItems: "center",
+                                                    gap: 2,
+                                                    transition: "all 0.12s ease",
+                                                }}
+                                                title={tone.description}
+                                            >
+                                                <span>{tone.label.replace("Grok ", "")}</span>
+                                                <span style={{ fontSize: 9, color: t.textMuted }}>{tone.tag}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             {/* Section 1: Grok Analysis & Audits */}
                             <div>
                                 <div
@@ -2972,44 +2859,47 @@ export function AgentsPage({
                                     Ações e Auditoria Estatística
                                 </div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                                    {GROK_QUICK_ACTIONS.map((action) => (
-                                        <button
-                                            key={action.id}
-                                            type="button"
-                                            onClick={() => {
-                                                handleSelectQuickAction(action);
-                                                setActionMenuOpen(false);
-                                            }}
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 6,
-                                                padding: "7px 9px",
-                                                borderRadius: 8,
-                                                border: "none",
-                                                background: isDark ? "rgba(255, 255, 255, 0.04)" : "#f6f4ee",
-                                                color: t.textPrimary,
-                                                fontSize: 11,
-                                                fontWeight: 600,
-                                                cursor: "pointer",
-                                                textAlign: "left",
-                                                transition: "all 0.12s ease",
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.1)" : "#ece8dc";
-                                                e.currentTarget.style.color = t.accent;
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.04)" : "#f6f4ee";
-                                                e.currentTarget.style.color = t.textPrimary;
-                                            }}
-                                        >
-                                            <span style={{ fontSize: 13 }}>{action.icon}</span>
-                                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                {action.label}
-                                            </span>
-                                        </button>
-                                    ))}
+                                    {GROK_QUICK_ACTIONS.map((action) => {
+                                        const ActionIcon = action.icon;
+                                        return (
+                                            <button
+                                                key={action.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    handleSelectQuickAction(action);
+                                                    setActionMenuOpen(false);
+                                                }}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                    padding: "7px 9px",
+                                                    borderRadius: 8,
+                                                    border: "none",
+                                                    background: isDark ? "rgba(255, 255, 255, 0.04)" : "#f6f4ee",
+                                                    color: t.textPrimary,
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                    textAlign: "left",
+                                                    transition: "all 0.12s ease",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.1)" : "#ece8dc";
+                                                    e.currentTarget.style.color = t.accent;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.04)" : "#f6f4ee";
+                                                    e.currentTarget.style.color = t.textPrimary;
+                                                }}
+                                            >
+                                                {ActionIcon && <ActionIcon size={12} color={t.accent} />}
+                                                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                    {action.label}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -3254,7 +3144,6 @@ export function AgentsPage({
                         glow: "0 0 8px rgba(52, 211, 153, 0.4)",
                         cursor: "#34d399",
                         label: "Matrix Green",
-                        icon: "🟢",
                     },
                     amber: {
                         bg: "#150e04",
@@ -3265,7 +3154,6 @@ export function AgentsPage({
                         glow: "0 0 8px rgba(251, 191, 36, 0.4)",
                         cursor: "#fbbf24",
                         label: "Amber Phosphor",
-                        icon: "🟡",
                     },
                     cyber: {
                         bg: "#050e18",
@@ -3276,7 +3164,6 @@ export function AgentsPage({
                         glow: "0 0 8px rgba(56, 189, 248, 0.4)",
                         cursor: "#38bdf8",
                         label: "Cyber Blue",
-                        icon: "🔵",
                     },
                 };
                 const activeCrt = crtThemes[screenCrtTheme];
@@ -3400,7 +3287,16 @@ export function AgentsPage({
                                         }}
                                         title={`Cycle CRT Phosphor Theme: currently ${activeCrt.label}`}
                                     >
-                                        <span>{activeCrt.icon}</span>
+                                        <span
+                                            style={{
+                                                width: 7,
+                                                height: 7,
+                                                borderRadius: "50%",
+                                                background: activeCrt.text,
+                                                boxShadow: activeCrt.glow,
+                                                display: "inline-block",
+                                            }}
+                                        />
                                         <span>CRT</span>
                                     </button>
                                 )}
@@ -3457,12 +3353,13 @@ export function AgentsPage({
                             }}
                         >
                             {[
-                                { id: "screen", label: "🖥️ Screen", title: "Live CRT Sandbox Monitor" },
-                                { id: "data", label: "📊 Data", title: "Unity Catalog & Tables Viewer" },
-                                { id: "specs", label: "⚙️ Specs", title: "Specialist Archetype & Capabilities" },
-                                { id: "routines", label: "⏱️ Routines", title: "Autonomous background cycles" },
+                                { id: "screen", label: "Screen", icon: Monitor, title: "Live CRT Sandbox Monitor" },
+                                { id: "data", label: "Data", icon: Database, title: "Unity Catalog & Tables Viewer" },
+                                { id: "specs", label: "Specs", icon: Cpu, title: "Specialist Archetype & Capabilities" },
+                                { id: "routines", label: "Routines", icon: Clock, title: "Autonomous background cycles" },
                             ].map((tab) => {
                                 const active = sidePanelTab === tab.id;
+                                const TabIcon = tab.icon;
                                 return (
                                     <button
                                         key={tab.id}
@@ -3477,6 +3374,10 @@ export function AgentsPage({
                                             fontWeight: active ? 700 : 500,
                                             border: "none",
                                             cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: 5,
                                             background: active
                                                 ? (isDark ? "#1e2433" : "#ffffff")
                                                 : "transparent",
@@ -3489,7 +3390,8 @@ export function AgentsPage({
                                             transition: "all 0.15s ease",
                                         }}
                                     >
-                                        {tab.label}
+                                        <TabIcon size={12} />
+                                        <span>{tab.label}</span>
                                     </button>
                                 );
                             })}
@@ -3956,10 +3858,10 @@ export function AgentsPage({
                                                 : "analyst, data, coding, plugins"}
                                         </span>
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                         <span style={{ color: t.textMuted }}>Status:</span>
-                                        <span style={{ color: t.accent, fontWeight: 600 }}>
-                                            ✓ Active & isolated
+                                        <span style={{ color: t.accent, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                            <Check size={12} strokeWidth={2.5} /> Active & isolated
                                         </span>
                                     </div>
                                 </div>
