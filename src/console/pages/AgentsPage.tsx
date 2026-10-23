@@ -71,9 +71,9 @@ export interface UserProfile {
 }
 
 const DEFAULT_USER_PROFILE: UserProfile = {
-    name: "Matheus Buniotto",
-    role: "Lead Engineer",
-    initials: "MB",
+    name: "Workspace Member",
+    role: "Data & AI",
+    initials: "WM",
     avatarColor: "#1d4ed8",
 };
 
@@ -83,8 +83,9 @@ export function loadUserProfile(): UserProfile {
         const raw = window.localStorage.getItem("dataclaw.userProfile");
         if (raw) {
             const parsed = JSON.parse(raw);
-            if (parsed.name === "Matheus") parsed.name = "Matheus Buniotto";
-            if (parsed.initials === "MA") parsed.initials = "MB";
+            if (parsed.name === "Matheus" || parsed.name === "Matheus Buniotto") {
+                return DEFAULT_USER_PROFILE;
+            }
             return { ...DEFAULT_USER_PROFILE, ...parsed };
         }
     } catch {}
@@ -134,14 +135,14 @@ export function ProfileSettingsModal({
                 .map((p) => p[0] ?? "")
                 .join("")
                 .slice(0, 2)
-                .toUpperCase() || "MB"
+                .toUpperCase() || "WM"
         );
     }, [name]);
 
     const handleSave = () => {
         onSaveProfile({
-            name: name.trim() || "Matheus Buniotto",
-            role: role.trim() || "Lead Engineer",
+            name: name.trim() || "Workspace Member",
+            role: role.trim() || "Data & AI",
             initials: derivedInitials,
             avatarColor,
         });
@@ -902,43 +903,6 @@ export function GrokbotAvatar({
 }
 
 // ============================================================================
-// Grok Tone Configuration
-// ============================================================================
-export type GrokTone = "sharp" | "executive" | "research";
-
-export interface GrokToneConfig {
-    id: GrokTone;
-    label: string;
-    tag: string;
-    description: string;
-    instruction: string;
-}
-
-export const GROK_TONES: GrokToneConfig[] = [
-    {
-        id: "sharp",
-        label: "Grok Sharp",
-        tag: "Witty & Rigorous",
-        description: "Direct, witty, mathematically honest, challenges assumptions, catches confounders.",
-        instruction: "Adopt Grok Sharp persona: be direct, witty, mathematically honest, rigorously verify statistical claims, and challenge assumptions.",
-    },
-    {
-        id: "executive",
-        label: "Executive",
-        tag: "Concise & Decision-Ready",
-        description: "High-level, KPI-focused, bottom-line impact with risk mitigations.",
-        instruction: "Adopt Executive persona: be concise, prioritize business impact and KPIs, provide high-level summaries with clear action items.",
-    },
-    {
-        id: "research",
-        label: "Deep Research",
-        tag: "Pure Statistical Rigor",
-        description: "Formal hypothesis tests, confidence intervals, sample size power, distribution checks.",
-        instruction: "Adopt Deep Research persona: provide formal statistical proofs, confidence intervals (95%), hypothesis test p-values, sample distribution checks, and bias audits.",
-    },
-];
-
-// ============================================================================
 // Grok Quick Action Pills Configuration
 // ============================================================================
 export interface GrokQuickAction {
@@ -1454,10 +1418,25 @@ export function AgentsPage({
         }
     }, [actionMenuOpen]);
 
-    const CATEGORIES = ["Pessoal", "Trabalho", "Code"] as const;
+    // Ensure activeAgentId falls back to dataclaw if pointing to an agent not in roster or custom list
+    useEffect(() => {
+        if (
+            activeAgentId !== "dataclaw" &&
+            !roster.some((r) => r.id === activeAgentId) &&
+            !customAgentsList.some((c) => c.id === activeAgentId)
+        ) {
+            onSelectAgent("dataclaw");
+        }
+    }, [activeAgentId, roster, customAgentsList, onSelectAgent]);
 
-    // Combine DataClaw (hero "Principal"), roster, custom agents, and specialists
+    // Combine DataClaw (hero "Principal"), roster, and user custom agents
     const allBots = useMemo(() => {
+        const lastTurn = transcript[transcript.length - 1];
+        const lastMsgText =
+            lastTurn && "content" in lastTurn && typeof (lastTurn as any).content === "string"
+                ? (lastTurn as any).content.slice(0, 48) + "..."
+                : "Ready for coordination and analytics.";
+
         const list: Array<{
             id: string;
             name: string;
@@ -1477,8 +1456,8 @@ export function AgentsPage({
                 name: "Principal",
                 role: "Coordinator",
                 description: "Built-in coordinator & analytics pilot",
-                lastMessage: "sent. inbox at zero, 5 drafts parked",
-                time: "12:11 AM",
+                lastMessage: lastMsgText,
+                time: "Ready",
                 active: activeAgentId === "dataclaw",
                 color: "#1d4ed8",
                 icon: "dot-eyes",
@@ -1486,83 +1465,36 @@ export function AgentsPage({
                 pinned: true,
                 isBuiltin: true,
             },
-            ...roster.map((r, i) => {
-                const isCode =
-                    r.role.toLowerCase().includes("code") ||
-                    r.role.toLowerCase().includes("research") ||
-                    r.role.toLowerCase().includes("review") ||
-                    r.name.toLowerCase().includes("pixel") ||
-                    r.name.toLowerCase().includes("skill");
-                return {
-                    id: r.id,
-                    name: r.name,
-                    role: r.role,
-                    description: r.purpose,
-                    lastMessage: `${r.purpose.slice(0, 42)}...`,
-                    time: i === 0 ? "3:10 AM" : "Yesterday",
-                    active: activeAgentId === r.id,
-                    color: ["#d97706", "#8b5cf6", "#06b6d4", "#e11d48", "#3b82f6"][i % 5] || "#10b981",
-                    icon: "dot-eyes",
-                    section: isCode ? "Code" : "Trabalho",
-                    pinned: false,
-                    isBuiltin: false,
-                };
-            }),
+            ...roster.map((r, i) => ({
+                id: r.id,
+                name: r.name,
+                role: r.role,
+                description: r.purpose,
+                lastMessage: r.purpose.length > 42 ? `${r.purpose.slice(0, 42)}...` : r.purpose,
+                time: "Active",
+                active: activeAgentId === r.id,
+                color: ["#d97706", "#8b5cf6", "#06b6d4", "#e11d48", "#3b82f6"][i % 5] || "#10b981",
+                icon: "dot-eyes",
+                section: "Specialists",
+                pinned: false,
+                isBuiltin: false,
+            })),
         ];
 
         // Add user-created custom agents that aren't already in list
         for (const ca of customAgentsList) {
             if (!list.some((b) => b.id === ca.id)) {
-                const isCode =
-                    ca.role.toLowerCase().includes("code") ||
-                    ca.role.toLowerCase().includes("research") ||
-                    ca.role.toLowerCase().includes("review");
                 list.push({
                     id: ca.id,
                     name: ca.name,
                     role: ca.role,
                     description: ca.description,
-                    lastMessage: ca.initialTask || `${ca.description.slice(0, 42)}...`,
-                    time: "Just now",
+                    lastMessage: ca.initialTask || ca.description,
+                    time: "Ready",
                     active: activeAgentId === ca.id,
                     color: ca.color || "#f59e0b",
                     icon: ca.icon || "dot-eyes",
-                    section: isCode ? "Code" : "Trabalho",
-                    pinned: false,
-                    isBuiltin: false,
-                });
-            }
-        }
-
-        // Reference bots from authentic UI screenshot to populate categories
-        const screenshotBots = [
-            // Pessoal
-            { id: "job_hunt", name: "Job Hunt", role: "Personal Assistant", description: "Job applications & career automation", lastMessage: "A candidatura da n8n foi enviada. A pági...", time: "18:42", color: "#ef4444", section: "Pessoal" },
-            { id: "dr_eggbot", name: "dr eggbot", role: "Creative Agent", description: "Creative prompts & design bot", lastMessage: "criei o Pixel, um designer que também e...", time: "17:15", color: "#ef4444", section: "Pessoal" },
-            { id: "zelador", name: "Zelador", role: "System Ops", description: "Workspace hygiene & log cleanup", lastMessage: "A faxina está feita, faltando só o Adaptio...", time: "15:30", color: "#06b6d4", section: "Pessoal" },
-            { id: "evals_biz", name: "Evals Biz", role: "Business Evaluator", description: "Business metrics and evaluations", lastMessage: "Mandei a lista pro Principal. No Registro...", time: "14:10", color: "#ef4444", section: "Pessoal" },
-            // Trabalho
-            { id: "arquiteto_ccf", name: "Arquiteto CCF", role: "Architect", description: "Kickoff architecture & Notion sync", lastMessage: "Revisei o kickoff no Notion. Os três ajust...", time: "Yesterday", color: "#10b981", section: "Trabalho" },
-            { id: "gestao_do_time", name: "Gestão do Time", role: "Team Lead", description: "Team backlog and sprint coordination", lastMessage: "Here's the full prompt with the long-file ...", time: "Yesterday", color: "#1d4ed8", section: "Trabalho" },
-            { id: "claude_enabler", name: "Claude Enabler", role: "Prompt Engineer", description: "LLM pipeline setup and context packs", lastMessage: "Sent 1 archive", time: "2d ago", color: "#f59e0b", section: "Trabalho" },
-            // Code
-            { id: "pixel", name: "Pixel", role: "UI/UX Designer", description: "Component design & visual consistency", lastMessage: "Qual visual fica?", time: "3d ago", color: "#6b7280", section: "Code" },
-            { id: "skillsmith", name: "Skillsmith", role: "Skill Developer", description: "Custom skills and playbook improvements", lastMessage: "Escrevi a melhoria do playbook...", time: "4d ago", color: "#ef4444", section: "Code" },
-        ];
-
-        for (const ref of screenshotBots) {
-            if (!list.some((b) => b.id === ref.id)) {
-                list.push({
-                    id: ref.id,
-                    name: ref.name,
-                    role: ref.role,
-                    description: ref.description,
-                    lastMessage: ref.lastMessage,
-                    time: ref.time,
-                    active: activeAgentId === ref.id,
-                    color: ref.color,
-                    icon: "dot-eyes",
-                    section: ref.section,
+                    section: "Custom Agents",
                     pinned: false,
                     isBuiltin: false,
                 });
@@ -1580,7 +1512,7 @@ export function AgentsPage({
                 icon: c.icon || b.icon,
             };
         });
-    }, [roster, customAgentsList, activeAgentId, customizations]);
+    }, [transcript, roster, customAgentsList, activeAgentId, customizations]);
 
     const customMatch = customAgentsList.find((c) => c.id === activeAgentId);
     const botMatch = allBots.find((b) => b.id === activeAgentId);
@@ -1662,14 +1594,12 @@ export function AgentsPage({
         );
     }, [allBots, searchFilter]);
 
-    const botsByCategory = useMemo(() => {
+    const botsBySection = useMemo(() => {
         const map: Record<string, typeof filteredBots> = {};
-        for (const cat of CATEGORIES) {
-            map[cat] = filteredBots.filter((b) => b.section === cat);
-        }
-        const remaining = filteredBots.filter((b) => !CATEGORIES.includes(b.section as any));
-        if (remaining.length > 0) {
-            map["Trabalho"] = [...(map["Trabalho"] || []), ...remaining];
+        for (const bot of filteredBots) {
+            const sec = bot.section || "Specialists";
+            if (!map[sec]) map[sec] = [];
+            map[sec].push(bot);
         }
         return map;
     }, [filteredBots]);
@@ -1681,36 +1611,15 @@ export function AgentsPage({
         endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }, [transcript.length, working]);
 
-    const [grokTone, setGrokTone] = useState<GrokTone>(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem("dataclaw.grok_tone");
-            if (saved === "sharp" || saved === "executive" || saved === "research") {
-                return saved;
-            }
-        }
-        return "sharp";
-    });
-
-    const handleSelectTone = (tone: GrokTone) => {
-        setGrokTone(tone);
-        if (typeof window !== "undefined") {
-            localStorage.setItem("dataclaw.grok_tone", tone);
-        }
-    };
-
     const handleSend = (textOverride?: string) => {
         const text = (textOverride ?? draft).trim();
         if (!text || working || stopping) return;
         setDraft("");
 
-        const toneObj = GROK_TONES.find((t) => t.id === grokTone);
-        const directive = toneObj ? `[Tone: ${toneObj.label} (${toneObj.tag})]\n${text}` : text;
-
-        ask(directive);
+        ask(text);
         setScreenLogs((prev) => [
             ...prev,
             `[user-goal] ${text}`,
-            toneObj ? `[grok-tone] ${toneObj.label} active` : `[agent-step] Evaluating plan...`,
             `[agent-step] Evaluating plan and required tools...`,
         ]);
     };
@@ -1969,7 +1878,7 @@ export function AgentsPage({
                         <button
                             type="button"
                             onClick={() => setIsCreatingAgent(true)}
-                            title="Criar novo bot"
+                            title="Create agent"
                             style={{
                                 width: 28,
                                 height: 28,
@@ -2058,7 +1967,7 @@ export function AgentsPage({
                             <input
                                 autoFocus
                                 type="text"
-                                placeholder="Buscar bots..."
+                                placeholder="Search agents..."
                                 value={searchFilter}
                                 onChange={(e) => setSearchFilter(e.target.value)}
                                 style={{
@@ -2074,7 +1983,7 @@ export function AgentsPage({
                     </div>
                 )}
 
-                {/* Bot List with "Nova seção" and Category sections ("Pessoal", "Trabalho", "Code") */}
+                {/* Bot List grouped dynamically by Section */}
                 <div
                     style={{
                         flex: 1,
@@ -2085,182 +1994,197 @@ export function AgentsPage({
                         gap: 12,
                     }}
                 >
-                    {/* Nova seção prompt matching reference screenshot */}
-                    <div
-                        style={{
-                            padding: "4px 8px 2px",
-                            cursor: "pointer",
-                        }}
-                        onClick={() => setIsCreatingAgent(true)}
-                    >
+                    {Object.keys(botsBySection).length === 0 ? (
                         <div
                             style={{
-                                fontSize: 11,
-                                fontWeight: 500,
+                                padding: "24px 12px",
+                                textAlign: "center",
                                 color: t.textMuted,
-                                marginBottom: 2,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 8,
                             }}
                         >
-                            Nova seção
+                            <Bot size={28} strokeWidth={1.5} color={t.textMuted} />
+                            <div style={{ fontSize: 12, fontWeight: 600, color: t.textPrimary }}>
+                                No Specialists Yet
+                            </div>
+                            <div style={{ fontSize: 11, lineHeight: 1.4, color: t.textSecondary }}>
+                                Delegate tasks from the Principal or create custom specialist agents.
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsCreatingAgent(true)}
+                                style={{
+                                    marginTop: 6,
+                                    padding: "6px 12px",
+                                    borderRadius: 8,
+                                    background: isDark ? "rgba(255, 255, 255, 0.06)" : "#e8e5dc",
+                                    border: `1px solid ${t.border}`,
+                                    color: t.textPrimary,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                }}
+                            >
+                                <Plus size={12} />
+                                <span>Create Specialist</span>
+                            </button>
                         </div>
-                        <div
-                            style={{
-                                fontSize: 11.5,
-                                color: isDark ? "rgba(255, 255, 255, 0.35)" : "rgba(0, 0, 0, 0.4)",
-                            }}
-                        >
-                            Arraste Bots para cá
-                        </div>
-                    </div>
-
-                    {CATEGORIES.map((category) => {
-                        const bots = botsByCategory[category] || [];
-                        if (bots.length === 0) return null;
-                        return (
-                            <div key={category}>
-                                <div
-                                    style={{
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                        color: t.textMuted,
-                                        padding: "2px 8px 6px",
-                                        letterSpacing: "0.01em",
-                                    }}
-                                >
-                                    {category}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                    {bots.map((bot) => (
-                                        <div
-                                            key={bot.id}
-                                            className="bot-row"
-                                            onClick={() => onSelectAgent(bot.id)}
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 10,
-                                                padding: "8px 10px",
-                                                borderRadius: 12,
-                                                cursor: "pointer",
-                                                background: bot.active
-                                                    ? (isDark ? "rgba(255, 255, 255, 0.08)" : "#ececec")
-                                                    : "transparent",
-                                                border: bot.active
-                                                    ? `1px solid ${isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)"}`
-                                                    : "1px solid transparent",
-                                                transition: "all 0.15s ease",
-                                            }}
-                                        >
-                                            <GrokbotAvatar
-                                                name={bot.name}
-                                                color={bot.color}
-                                                icon={bot.icon}
-                                                size={34}
-                                                isWorking={bot.active && working}
-                                            />
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div
-                                                    style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "space-between",
-                                                        marginBottom: 2,
-                                                    }}
-                                                >
-                                                    <span
+                    ) : (
+                        Object.entries(botsBySection).map(([section, bots]) => {
+                            if (bots.length === 0) return null;
+                            return (
+                                <div key={section}>
+                                    <div
+                                        style={{
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            color: t.textMuted,
+                                            padding: "2px 8px 6px",
+                                            letterSpacing: "0.01em",
+                                            textTransform: "uppercase",
+                                        }}
+                                    >
+                                        {section}
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                        {bots.map((bot) => (
+                                            <div
+                                                key={bot.id}
+                                                className="bot-row"
+                                                onClick={() => onSelectAgent(bot.id)}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 10,
+                                                    padding: "8px 10px",
+                                                    borderRadius: 12,
+                                                    cursor: "pointer",
+                                                    background: bot.active
+                                                        ? (isDark ? "rgba(255, 255, 255, 0.08)" : "#ececec")
+                                                        : "transparent",
+                                                    border: bot.active
+                                                        ? `1px solid ${isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)"}`
+                                                        : "1px solid transparent",
+                                                    transition: "all 0.15s ease",
+                                                }}
+                                            >
+                                                <GrokbotAvatar
+                                                    name={bot.name}
+                                                    color={bot.color}
+                                                    icon={bot.icon}
+                                                    size={34}
+                                                    isWorking={bot.active && working}
+                                                />
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div
                                                         style={{
-                                                            fontWeight: bot.active ? 600 : 500,
-                                                            fontSize: 13,
-                                                            color: bot.active
-                                                                ? (isDark ? "#ffffff" : "#111827")
-                                                                : t.textPrimary,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "space-between",
+                                                            marginBottom: 2,
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                fontWeight: bot.active ? 600 : 500,
+                                                                fontSize: 13,
+                                                                color: bot.active
+                                                                    ? (isDark ? "#ffffff" : "#111827")
+                                                                    : t.textPrimary,
+                                                                whiteSpace: "nowrap",
+                                                                overflow: "hidden",
+                                                                textOverflow: "ellipsis",
+                                                            }}
+                                                        >
+                                                            {bot.name}
+                                                        </span>
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            fontSize: 11,
+                                                            color: t.textSecondary,
                                                             whiteSpace: "nowrap",
                                                             overflow: "hidden",
                                                             textOverflow: "ellipsis",
                                                         }}
                                                     >
-                                                        {bot.name}
-                                                    </span>
+                                                        {bot.lastMessage}
+                                                    </div>
                                                 </div>
-                                                <div
-                                                    style={{
-                                                        fontSize: 11,
-                                                        color: t.textSecondary,
-                                                        whiteSpace: "nowrap",
-                                                        overflow: "hidden",
-                                                        textOverflow: "ellipsis",
-                                                    }}
-                                                >
-                                                    {bot.lastMessage}
-                                                </div>
-                                            </div>
 
-                                            {/* Hover-only actions: Screen + Edit */}
-                                            <div
-                                                className="bot-row-actions"
-                                                style={{ display: "flex", alignItems: "center", gap: 3 }}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onSelectAgent(bot.id);
-                                                        setShowDeepDive(true);
-                                                        setSidePanelTab("screen");
-                                                    }}
-                                                    title={`Abrir Compute Screen de ${bot.name}`}
-                                                    style={{
-                                                        background: "transparent",
-                                                        border: "none",
-                                                        borderRadius: 4,
-                                                        width: 22,
-                                                        height: 22,
-                                                        display: "grid",
-                                                        placeItems: "center",
-                                                        color: t.textMuted,
-                                                        cursor: "pointer",
-                                                    }}
+                                                {/* Hover-only actions: Screen + Edit */}
+                                                <div
+                                                    className="bot-row-actions"
+                                                    style={{ display: "flex", alignItems: "center", gap: 3 }}
                                                 >
-                                                    <Monitor size={12} />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingAgent({
-                                                            id: bot.id,
-                                                            name: bot.name,
-                                                            description: bot.description,
-                                                            color: bot.color,
-                                                            icon: bot.icon,
-                                                            role: bot.role,
-                                                        });
-                                                    }}
-                                                    title={`Editar ${bot.name}`}
-                                                    style={{
-                                                        background: "transparent",
-                                                        border: "none",
-                                                        borderRadius: 4,
-                                                        width: 22,
-                                                        height: 22,
-                                                        display: "grid",
-                                                        placeItems: "center",
-                                                        color: t.textMuted,
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    <Pencil size={12} />
-                                                </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onSelectAgent(bot.id);
+                                                            setShowDeepDive(true);
+                                                            setSidePanelTab("screen");
+                                                        }}
+                                                        title={`Open Compute Screen of ${bot.name}`}
+                                                        style={{
+                                                            background: "transparent",
+                                                            border: "none",
+                                                            borderRadius: 4,
+                                                            width: 22,
+                                                            height: 22,
+                                                            display: "grid",
+                                                            placeItems: "center",
+                                                            color: t.textMuted,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        <Monitor size={12} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingAgent({
+                                                                id: bot.id,
+                                                                name: bot.name,
+                                                                description: bot.description,
+                                                                color: bot.color,
+                                                                icon: bot.icon,
+                                                                role: bot.role,
+                                                            });
+                                                        }}
+                                                        title={`Edit ${bot.name}`}
+                                                        style={{
+                                                            background: "transparent",
+                                                            border: "none",
+                                                            borderRadius: 4,
+                                                            width: 22,
+                                                            height: 22,
+                                                            display: "grid",
+                                                            placeItems: "center",
+                                                            color: t.textMuted,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        <Pencil size={12} />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    )}
                 </div>
 
-                {/* Bottom User Profile Capsule matching reference screenshot */}
+                {/* Bottom User Profile Capsule */}
                 <div
                     style={{
                         padding: "8px 12px 14px",
@@ -2272,7 +2196,7 @@ export function AgentsPage({
                         style={{
                             background: isDark ? "#171a23" : "#f1f1f1",
                             borderRadius: 9999,
-                            padding: "4px 6px 4px 5px",
+                            padding: "4px 8px 4px 6px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
@@ -2288,7 +2212,7 @@ export function AgentsPage({
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") setProfileModalOpen(true);
                             }}
-                            title="Perfil & Configurações"
+                            title="Profile & Settings"
                             style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -2303,7 +2227,7 @@ export function AgentsPage({
                                     width: 28,
                                     height: 28,
                                     borderRadius: "50%",
-                                    background: "#1e293b",
+                                    background: userProfile.avatarColor || "#1e293b",
                                     color: "#ffffff",
                                     display: "grid",
                                     placeItems: "center",
@@ -2312,7 +2236,7 @@ export function AgentsPage({
                                     flexShrink: 0,
                                 }}
                             >
-                                {userProfile.initials || "MB"}
+                                {userProfile.initials || "WM"}
                             </div>
                             <span
                                 style={{
@@ -2324,16 +2248,16 @@ export function AgentsPage({
                                     textOverflow: "ellipsis",
                                 }}
                             >
-                                {userProfile.name || "Matheus Buniotto"}
+                                {userProfile.name || "Workspace Member"}
                             </span>
                         </div>
 
-                        {/* Right: Theme Toggle + Grid Icon + Blue Action Arrow */}
+                        {/* Right: Theme Toggle + Settings Icon (no blue arrow!) */}
                         <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                             <button
                                 type="button"
                                 onClick={() => toggleTheme()}
-                                title={isDark ? "Mudar para tema Claro" : "Mudar para tema Escuro"}
+                                title={isDark ? "Switch to light theme" : "Switch to dark theme"}
                                 style={{
                                     width: 24,
                                     height: 24,
@@ -2352,7 +2276,7 @@ export function AgentsPage({
                             <button
                                 type="button"
                                 onClick={() => setProfileModalOpen(true)}
-                                title="Workspace & Preferências"
+                                title="Workspace & Settings"
                                 style={{
                                     width: 24,
                                     height: 24,
@@ -2365,28 +2289,7 @@ export function AgentsPage({
                                     cursor: "pointer",
                                 }}
                             >
-                                <LayoutGrid size={14} />
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setIsCreatingAgent(true)}
-                                title="Novo agente"
-                                style={{
-                                    width: 26,
-                                    height: 26,
-                                    borderRadius: "50%",
-                                    border: "none",
-                                    background: "#1d4ed8",
-                                    color: "#ffffff",
-                                    display: "grid",
-                                    placeItems: "center",
-                                    cursor: "pointer",
-                                    boxShadow: "0 2px 6px rgba(29, 78, 216, 0.35)",
-                                    transition: "background 0.15s ease",
-                                }}
-                            >
-                                <ArrowUp size={13} strokeWidth={2.5} />
+                                <Settings2 size={13} />
                             </button>
                         </div>
                     </div>
@@ -2446,7 +2349,7 @@ export function AgentsPage({
                                 role: baseRole,
                             })
                         }
-                        title={`Editar perfil de ${activeDisplayName}`}
+                        title={`Edit profile of ${activeDisplayName}`}
                     >
                         <GrokbotAvatar
                             name={activeDisplayName}
@@ -2454,7 +2357,7 @@ export function AgentsPage({
                             icon={activeIcon}
                             size={22}
                             isWorking={working}
-                            mood={working ? "thinking" : grokTone === "sharp" ? "sharp" : "normal"}
+                            mood={working ? "thinking" : "normal"}
                             hasStarBadge={activeAgentId === "dataclaw"}
                         />
                         <span
@@ -2476,7 +2379,7 @@ export function AgentsPage({
                                 setShowDeepDive(!showDeepDive);
                                 if (!showDeepDive) setSidePanelTab("screen");
                             }}
-                            title={showDeepDive ? "Fechar Compute Screen" : "Abrir Compute Screen"}
+                            title={showDeepDive ? "Close Compute Screen" : "Open Compute Screen"}
                             style={{
                                 width: 32,
                                 height: 32,
@@ -2541,10 +2444,10 @@ export function AgentsPage({
                                     cursor: "pointer",
                                     boxShadow: "0 2px 8px rgba(239, 68, 68, 0.35)",
                                 }}
-                                title="Ir para mensagens mais recentes"
+                                title="Jump to latest messages"
                             >
                                 <ArrowUp size={12} strokeWidth={2.5} />
-                                <span>{transcript.length > 30 ? 79 : transcript.length} novas mensagens</span>
+                                <span>{transcript.length} new messages</span>
                                 <span
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -2707,7 +2610,7 @@ export function AgentsPage({
                                                 icon={activeIcon}
                                                 size={28}
                                                 isWorking={working && isLast}
-                                                mood={working && isLast ? "thinking" : grokTone === "sharp" ? "sharp" : "normal"}
+                                                mood={working && isLast ? "thinking" : "normal"}
                                             />
                                         </span>
                                         <AssistantTurnView
@@ -2790,57 +2693,7 @@ export function AgentsPage({
                                 }
                             `}</style>
 
-                            {/* Section 0: Tom de Resposta (Grok Tone) */}
-                            <div style={{ marginBottom: 10, paddingBottom: 8, borderBottom: isDark ? "1px solid rgba(255, 255, 255, 0.07)" : "1px solid #ece8de" }}>
-                                <div
-                                    style={{
-                                        fontSize: 10,
-                                        fontWeight: 700,
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.5px",
-                                        color: t.textMuted,
-                                        marginBottom: 6,
-                                        padding: "0 4px",
-                                    }}
-                                >
-                                    Tom de Resposta
-                                </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
-                                    {GROK_TONES.map((tone) => {
-                                        const active = grokTone === tone.id;
-                                        return (
-                                            <button
-                                                key={tone.id}
-                                                type="button"
-                                                onClick={() => handleSelectTone(tone.id)}
-                                                style={{
-                                                    padding: "6px 8px",
-                                                    borderRadius: 8,
-                                                    border: `1px solid ${active ? t.accent : isDark ? "rgba(255,255,255,0.08)" : "#e6e3da"}`,
-                                                    background: active
-                                                        ? (isDark ? "rgba(255, 94, 87, 0.16)" : "#eaf3ee")
-                                                        : "transparent",
-                                                    color: active ? t.accent : t.textPrimary,
-                                                    fontSize: 11,
-                                                    fontWeight: active ? 700 : 500,
-                                                    cursor: "pointer",
-                                                    display: "flex",
-                                                    flexDirection: "column",
-                                                    alignItems: "center",
-                                                    gap: 2,
-                                                    transition: "all 0.12s ease",
-                                                }}
-                                                title={tone.description}
-                                            >
-                                                <span>{tone.label.replace("Grok ", "")}</span>
-                                                <span style={{ fontSize: 9, color: t.textMuted }}>{tone.tag}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Section 1: Grok Analysis & Audits */}
+                            {/* Section 1: Quick Actions */}
                             <div>
                                 <div
                                     style={{
@@ -2856,7 +2709,7 @@ export function AgentsPage({
                                     }}
                                 >
                                     <Zap size={11} color={t.accent} />
-                                    Ações e Auditoria Estatística
+                                    Data Actions & Verification
                                 </div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
                                     {GROK_QUICK_ACTIONS.map((action) => {
@@ -2920,7 +2773,7 @@ export function AgentsPage({
                                         }}
                                     >
                                         <AtSign size={11} color={t.textMuted} />
-                                        Delegar Especialista
+                                        Delegate to Specialist
                                     </div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 150, overflowY: "auto" }}>
                                         {allBots
@@ -2997,7 +2850,7 @@ export function AgentsPage({
                                 flexShrink: 0,
                                 transition: "all 0.15s ease",
                             }}
-                            title="Ações e delegar especialista (+)"
+                            title="Actions & delegate (+)"
                         >
                             <Plus
                                 size={15}
@@ -3028,7 +2881,7 @@ export function AgentsPage({
                                     setActionMenuOpen(false);
                                 }
                             }}
-                            placeholder={`Mensagem para ${activeDisplayName}…`}
+                            placeholder={`Message ${activeDisplayName}…`}
                             rows={1}
                             style={{
                                 flex: 1,
@@ -3101,7 +2954,7 @@ export function AgentsPage({
                                         placeItems: "center",
                                         cursor: "pointer",
                                     }}
-                                    title="Voz (Microfone)"
+                                    title="Voice input"
                                 >
                                     <Mic size={15} />
                                 </button>
@@ -3117,7 +2970,7 @@ export function AgentsPage({
                                         gap: 2,
                                         cursor: "pointer",
                                     }}
-                                    title="Áudio waveform"
+                                    title="Audio waveform"
                                 >
                                     <span style={{ width: 2, height: 9, background: "#fff", borderRadius: 1 }} />
                                     <span style={{ width: 2, height: 15, background: "#fff", borderRadius: 1 }} />
@@ -3217,7 +3070,7 @@ export function AgentsPage({
                                     icon={activeIcon}
                                     size={28}
                                     isWorking={working}
-                                    mood={working ? "thinking" : grokTone === "sharp" ? "sharp" : "normal"}
+                                    mood={working ? "thinking" : "normal"}
                                 />
                                 <div>
                                     <div
