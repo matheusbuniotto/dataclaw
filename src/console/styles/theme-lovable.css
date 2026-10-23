@@ -536,3 +536,28 @@ body.theme-lovable .main-area,
   background: #ff5e57 !important;
   box-shadow: 0 0 6px #ff5e57 !important;
 }
+
+/* Sidebar in Lovable Dark Theme */
+.theme-lovable .sidebar {
+  background: #0f1218 !important;
+  border-right-color: #1b212c !important;
+}
+.theme-lovable .sidebar .brand-name {
+  color: #ffffff !important;
+}
+.theme-lovable .sidebar .nav-link:hover {
+  background: #171d27 !important;
+  color: #ffffff !important;
+}
+.theme-lovable .sidebar .nav-link.active {
+  background: #1c2432 !important;
+  color: #ffffff !important;
+  box-shadow: inset 3px 0 #ff5e57 !important;
+}
+.theme-lovable .sidebar .system-card {
+  background: #131720 !important;
+  border-color: #1f2736 !important;
+}
+.theme-lovable .sidebar .profile {
+  border-top-color: #1c2330 !important;
+}

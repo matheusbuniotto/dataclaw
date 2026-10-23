@@ -513,7 +513,7 @@ dataclaw/
 │   ├── cli.ts                       # Interactive CLI runner
 │   ├── config.ts                    # Multi-provider model configuration (OpenAI, Anthropic, Gemini, Faux)
 │   ├── harness.ts                   # Bootstraps Harness, SQLite storage, registry, and resumption
-│   ├── console/                     # Stillwork console (Bun.serve + React)
+│   ├── console/                     # DataClaw console (Bun.serve + React)
 │   │   ├── api/                     # HTTP seam: routes, wire types, server, and the domain APIs
 │   │   │   ├── server.ts            # Bun.serve: page routes + the API table
 │   │   │   ├── routes.ts            # /api/* route table and respond()

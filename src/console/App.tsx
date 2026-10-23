@@ -1,4 +1,4 @@
-// Stillwork: Durable Agent Data Platform (DataClaw Console)
+// DataClaw: Durable Agent Data Platform (Console Shell)
 import React from "react";
 import { DurableAgentConsole } from "./DurableAgentConsole";
 

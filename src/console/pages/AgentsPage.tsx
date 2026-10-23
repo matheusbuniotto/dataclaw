@@ -29,6 +29,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Clock,
+    Copy,
     Cpu,
     Database,
     ExternalLink,
@@ -1279,7 +1280,7 @@ export function AgentsPage({
     onStop,
     ask,
     ops,
-    onOpenStillworkMenu,
+    onOpenPlatformMenu,
     onOpenSettings,
     onToggleOps,
 }: {
@@ -1295,7 +1296,7 @@ export function AgentsPage({
     onStop: () => void;
     ask: (goal: string) => void;
     ops: boolean;
-    onOpenStillworkMenu?: () => void;
+    onOpenPlatformMenu?: () => void;
     onOpenSettings?: () => void;
     onToggleOps?: () => void;
 }) {
@@ -1398,6 +1399,24 @@ export function AgentsPage({
         "[agent:boot] Specialist loaded: active plan and playbook synced",
         "[compute:ready] Interactive sandbox ready for bash, duckdb, and python execution",
     ]);
+    const [logFilter, setLogFilter] = useState<"all" | "tools" | "system" | "stdout">("all");
+    const [logsCopied, setLogsCopied] = useState(false);
+
+    const handleCopyLogs = () => {
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+            navigator.clipboard.writeText(screenLogs.join("\n"));
+            setLogsCopied(true);
+            setTimeout(() => setLogsCopied(false), 2000);
+        }
+    };
+
+    const displayedLogs = useMemo(() => {
+        if (logFilter === "all") return screenLogs;
+        if (logFilter === "tools") return screenLogs.filter((l) => l.includes("[tool:") || l.includes("[bash-exec]") || l.includes("$ "));
+        if (logFilter === "system") return screenLogs.filter((l) => l.includes("[kernel:") || l.includes("[storage:") || l.includes("[runtime:") || l.includes("[compute:") || l.includes("[agent:boot]") || l.includes("[console]"));
+        if (logFilter === "stdout") return screenLogs.filter((l) => l.includes("[agent:stdout]") || l.includes("[user-goal]"));
+        return screenLogs;
+    }, [screenLogs, logFilter]);
 
     const [actionMenuOpen, setActionMenuOpen] = useState(false);
     const actionMenuRef = useRef<HTMLDivElement>(null);
@@ -1654,26 +1673,27 @@ export function AgentsPage({
 
     useEffect(() => {
         if (transcript.length === 0) return;
-        const recent = transcript.slice(-8);
+        const recent = transcript.slice(-10);
         const newLogs: string[] = [];
+        const now = new Date().toLocaleTimeString("en-US", { hour12: false });
         for (const item of recent) {
             if (item.role === "tool" && item.toolName) {
-                const summary = item.toolSummary || item.text.slice(0, 50);
+                const summary = item.toolSummary || item.text.slice(0, 60);
                 const status = item.toolStatus ?? (item.isError ? "error" : "done");
-                newLogs.push(`[tool:${item.toolName}] ${summary} (${status})`);
+                newLogs.push(`[${now}] [tool:${item.toolName}] ${summary} (${status})`);
             } else if (item.role === "assistant" && item.text) {
                 const words = item.text.replace(/\n+/g, " ").slice(0, 65);
                 if (words.trim()) {
-                    newLogs.push(`[agent:stdout] ${words}...`);
+                    newLogs.push(`[${now}] [agent:stdout] ${words}...`);
                 }
             }
         }
         if (newLogs.length > 0) {
             setScreenLogs((prev) => {
-                const set = new Set(prev);
-                const additions = newLogs.filter((l) => !set.has(l));
+                const recentSet = new Set(prev.map((l) => l.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, "")));
+                const additions = newLogs.filter((l) => !recentSet.has(l.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, "")));
                 if (additions.length === 0) return prev;
-                return [...prev, ...additions].slice(-100);
+                return [...prev, ...additions].slice(-150);
             });
         }
     }, [transcript]);
@@ -1859,7 +1879,7 @@ export function AgentsPage({
                         <button
                             type="button"
                             onClick={() => setSearchFilterOpen((prev) => !prev)}
-                            title="Buscar bots"
+                            title="Search specialists"
                             style={{
                                 width: 28,
                                 height: 28,
@@ -2322,8 +2342,38 @@ export function AgentsPage({
                         background: t.panelBg,
                     }}
                 >
-                    {/* Left spacer for optical center balance */}
-                    <div style={{ width: 36 }} />
+                    {/* Left action: Platform Navigation Drawer Toggle */}
+                    <div style={{ display: "flex", alignItems: "center", width: 36 }}>
+                        {onOpenPlatformMenu && (
+                            <button
+                                type="button"
+                                onClick={onOpenPlatformMenu}
+                                title="Open DataClaw Platform Menu (Runs, Data Health, Capabilities, Overview)"
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: "50%",
+                                    border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"}`,
+                                    background: isDark ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.02)",
+                                    color: t.textSecondary,
+                                    display: "grid",
+                                    placeItems: "center",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = t.accent;
+                                    e.currentTarget.style.color = t.textPrimary;
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)";
+                                    e.currentTarget.style.color = t.textSecondary;
+                                }}
+                            >
+                                <Layers3 size={15} />
+                            </button>
+                        )}
+                    </div>
 
                     {/* Centered Bot Capsule matching reference screenshot */}
                     <div
@@ -3408,6 +3458,71 @@ export function AgentsPage({
                                         </div>
                                     </div>
 
+                                    {/* Sub-bar: Log category filters & Copy Logs action */}
+                                    <div
+                                        style={{
+                                            padding: "4px 8px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            borderBottom: `1px solid ${activeCrt.border}`,
+                                            background: activeCrt.headerBg,
+                                            gap: 6,
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                            {[
+                                                { id: "all", label: "All" },
+                                                { id: "tools", label: "Tools" },
+                                                { id: "system", label: "System" },
+                                                { id: "stdout", label: "Stdout" },
+                                            ].map((f) => (
+                                                <button
+                                                    key={f.id}
+                                                    type="button"
+                                                    onClick={() => setLogFilter(f.id as any)}
+                                                    style={{
+                                                        fontSize: 9,
+                                                        fontFamily: "var(--app-font-mono, monospace)",
+                                                        padding: "2px 6px",
+                                                        borderRadius: 4,
+                                                        border: logFilter === f.id ? `1px solid ${activeCrt.text}` : "1px solid transparent",
+                                                        background: logFilter === f.id ? "rgba(255, 255, 255, 0.08)" : "transparent",
+                                                        color: logFilter === f.id ? activeCrt.text : activeCrt.textMuted,
+                                                        cursor: "pointer",
+                                                        fontWeight: logFilter === f.id ? 700 : 500,
+                                                        transition: "all 0.12s ease",
+                                                    }}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyLogs}
+                                            title="Copy terminal logs to clipboard"
+                                            style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: 3,
+                                                fontSize: 9,
+                                                fontFamily: "var(--app-font-mono, monospace)",
+                                                padding: "2px 6px",
+                                                borderRadius: 4,
+                                                border: `1px solid ${logsCopied ? "#10b981" : "transparent"}`,
+                                                background: logsCopied ? "rgba(16, 185, 129, 0.18)" : "transparent",
+                                                color: logsCopied ? "#10b981" : activeCrt.textMuted,
+                                                cursor: "pointer",
+                                                transition: "all 0.12s ease",
+                                            }}
+                                        >
+                                            {logsCopied ? <Check size={10} strokeWidth={2.5} /> : <Copy size={10} />}
+                                            <span>{logsCopied ? "Copied" : "Copy"}</span>
+                                        </button>
+                                    </div>
+
                                     {/* CRT Screen Body with Scanlines */}
                                     <div
                                         style={{
@@ -3425,18 +3540,24 @@ export function AgentsPage({
                                             backgroundSize: "100% 3px, 3px 100%",
                                         }}
                                     >
-                                        {screenLogs.map((log, idx) => (
-                                            <div
-                                                key={idx}
-                                                style={{
-                                                    wordBreak: "break-all",
-                                                    textShadow: activeCrt.glow,
-                                                    opacity: idx === screenLogs.length - 1 ? 1 : 0.9,
-                                                }}
-                                            >
-                                                {log}
+                                        {displayedLogs.length === 0 ? (
+                                            <div style={{ color: activeCrt.textMuted, fontStyle: "italic", padding: "10px 0" }}>
+                                                No logs match the "{logFilter}" filter yet.
                                             </div>
-                                        ))}
+                                        ) : (
+                                            displayedLogs.map((log, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    style={{
+                                                        wordBreak: "break-all",
+                                                        textShadow: activeCrt.glow,
+                                                        opacity: idx === displayedLogs.length - 1 ? 1 : 0.9,
+                                                    }}
+                                                >
+                                                    {log}
+                                                </div>
+                                            ))
+                                        )}
 
                                         {/* Blinking Prompt Cursor */}
                                         <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, textShadow: activeCrt.glow }}>
@@ -3675,47 +3796,134 @@ export function AgentsPage({
 
                         {/* TAB 3: BOT SPECS */}
                         {sidePanelTab === "specs" && (
-                            <div style={{ padding: "12px 14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted }}>
-                                    Specialist Environment
+                            <div style={{ padding: "12px 14px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted, marginBottom: 6 }}>
+                                        Specialist Architecture
+                                    </div>
+                                    <div
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 9,
+                                            padding: "10px 12px",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: 7,
+                                            fontSize: 11,
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>Role Archetype:</span>
+                                            <span style={{ fontWeight: 600, color: t.textPrimary, textTransform: "capitalize" }}>
+                                                {baseRole.replace(/_/g, " ")}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>Compute Sandbox:</span>
+                                            <span style={{ fontWeight: 600, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
+                                                {"compute" in baseAgent ? String((baseAgent as any).compute) : "local-isolated"}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>SQL Safety:</span>
+                                            <span style={{ fontWeight: 600, color: "#10b981", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                                <ShieldCheck size={11} /> Read-only enforced
+                                            </span>
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>Status:</span>
+                                            <span style={{ color: t.accent, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                                <Check size={11} strokeWidth={2.5} /> Active & checkpointed
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div
-                                    style={{
-                                        background: t.cardBg,
-                                        border: `1px solid ${t.border}`,
-                                        borderRadius: 10,
-                                        padding: "11px 13px",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 8,
-                                        fontSize: 11.5,
-                                    }}
-                                >
-                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                        <span style={{ color: t.textMuted }}>Role Archetype:</span>
-                                        <span style={{ fontWeight: 600, color: t.textPrimary, textTransform: "capitalize" }}>
-                                            {baseRole.replace(/_/g, " ")}
-                                        </span>
+
+                                {/* Registered Tool Inventory */}
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted, marginBottom: 6 }}>
+                                        Registered Tool Inventory
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                        <span style={{ color: t.textMuted }}>Compute Sandbox:</span>
-                                        <span style={{ fontWeight: 600, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
-                                            {"compute" in baseAgent ? String((baseAgent as any).compute) : "local-isolated"}
-                                        </span>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                                        {[
+                                            { name: "query_data", desc: "Read-only SQL queries across warehouse tables", tag: "SQL" },
+                                            { name: "profile_table", desc: "Statistical distribution, nulls, percentiles & correlations", tag: "PROFILE" },
+                                            { name: "discover_data", desc: "Navigate Unity Catalog schemas, namespaces & datasets", tag: "METADATA" },
+                                            { name: "list_data_sources", desc: "List active and connected database providers", tag: "SOURCES" },
+                                            { name: "auditor", desc: "Sub-agent statistical validation & audit verdict", tag: "AUDIT" },
+                                            { name: "bash_sandbox", desc: "Isolated shell environment for Python/DuckDB execution", tag: "EXEC" },
+                                        ].map((tool) => (
+                                            <div
+                                                key={tool.name}
+                                                style={{
+                                                    background: t.cardBg,
+                                                    border: `1px solid ${t.border}`,
+                                                    borderRadius: 7,
+                                                    padding: "7px 9px",
+                                                    display: "flex",
+                                                    alignItems: "flex-start",
+                                                    justifyContent: "space-between",
+                                                    gap: 8,
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 0, flex: 1 }}>
+                                                    <div style={{ fontSize: 10.5, fontWeight: 700, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
+                                                        {tool.name}
+                                                    </div>
+                                                    <div style={{ fontSize: 9.5, color: t.textMuted, marginTop: 2, lineHeight: 1.35 }}>
+                                                        {tool.desc}
+                                                    </div>
+                                                </div>
+                                                <span
+                                                    style={{
+                                                        fontSize: 8.5,
+                                                        fontWeight: 700,
+                                                        fontFamily: "var(--app-font-mono, monospace)",
+                                                        padding: "1px 5px",
+                                                        borderRadius: 4,
+                                                        background: isDark ? "rgba(255, 255, 255, 0.06)" : "#f0ede4",
+                                                        color: t.accent,
+                                                        border: `1px solid ${t.borderSubtle}`,
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                >
+                                                    {tool.tag}
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                                        <span style={{ color: t.textMuted }}>Tooling:</span>
-                                        <span style={{ color: t.accent, fontWeight: 600, textAlign: "right", wordBreak: "break-word" }}>
-                                            {"capabilities" in baseAgent && Array.isArray((baseAgent as any).capabilities)
-                                                ? (baseAgent as any).capabilities.join(", ")
-                                                : "analyst, data, coding, plugins"}
-                                        </span>
+                                </div>
+
+                                {/* Durable Runtime & Storage Specs */}
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMuted, marginBottom: 6 }}>
+                                        Durable Runtime & Storage
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                        <span style={{ color: t.textMuted }}>Status:</span>
-                                        <span style={{ color: t.accent, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                            <Check size={12} strokeWidth={2.5} /> Active & isolated
-                                        </span>
+                                    <div
+                                        style={{
+                                            background: t.cardBg,
+                                            border: `1px solid ${t.border}`,
+                                            borderRadius: 9,
+                                            padding: "9px 11px",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: 6,
+                                            fontSize: 10,
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>Engine:</span>
+                                            <span style={{ color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>@earendil-works/pi-durable</span>
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>Database:</span>
+                                            <span style={{ color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>SQLite WAL (/workspace/dataclaw.db)</span>
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <span style={{ color: t.textMuted }}>Context Contract:</span>
+                                            <span style={{ color: t.textPrimary }}>AGENTS.md reload on turn</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -3738,12 +3946,13 @@ export function AgentsPage({
                                         gap: 6,
                                         fontSize: 11,
                                         fontWeight: 600,
-                                        padding: "7px 12px",
+                                        padding: "8px 12px",
                                         borderRadius: 7,
                                         border: `1px solid ${t.border}`,
                                         background: t.cardBg,
                                         color: t.textPrimary,
                                         cursor: "pointer",
+                                        marginTop: 2,
                                     }}
                                 >
                                     <Pencil size={12} />

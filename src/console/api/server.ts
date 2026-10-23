@@ -1,4 +1,4 @@
-// Stillwork: Durable Agent Data Platform (DataClaw Console)
+// DataClaw: Durable Agent Data Platform (Console API Server)
 //
 // The console's entry point and its only listener. The API itself lives in `routes.ts`, which
 // imports nothing that binds a port, so it can be exercised in a test without starting this.
@@ -54,7 +54,7 @@ export function startServer(options: { port?: number; hostname?: string } = {}) 
 
     const base = `http://localhost:${server.port}`;
     console.log("\n==========================================================");
-    console.log("  STILLWORK: DURABLE AGENT DATA PLATFORM");
+    console.log("  DATACLAW: DURABLE AGENT DATA PLATFORM");
     console.log("==========================================================");
     console.log(`\n  🚀 URL: ${base}/console`);
     console.log(`\n  Pages:`);

@@ -1,4 +1,4 @@
-// Stillwork: Durable Agent Data Platform (DataClaw Console)
+// DataClaw: Durable Agent Data Platform (Console Shell)
 //
 // The console shell: navigation, the sidebar, the header, and the client-side route table. Each
 // page and each reusable piece lives in `pages/` and `components/`; the HTTP seam lives in `api/`.
@@ -39,7 +39,7 @@ import {
 
 const navItems = [
     { href: "/console", label: "Overview", icon: Gauge },
-    { href: "/console/agents", label: "Agent", icon: Bot },
+    { href: "/console/agents", label: "Agents & Chat", icon: Bot },
     { href: "/console/runs", label: "Durable runs", icon: Workflow },
     { href: "/console/data", label: "Data health", icon: Database },
     { href: "/console/capabilities", label: "Capabilities", icon: Puzzle },
@@ -250,19 +250,19 @@ export function DurableAgentConsole() {
                             <Layers3 size={19} />
                         </div>
                         <div>
-                            <div className="brand-name">Stillwork</div>
-                            <div className="brand-caption">DURABLE WORKSPACE</div>
+                            <div className="brand-name">DataClaw</div>
+                            <div className="brand-caption">DURABLE AI & DATA</div>
                         </div>
                     </div>
                     {isAgentsView && (
                         <button
                             type="button"
                             onClick={() => setMenuOpen(false)}
-                            aria-label="Close Stillwork Menu"
+                            aria-label="Close Platform Menu"
                             style={{
-                                background: "transparent",
-                                border: "1px solid #35514e",
-                                color: "#b5c3bd",
+                                background: "rgba(255, 255, 255, 0.06)",
+                                border: "1px solid rgba(255, 255, 255, 0.12)",
+                                color: "#cbd5e1",
                                 borderRadius: 7,
                                 width: 28,
                                 height: 28,
@@ -289,8 +289,7 @@ export function DurableAgentConsole() {
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = location === item.href
-                            || (item.href === "/console" && (location === "/" || location === "/prototype"))
-                            || location === item.href.replace("/console", "/prototype");
+                            || (item.href === "/console" && (location === "/" || location === "/prototype"));
                         return (
                             <Link
                                 key={item.href}
@@ -300,7 +299,7 @@ export function DurableAgentConsole() {
                             >
                                 <Icon size={16} />
                                 <span>{item.label}</span>
-                                {(item.href === "/console/runs" || item.href === "/prototype/runs") && (
+                                {item.href === "/console/runs" && (
                                     <span className="nav-count">{runs.length}</span>
                                 )}
                             </Link>
@@ -309,10 +308,18 @@ export function DurableAgentConsole() {
                 </nav>
 
                 <div className="sidebar-bottom">
+                    <div className="system-card">
+                        <div className="system-heading">
+                            <span>SQLite WAL</span>
+                            <span className="live-dot" />
+                        </div>
+                        <p>Checkpointed & crash resilient. Active durable sessions in SQLite.</p>
+                    </div>
+
                     <Link
                         href="/console/settings"
                         onClick={() => setMenuOpen(false)}
-                        className={`nav-link ${location === "/console/settings" || location === "/prototype/settings" ? "active" : ""}`}
+                        className={`nav-link ${location === "/console/settings" ? "active" : ""}`}
                     >
                         <Settings2 size={16} />
                         <span>Settings</span>
@@ -320,11 +327,10 @@ export function DurableAgentConsole() {
 
                     <div className="profile">
                         <span className="profile-avatar">{agentInitials(agent?.name ?? "DataClaw")}</span>
-                        <span className="profile-info">
+                        <div className="profile-info">
                             <b>{agent?.name ?? "DataClaw"}</b>
-                            <span>{agent?.model ?? "Main agent"}</span>
-                        </span>
-                        <MoreHorizontal size={17} />
+                            <span>{agent?.model ?? "Coordinator"}</span>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -411,19 +417,6 @@ export function DurableAgentConsole() {
                             ops={ops}
                         />
                     </Route>
-                    <Route path="/prototype">
-                        <Overview
-                            snapshot={snapshot}
-                            agents={agents}
-                            runs={runs}
-                            sources={sources}
-                            openLaunch={() => setLaunchOpen(true)}
-                            ask={ask}
-                            asking={asking}
-                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
-                            ops={ops}
-                        />
-                    </Route>
                     <Route path="/">
                         <Overview
                             snapshot={snapshot}
@@ -452,33 +445,11 @@ export function DurableAgentConsole() {
                             ask={ask}
                             ops={ops}
                             onToggleOps={() => setOps(!ops)}
-                            onOpenStillworkMenu={() => setMenuOpen(true)}
-                            onOpenSettings={() => setLocation("/console/settings")}
-                        />
-                    </Route>
-                    <Route path="/prototype/agents">
-                        <AgentsPage
-                            agents={agents}
-                            roster={snapshot?.roster ?? []}
-                            activeAgentId={activeAgentId}
-                            onSelectAgent={selectAgent}
-                            transcript={snapshot?.transcript ?? []}
-                            skills={snapshot?.home.skills ?? []}
-                            workspacePath={snapshot?.home.path}
-                            working={Boolean(agent?.working) || asking}
-                            stopping={stopping}
-                            onStop={() => void stopAgent()}
-                            ask={ask}
-                            ops={ops}
-                            onToggleOps={() => setOps(!ops)}
-                            onOpenStillworkMenu={() => setMenuOpen(true)}
+                            onOpenPlatformMenu={() => setMenuOpen(true)}
                             onOpenSettings={() => setLocation("/console/settings")}
                         />
                     </Route>
                     <Route path="/console/runs">
-                        <RunsPage runs={runs} agents={agents} changeRun={changeRun} notify={notify} />
-                    </Route>
-                    <Route path="/prototype/runs">
                         <RunsPage runs={runs} agents={agents} changeRun={changeRun} notify={notify} />
                     </Route>
                     <Route path="/console/data">
@@ -490,22 +461,7 @@ export function DurableAgentConsole() {
                             inspect={(id) => setLocation("/console/runs?selected=" + id)}
                         />
                     </Route>
-                    <Route path="/prototype/data">
-                        <DataPage
-                            sources={sources}
-                            runs={runs}
-                            ops={ops}
-                            onConnect={() => setAuthOpen(true)}
-                            inspect={(id) => setLocation("/console/runs?selected=" + id)}
-                        />
-                    </Route>
                     <Route path="/console/capabilities">
-                        <CapabilitiesPage
-                            notify={notify}
-                            onApplied={(workspace) => setSnapshot(workspace)}
-                        />
-                    </Route>
-                    <Route path="/prototype/capabilities">
                         <CapabilitiesPage
                             notify={notify}
                             onApplied={(workspace) => setSnapshot(workspace)}
@@ -521,16 +477,27 @@ export function DurableAgentConsole() {
                             onManageDatabricks={() => setAuthOpen(true)}
                         />
                     </Route>
-                    <Route path="/prototype/settings">
-                        <SettingsPage
-                            snapshot={snapshot}
-                            ops={ops}
-                            setOps={setOps}
-                            auth={auth}
-                            notify={notify}
-                            onManageDatabricks={() => setAuthOpen(true)}
-                        />
+
+                    {/* Legacy backward-compatibility redirects */}
+                    <Route path="/prototype/:rest*">
+                        {(params) => {
+                            const rest = params["rest*"];
+                            const target = rest ? `/console/${rest}` : "/console";
+                            useEffect(() => {
+                                setLocation(target);
+                            }, [target]);
+                            return null;
+                        }}
                     </Route>
+                    <Route path="/prototype">
+                        {() => {
+                            useEffect(() => {
+                                setLocation("/console");
+                            }, []);
+                            return null;
+                        }}
+                    </Route>
+
                     <Route>
                         <NotFound goHome={() => setLocation("/console")} />
                     </Route>
