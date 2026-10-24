@@ -42,6 +42,8 @@ describe("the console's pages", () => {
                 "/console/",
                 "/console/capabilities",
                 "/console/capabilities/",
+                "/console/observability",
+                "/console/observability/",
                 "/prototype",
                 "/prototype/",
                 "/prototype/capabilities",
@@ -53,6 +55,52 @@ describe("the console's pages", () => {
             }
         } finally {
             server.stop(true);
+        }
+    });
+
+    test("startServer respects DATABRICKS_APP_PORT environment variable and binds 0.0.0.0", async () => {
+        const { startServer } = await import("../src/console/api/server");
+        const prevPort = process.env.DATABRICKS_APP_PORT;
+        try {
+            process.env.DATABRICKS_APP_PORT = "54321";
+            const server = startServer({ port: 0 }); // Override port with 0 for safety in tests
+            try {
+                expect(server.port).toBeGreaterThan(0);
+                expect(server.hostname).toBe("0.0.0.0");
+            } finally {
+                server.stop(true);
+            }
+        } finally {
+            if (prevPort !== undefined) {
+                process.env.DATABRICKS_APP_PORT = prevPort;
+            } else {
+                delete process.env.DATABRICKS_APP_PORT;
+            }
+        }
+    });
+
+    test("production bundle uses react/jsx-runtime without jsxDEV", async () => {
+        const { startServer } = await import("../src/console/api/server");
+        const prevEnv = process.env.NODE_ENV;
+        try {
+            process.env.NODE_ENV = "production";
+            const server = startServer({ port: 0, hostname: "127.0.0.1" });
+            try {
+                const response = await fetch(`http://127.0.0.1:${server.port}/console`);
+                const html = await response.text();
+                for (const m of html.matchAll(/src="([^"]+)"/g)) {
+                    if (m[1]?.startsWith("/")) {
+                        const jsRes = await fetch(`http://127.0.0.1:${server.port}${m[1]}`);
+                        const js = await jsRes.text();
+                        expect(js.includes("jsxDEV")).toBe(false);
+                    }
+                }
+            } finally {
+                server.stop(true);
+            }
+        } finally {
+            if (prevEnv !== undefined) process.env.NODE_ENV = prevEnv;
+            else delete process.env.NODE_ENV;
         }
     });
 });
@@ -90,6 +138,19 @@ describe("the route table is data, not a listener", () => {
 
         const cancelled = await answer("POST", "/api/databricks/oauth/cancel");
         expect(cancelled.body).toMatchObject({ ok: true, state: "idle" });
+
+        const obs = await answer("GET", "/api/observability");
+        expect(obs.status).toBe(200);
+        expect(obs.body.evals).toBeDefined();
+        expect(obs.body.power).toBeDefined();
+        expect(obs.body.growth).toBeDefined();
+        expect(obs.body.auditor).toBeDefined();
+        expect(obs.body.langwatch).toBeDefined();
+
+        const trace = await answer("POST", "/api/observability/trace");
+        expect(trace.status).toBe(200);
+        expect(trace.body.ok).toBe(true);
+        expect(trace.body.trace_id).toBeDefined();
     });
 
     test("a route reads its query and its JSON body", async () => {
@@ -120,6 +181,14 @@ describe("the route table is data, not a listener", () => {
         expect(report.status).toBe(200);
         expect(report.body.ok).toBe(true);
         expect(report.body.format).toBe("json");
+
+        const htmlReport = await handle(request("GET", "/api/report?format=html"));
+        expect(htmlReport.status).toBe(200);
+        expect(htmlReport.headers.get("Content-Type")).toContain("text/html");
+
+        const dossier = await handle(request("GET", "/api/dossier"));
+        expect(dossier.status).toBe(200);
+        expect(dossier.headers.get("Content-Type")).toContain("text/markdown");
     });
 
     test("a body field is read once, at the route", async () => {

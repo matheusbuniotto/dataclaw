@@ -211,7 +211,37 @@ interface ParsedTable {
 }
 
 export function parseTabularOutput(text: string): ParsedTable | null {
-    const lines = text.trim().split("\n");
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    // 1. Check for JSON array of objects or { columns, rows }
+    if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+        try {
+            const data = JSON.parse(trimmed);
+            if (Array.isArray(data) && data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
+                const headers = Object.keys(data[0]);
+                const rows = data.map((item) =>
+                    headers.map((h) => (item[h] !== undefined && item[h] !== null ? String(item[h]) : ""))
+                );
+                return { headers, rows, rowCountNote: `${rows.length} rows` };
+            }
+            if (data && typeof data === "object" && Array.isArray(data.columns) && Array.isArray(data.rows)) {
+                const headers = data.columns.map((c: any) =>
+                    typeof c === "string" ? c : c?.name ?? String(c)
+                );
+                const rows = data.rows.map((r: any) =>
+                    Array.isArray(r)
+                        ? r.map((cell: any) => (cell !== undefined && cell !== null ? String(cell) : ""))
+                        : headers.map((h: string) => (r[h] !== undefined && r[h] !== null ? String(r[h]) : ""))
+                );
+                return { headers, rows, rowCountNote: `${rows.length} rows` };
+            }
+        } catch {
+            // Fall through to ASCII parsing
+        }
+    }
+
+    const lines = trimmed.split("\n");
     if (lines.length < 2) return null;
 
     // Check if there is a header divider like ---+--- or |---|
@@ -690,15 +720,103 @@ function cleanToolResult(text: string): { error: boolean; body: string } {
     return { error, body: stripped || text };
 }
 
+export function AuditorVerdictCallout({ text }: { text: string }) {
+    const match = /VERDICT\W*(CONFIRMED|CAUTION|REJECTED)\b/i.exec(text);
+    const verdict = (match?.[1]?.toUpperCase() as "CONFIRMED" | "CAUTION" | "REJECTED") ?? "CAUTION";
+    const notes = text.replace(/VERDICT\W*(CONFIRMED|CAUTION|REJECTED)\b/i, "").trim();
+
+    const isConfirmed = verdict === "CONFIRMED";
+    const isCaution = verdict === "CAUTION";
+    const isRejected = verdict === "REJECTED";
+
+    return (
+        <div
+            style={{
+                borderRadius: 10,
+                padding: "14px 16px",
+                marginTop: 6,
+                background: isConfirmed
+                    ? "rgba(16, 185, 129, 0.08)"
+                    : isCaution
+                        ? "rgba(245, 158, 11, 0.08)"
+                        : "rgba(239, 68, 68, 0.08)",
+                border: `1px solid ${
+                    isConfirmed
+                        ? "rgba(16, 185, 129, 0.28)"
+                        : isCaution
+                            ? "rgba(245, 158, 11, 0.28)"
+                            : "rgba(239, 68, 68, 0.28)"
+                }`,
+            }}
+        >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <ShieldCheck
+                        size={16}
+                        style={{
+                            color: isConfirmed ? "var(--green, #10b981)" : isCaution ? "var(--amber, #f59e0b)" : "var(--red, #ef4444)",
+                        }}
+                    />
+                    <strong style={{ fontSize: 13, color: "#f8fafc" }}>Skeptical Auditor Verdict</strong>
+                </div>
+                <span
+                    style={{
+                        fontWeight: 700,
+                        fontSize: 11,
+                        padding: "3px 9px",
+                        borderRadius: 999,
+                        background: isConfirmed
+                            ? "rgba(16, 185, 129, 0.2)"
+                            : isCaution
+                                ? "rgba(245, 158, 11, 0.2)"
+                                : "rgba(239, 68, 68, 0.2)",
+                        color: isConfirmed ? "#34d399" : isCaution ? "#fbbf24" : "#f87171",
+                        border: `1px solid ${
+                            isConfirmed
+                                ? "rgba(16, 185, 129, 0.3)"
+                                : isCaution
+                                    ? "rgba(245, 158, 11, 0.3)"
+                                    : "rgba(239, 68, 68, 0.3)"
+                        }`,
+                    }}
+                >
+                    {verdict}
+                </span>
+            </div>
+            {notes && (
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: "#cbd5e1", whiteSpace: "pre-wrap" }}>
+                    {notes}
+                </div>
+            )}
+            <div
+                style={{
+                    marginTop: 10,
+                    paddingTop: 8,
+                    borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                    fontSize: 10.5,
+                    color: "var(--muted, #94a3b8)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                }}
+            >
+                <Sparkles size={11} style={{ color: "#ff5e57" }} />
+                <span>Calibrated LLM-as-a-Judge (Cohen's κ = 0.701) · Evaluates p-hacking, Simpson's Paradox, and small sample noise (N &lt; 30).</span>
+            </div>
+        </div>
+    );
+}
+
 function ToolResultView({ text, failed }: { text: string; failed: boolean }) {
     const [expanded, setExpanded] = useState(false);
     const cleaned = cleanToolResult(text);
     const isError = failed || cleaned.error;
+    const isAuditorVerdict = !isError && /VERDICT\W*(CONFIRMED|CAUTION|REJECTED)\b/i.test(cleaned.body);
     const limit = 1600;
-    const tabular = !isError && Boolean(parseTabularOutput(cleaned.body));
+    const tabular = !isError && !isAuditorVerdict && Boolean(parseTabularOutput(cleaned.body));
     let pretty = cleaned.body;
     let lang = "";
-    if (!isError && !tabular && /^[[{]/.test(cleaned.body.trim())) {
+    if (!isError && !tabular && !isAuditorVerdict && /^[[{]/.test(cleaned.body.trim())) {
         try {
             pretty = JSON.stringify(JSON.parse(cleaned.body), null, 2);
             lang = "json";
@@ -706,11 +824,12 @@ function ToolResultView({ text, failed }: { text: string; failed: boolean }) {
             pretty = cleaned.body;
         }
     }
-    const clipped = !expanded && !isError && !tabular && pretty.length > limit;
+    const clipped = !expanded && !isError && !tabular && !isAuditorVerdict && pretty.length > limit;
     const shown = clipped ? `${pretty.slice(0, limit).trimEnd()}…` : pretty;
 
     let body: React.ReactNode;
     if (isError) body = <pre className="tool-result-error">{cleaned.body}</pre>;
+    else if (isAuditorVerdict) body = <AuditorVerdictCallout text={cleaned.body} />;
     else if (tabular) body = <TabularOutputView text={cleaned.body} />;
     else if (lang) body = <CodeBlock code={shown} lang="json" title="JSON" />;
     else body = <pre className="tool-result-plain">{shown}</pre>;
@@ -718,7 +837,7 @@ function ToolResultView({ text, failed }: { text: string; failed: boolean }) {
     return (
         <div className="tool-section">
             <div className="tool-section-head">
-                <span className="tool-section-label">{isError ? "Error" : "Result"}</span>
+                <span className="tool-section-label">{isError ? "Error" : isAuditorVerdict ? "Auditor Evaluation" : "Result"}</span>
             </div>
             {body}
             {clipped && (
@@ -791,6 +910,21 @@ export function ToolInvocationCard({
                     <span className="tool-card-glyph">{instructionFile ? <BookOpen size={13} /> : meta.icon}</span>
                     <span className="tool-card-title">{title}</span>
                     <span className="tool-name-badge">{tool.toolName}</span>
+                    {tool.toolName === "query_data" && (
+                        <span className="chip" style={{ fontSize: 9.5, padding: "1px 5px", color: "var(--green, #10b981)", borderColor: "rgba(16, 185, 129, 0.3)" }}>
+                            Read-Only
+                        </span>
+                    )}
+                    {tool.toolName === "request_auditor_review" && (
+                        <span className="chip" style={{ fontSize: 9.5, padding: "1px 5px", color: "var(--amber, #f59e0b)", borderColor: "rgba(245, 158, 11, 0.3)" }}>
+                            Auditor κ=0.701
+                        </span>
+                    )}
+                    {tool.toolName === "profile_table" && (
+                        <span className="chip" style={{ fontSize: 9.5, padding: "1px 5px", color: "var(--indigo, #6366f1)", borderColor: "rgba(99, 102, 241, 0.3)" }}>
+                            Stats
+                        </span>
+                    )}
                     {summary && (
                         <span className="tool-summary" title={summary}>
                             {summary}

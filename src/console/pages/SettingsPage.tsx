@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PlugZap, Puzzle } from "lucide-react";
+import { BookOpen, FileText, PlugZap, Puzzle } from "lucide-react";
 import { DatabricksAuthCard, useDatabricksAuth } from "../components/DatabricksAuth";
 import type { WorkspaceSnapshot } from "../state/workspace-types";
 import type { PluginCheck, PluginsSummary } from "../api/plugins-api";
@@ -129,6 +129,36 @@ export function SettingsPage({
                                     {skill.name}
                                 </span>
                             ))}
+                        </div>
+                    </section>
+
+                    <section className="panel settings-card" style={{ borderLeft: "3px solid #ff5e57" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <h3 style={{ margin: 0 }}>Architecture Dossier & Design Defense</h3>
+                            <span className="badge badge-primary" style={{ fontSize: 10 }}>Staff Interview Dossier</span>
+                        </div>
+                        <p style={{ marginTop: 6, marginBottom: 12 }}>
+                            Technical brief covering the 4 hardest trade-offs, safe read-only SQL engine, skeptical auditor calibration, and runtime post-mortems.
+                        </p>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                            <a
+                                href="/api/dossier"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="button-secondary"
+                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11 }}
+                            >
+                                <BookOpen size={13} /> Architecture Dossier
+                            </a>
+                            <a
+                                href="/api/report?format=html"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="button-secondary"
+                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11 }}
+                            >
+                                <FileText size={13} /> Executive Intelligence Report
+                            </a>
                         </div>
                     </section>
 

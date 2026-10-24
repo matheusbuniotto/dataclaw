@@ -1,0 +1,28 @@
+# Databricks Asset Bundle (DAB) manifest for DataClaw
+# Deploy with: databricks bundle deploy -t dev
+bundle:
+  name: dataclaw
+
+sync:
+  exclude:
+    - "node_modules/**"
+    - "*.sqlite*"
+    - ".git/**"
+
+resources:
+  apps:
+    dataclaw:
+      name: dataclaw
+      source_code_path: .
+      description: "DataClaw: Crash-resilient data analytics agent console with Pi Durable SQLite WAL"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      profile: dev
+  prod:
+    mode: production
+    workspace:
+      profile: prod

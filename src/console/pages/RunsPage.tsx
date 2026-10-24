@@ -7,6 +7,7 @@ import {
     FileClock,
     RefreshCw,
     Search,
+    ShieldCheck,
 } from "lucide-react";
 import type { Run, WorkspaceAgent } from "../state/workspace-types";
 import { Header } from "../components/Header";
@@ -101,7 +102,9 @@ export function RunsPage({
                                 {filtered.length} runs · most recent first
                             </div>
                         </div>
-                        <span className="chip">Pi Durable SQLite WAL</span>
+                        <span className="chip" style={{ color: "var(--green, #10b981)", borderColor: "rgba(16, 185, 129, 0.3)" }}>
+                            ● SQLite WAL Active
+                        </span>
                     </div>
                     <div className="table-wrap">
                         <table className="data-table">
@@ -118,9 +121,7 @@ export function RunsPage({
                                     <tr
                                         key={r.id}
                                         onClick={() => select(r.id)}
-                                        style={{
-                                            background: run?.id === r.id ? "#f2f5ec" : undefined,
-                                        }}
+                                        className={run?.id === r.id ? "is-selected" : undefined}
                                     >
                                         <td className="table-strong">
                                             {r.goal}
@@ -163,17 +164,7 @@ export function RunsPage({
                         </div>
 
                         {run.error && (
-                            <div
-                                style={{
-                                    marginTop: 14,
-                                    padding: 12,
-                                    borderRadius: 8,
-                                    background: "#faf0e8",
-                                    color: "#8b5d47",
-                                    fontSize: 10,
-                                    lineHeight: 1.5,
-                                }}
-                            >
+                            <div className="run-attention-box">
                                 <b>Needs attention</b>
                                 <br />
                                 {run.error}
@@ -198,7 +189,26 @@ export function RunsPage({
                             )}
                         </div>
 
-                        <div className="section-label">Saved checkpoints</div>
+                        <div className="section-label">Crash Resilience & Checkpoints</div>
+                        <div
+                            style={{
+                                marginTop: 6,
+                                marginBottom: 14,
+                                padding: "9px 12px",
+                                background: "rgba(99, 102, 241, 0.07)",
+                                border: "1px solid rgba(99, 102, 241, 0.22)",
+                                borderRadius: 8,
+                                fontSize: 11,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                            }}
+                        >
+                            <ShieldCheck size={14} style={{ color: "var(--indigo, #6366f1)", flexShrink: 0 }} />
+                            <span style={{ color: "#cbd5e1", lineHeight: 1.4 }}>
+                                <strong>Pi Durable SQLite WAL:</strong> Every turn is checkpointed in atomic transactions. Resumes state after worker crash without loss.
+                            </span>
+                        </div>
                         <div className="step-list">
                             {run.checkpoints.map((cp) => (
                                 <div className="step" key={cp.id}>

@@ -1319,10 +1319,10 @@ export function AgentsPage({
         if (typeof window !== "undefined") {
             return (
                 (window.localStorage.getItem("dataclaw.theme") as "classic" | "lovable") ||
-                "classic"
+                "lovable"
             );
         }
-        return "classic";
+        return "lovable";
     });
 
     const toggleTheme = (next?: "classic" | "lovable") => {
@@ -2343,34 +2343,39 @@ export function AgentsPage({
                     }}
                 >
                     {/* Left action: Platform Navigation Drawer Toggle */}
-                    <div style={{ display: "flex", alignItems: "center", width: 36 }}>
+                    <div style={{ display: "flex", alignItems: "center" }}>
                         {onOpenPlatformMenu && (
                             <button
                                 type="button"
                                 onClick={onOpenPlatformMenu}
-                                title="Open DataClaw Platform Menu (Runs, Data Health, Capabilities, Overview)"
+                                title="Open DataClaw Platform Menu (Overview, Runs, Data Health, Capabilities, Evals & Growth)"
                                 style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: "50%",
-                                    border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"}`,
-                                    background: isDark ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.02)",
-                                    color: t.textSecondary,
-                                    display: "grid",
-                                    placeItems: "center",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    padding: "5px 11px",
+                                    borderRadius: 8,
+                                    border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)"}`,
+                                    background: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+                                    color: t.textPrimary,
+                                    fontSize: 12,
+                                    fontWeight: 600,
                                     cursor: "pointer",
-                                    transition: "all 0.15s ease",
+                                    transition: "all 0.18s ease",
                                 }}
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.borderColor = t.accent;
-                                    e.currentTarget.style.color = t.textPrimary;
+                                    e.currentTarget.style.background = isDark ? "rgba(255, 94, 87, 0.12)" : "rgba(39, 109, 96, 0.08)";
+                                    e.currentTarget.style.color = isDark ? "#ffffff" : t.textPrimary;
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.borderColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)";
-                                    e.currentTarget.style.color = t.textSecondary;
+                                    e.currentTarget.style.borderColor = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)";
+                                    e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)";
+                                    e.currentTarget.style.color = t.textPrimary;
                                 }}
                             >
-                                <Layers3 size={15} />
+                                <Layers3 size={14} style={{ color: t.accent }} />
+                                <span>Platform</span>
                             </button>
                         )}
                     </div>

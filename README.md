@@ -12,12 +12,17 @@ pinned: false
 
 [![Bun](https://img.shields.io/badge/runtime-Bun%20v1.2+-000000?logo=bun)](https://bun.sh)
 [![TypeScript](https://img.shields.io/badge/types-TypeScript%20strict-3178C6?logo=typescript)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-292%20passing-10B981)](bun%20test)
+[![Tests](https://img.shields.io/badge/tests-309%20passing-10B981)](bun%20test)
 [![Pi Durable](https://img.shields.io/badge/engine-Pi%20Durable%201.3-6366F1)](https://github.com/earendil-works/pi-durable)
 [![Storage](https://img.shields.io/badge/storage-SQLite%20WAL%20(crash--resilient)-003B57?logo=sqlite)](https://sqlite.org)
 [![Lakehouse](https://img.shields.io/badge/lakehouse-Databricks%20Unity%20Catalog%20MCP-FF3621?logo=databricks)](https://docs.databricks.com)
+[![Observability](https://img.shields.io/badge/observability-LangWatch%20%2B%20Evals-06B6D4)](src/observability/langwatch.ts)
 
 **DataClaw** is a definitive open-source data analytics agent architecture engineered specifically for **long-running, crash-resilient investigations**. 
+
+> 🔬 **Architecture & Statistical Deep-Dive**: See [**docs/ARCHITECTURE_DOSSIER.md**](docs/ARCHITECTURE_DOSSIER.md) and [`docs/architecture.excalidraw`](docs/architecture.excalidraw) for the complete engineering dossier, clustered statistical rigor, LangWatch tracing, and failure post-mortems. Run `bun run showcase` for the live 45-second terminal demonstration. 
+> 
+> 🚀 **Deploy on Databricks Apps**: See [**docs/DATABRICKS_APPS.md**](docs/DATABRICKS_APPS.md) for 1-click Databricks Asset Bundle (DAB) deployment, Unity Catalog Volume persistence, and Service Principal M2M authentication. 
 
 Unlike conventional conversational assistants that lose context upon process restarts, jump to spurious statistical conclusions, or burn tokens in endless SQL syntax loops, DataClaw operates as a stateful, disciplined analytical partner:
 - **Resilient Durability**: Every analytical hypothesis, SQL execution trace, finding, and institutional playbook rule is atomically checkpointed to SQLite WAL. Machine restarts, container cycles, or host crashes seamlessly resume from their exact checkpoint without re-querying datasets.
@@ -182,8 +187,11 @@ bun run evals/run.ts --out /tmp/before
 What this shows about the method (not about a model):
 
 - **Nine tasks with five repeats each can't detect a 7-point gain in success rate.** The interval runs from −11 to
-  +24 points. The same set does detect the change in stuck rate, because looping is a frequent, direct signal. Before
-  shipping, run a power calculation, or use a more sensitive metric.
+  +24 points. The same set does detect the change in stuck rate, because looping is a frequent, direct signal.
+  Run `bun run evals:power` to calculate intra-cluster correlation (ICC = 0.150) and evaluate whether an experiment
+  is sufficiently powered to ship to production (requires 289 tasks for a +5 pp MDE).
+- **Agent quality fuels growth.** Run `bun run evals:growth` to model how stuck rate reductions translate directly into
+  funnel activation (+23.3 pp), Day-30 retention (+17.6 pp), and projected ARR (+$1.6M per 10k users).
 - **Repeats matter.** Every task was solved at least once in both variants, but fewer than half (baseline) or two
   thirds (candidate) were solved in every repeat. A single run per task would have overstated reliability.
 - **The stuck detector can't see confident wrong answers.** The candidate's failures are all misreported numbers,
@@ -560,15 +568,24 @@ dataclaw/
 │   │   └── auto-improvement.ts     # AutoImprovementTask (Scan -> Distill -> Upgrade Playbook)
 │   ├── subagents/                   # Task-owned subagents
 │   │   └── auditor-subagent.ts      # Statistical critic subagent
+│   ├── observability/               # OpenTelemetry-compatible tracing
+│   │   └── langwatch.ts             # LangWatch integration: spans, tokens, and stuck-state guardrails
 │   ├── extensions/                  # Extensions & dynamic prompt sections
 │   │   └── analyst-extension.ts     # Injects hypotheses, findings, and Playbook into system prompt
 │   └── adapters/                    # Data connectors
 │       ├── adapter-interface.ts     # DataAdapter interface
 │       ├── sqlite-adapter.ts        # Fast SQLite / CSV / JSON query engine
 │       └── databricks-adapter.ts    # Read-only Unity Catalog adapter over MCP
+├── deploy/                          # Production deployment targets
+│   ├── databricks/                  # Databricks Apps: start.sh, deploy.sh
+│   └── huggingface/                 # Hugging Face Spaces Terraform & Dockerfile
+├── app.yaml                         # Databricks Apps runtime manifest
+├── databricks.yml                   # Databricks Asset Bundle (DAB) manifest
 ├── evals/                           # Offline and real-model evaluation
 │   ├── tasks.ts                     # Eval questions, reference SQL, grading
 │   ├── trace.ts                     # Transcript -> trace; stuck detector
+│   ├── power.ts                     # Statistical power analysis, ICC, and MDE calculation
+│   ├── growth-funnel.ts             # 5-stage user funnel attribution, CPSUO, and ARR modeling
 │   ├── scripted-agent.ts            # Offline scripted model with injected faults
 │   ├── run.ts                       # Runs episodes, writes JSONL + report (bun run evals)
 │   ├── report.ts                    # Metrics, variant comparison (bun run evals:report)
@@ -577,6 +594,7 @@ dataclaw/
 │   ├── labels/                      # Label format example (placeholder labels)
 │   └── results/                     # Committed offline results (synthetic)
 ├── examples/                        # Executable demonstrations
+│   ├── most-impressive-project.ts   # 5-pillar showcase script (bun run showcase)
 │   ├── auto-improve-demo.ts         # Live closed-loop self-refinement run
 │   ├── crash-resilience-demo.ts     # Crash simulation and seamless resumption
 │   ├── databricks-demo.ts           # Databricks-over-MCP discovery, profiling, querying
@@ -588,7 +606,7 @@ dataclaw/
 │   ├── cohort_retention.csv         # SaaS cohort retention exhibiting Simpson's Paradox
 │   ├── incident_logs.json           # Distributed systems observability logs
 │   └── distributed_traces.jsonl     # High-throughput microservice traces in NDJSON
-└── tests/                           # Unit & integration test suite (292 tests, 0 failures)
+└── tests/                           # Unit & integration test suite (309 tests, 0 failures)
     ├── docs.test.ts                 # Tests for durable documents
     ├── report-generator.test.ts     # Markdown, HTML, and JSON executive memo generators
     ├── sqlite-adapter.test.ts       # Tests for data profiling & query engine (CSV/TSV/JSON/NDJSON)

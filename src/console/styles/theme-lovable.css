@@ -2,9 +2,18 @@
 /* ============================================================================
    Lovable Dark Theme (Obsidian & Vibrant Coral / Slate)
    ============================================================================ */
+:root,
 html.theme-lovable,
 body.theme-lovable,
 .theme-lovable {
+  --green: #10b981;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --blue: #3b82f6;
+  --indigo: #6366f1;
+  --muted: #94a3b8;
+  --border: #1e2638;
+  --bg-subtle: rgba(255, 255, 255, 0.03);
   background: #0d0f12 !important;
   background-color: #0d0f12 !important;
   color: #f1f3f7 !important;
@@ -561,3 +570,841 @@ body.theme-lovable .main-area,
 .theme-lovable .sidebar .profile {
   border-top-color: #1c2330 !important;
 }
+
+/* ============================================================================
+   Complete Modern Dark Theme System across Console Pages
+   ============================================================================ */
+
+.theme-lovable .app-shell,
+html.theme-lovable,
+body.theme-lovable {
+  background-color: #0b0d13 !important;
+  color: #f1f5f9 !important;
+}
+
+.theme-lovable .main-area {
+  background-color: #0b0d13 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Topbar */
+.theme-lovable .topbar {
+  background: rgba(13, 16, 23, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-bottom: 1px solid #1c2333 !important;
+}
+
+.theme-lovable .crumb {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .crumb strong {
+  color: #f8fafc !important;
+}
+
+.theme-lovable .context-switch {
+  background: #141824 !important;
+  border: 1px solid #222b3d !important;
+  color: #cbd5e1 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .context-switch:hover {
+  background: #1c2333 !important;
+  border-color: #3b4962 !important;
+  color: #ffffff !important;
+}
+
+.theme-lovable .icon-button {
+  background: #141824 !important;
+  border: 1px solid #222b3d !important;
+  color: #cbd5e1 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .icon-button:hover {
+  background: #1c2333 !important;
+  border-color: #3b4962 !important;
+  color: #ffffff !important;
+}
+
+/* Page Typography */
+.theme-lovable .page-title {
+  color: #f8fafc !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.theme-lovable .eyebrow {
+  color: #ff6e67 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.12em !important;
+}
+
+.theme-lovable .page-subtitle {
+  color: #94a3b8 !important;
+}
+
+/* Panels & Cards */
+.theme-lovable .panel {
+  background: #12151f !important;
+  border: 1px solid #1c2333 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.theme-lovable .panel-head {
+  border-bottom: 1px solid #1a202e !important;
+}
+
+.theme-lovable .panel-title {
+  color: #f8fafc !important;
+  font-weight: 700 !important;
+}
+
+.theme-lovable .panel-note {
+  color: #828f9f !important;
+}
+
+.theme-lovable .text-link {
+  color: #ff6e67 !important;
+}
+
+.theme-lovable .text-link:hover {
+  color: #ff918c !important;
+}
+
+/* Metrics */
+.theme-lovable .metric {
+  background: #12151f !important;
+  border: 1px solid #1c2333 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.theme-lovable .metric:after {
+  background: rgba(255, 94, 87, 0.05) !important;
+}
+
+.theme-lovable .metric-value {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.theme-lovable .metric-top {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .metric-icon {
+  background: #1a202d !important;
+  color: #ff6e67 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .metric-foot {
+  color: #828f9f !important;
+}
+
+.theme-lovable .metric-foot b {
+  color: #38bdf8 !important;
+}
+
+/* Buttons */
+.theme-lovable .button-primary {
+  background: linear-gradient(135deg, #ff5e57, #ff726b) !important;
+  color: #ffffff !important;
+  border: 1px solid #ff5e57 !important;
+  box-shadow: 0 2px 10px rgba(255, 94, 87, 0.35) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: all 0.18s ease !important;
+}
+
+.theme-lovable .button-primary:hover {
+  background: linear-gradient(135deg, #ff4c45, #ff6059) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 16px rgba(255, 94, 87, 0.5) !important;
+}
+
+.theme-lovable .button-secondary {
+  background: #151924 !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #232a3a !important;
+  border-radius: 8px !important;
+  font-weight: 550 !important;
+  transition: all 0.18s ease !important;
+}
+
+.theme-lovable .button-secondary:hover {
+  background: #1c2230 !important;
+  border-color: #38455e !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.theme-lovable .button-quiet {
+  color: #94a3b8 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .button-quiet:hover {
+  background: #181d28 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Data Tables */
+.theme-lovable .table-wrap {
+  border-radius: 10px !important;
+}
+
+.theme-lovable .data-table {
+  width: 100% !important;
+}
+
+.theme-lovable .data-table th {
+  color: #64748b !important;
+  border-bottom: 1px solid #1c2333 !important;
+  background: transparent !important;
+  font-weight: 600 !important;
+}
+
+.theme-lovable .data-table td {
+  color: #cbd5e1 !important;
+  border-bottom: 1px solid #171d29 !important;
+}
+
+.theme-lovable .data-table tbody tr:hover {
+  background: #161b26 !important;
+}
+
+.theme-lovable .table-strong {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.theme-lovable .mono {
+  color: #94a3b8 !important;
+}
+
+/* Run Rows */
+.theme-lovable .run-row {
+  border-top: 1px solid #1a202c !important;
+  transition: all 0.18s ease !important;
+}
+
+.theme-lovable .run-row:hover {
+  padding-left: 6px !important;
+  background: rgba(255, 255, 255, 0.015) !important;
+}
+
+.theme-lovable .run-glyph {
+  background: #19202d !important;
+  color: #38bdf8 !important;
+  border-radius: 9px !important;
+}
+
+.theme-lovable .run-name {
+  color: #f8fafc !important;
+  font-weight: 600 !important;
+}
+
+.theme-lovable .run-meta {
+  color: #828f9f !important;
+}
+
+.theme-lovable .run-time {
+  color: #64748b !important;
+}
+
+/* Status Pills */
+.theme-lovable .status-pill {
+  border-radius: 20px !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.theme-lovable .status-running {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+
+.theme-lovable .status-completed,
+.theme-lovable .status-healthy,
+.theme-lovable .status-connected {
+  background: rgba(56, 189, 248, 0.15) !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+}
+
+.theme-lovable .status-warning,
+.theme-lovable .status-paused {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+}
+
+.theme-lovable .status-failed {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+}
+
+.theme-lovable .status-idle {
+  background: rgba(100, 116, 139, 0.15) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(100, 116, 139, 0.25) !important;
+}
+
+/* Badges */
+.theme-lovable .badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  border-radius: 9999px !important;
+  padding: 3px 9px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.theme-lovable .badge-success {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+
+.theme-lovable .badge-warning {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+}
+
+.theme-lovable .badge-primary {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.25) !important;
+}
+
+/* Inputs, Selects & Search */
+.theme-lovable .search-box {
+  background: #11151e !important;
+  border: 1px solid #202737 !important;
+  color: #e2e8f0 !important;
+  border-radius: 9px !important;
+}
+
+.theme-lovable .search-box input {
+  color: #ffffff !important;
+}
+
+.theme-lovable .search-box input::placeholder {
+  color: #64748b !important;
+}
+
+.theme-lovable .filter-select,
+.theme-lovable .field-input {
+  background: #11151e !important;
+  border: 1px solid #202737 !important;
+  color: #e2e8f0 !important;
+  border-radius: 9px !important;
+}
+
+.theme-lovable .filter-select:focus,
+.theme-lovable .field-input:focus,
+.theme-lovable .search-box:focus-within {
+  border-color: #ff5e57 !important;
+  box-shadow: 0 0 0 3px rgba(255, 94, 87, 0.2) !important;
+}
+
+/* Agent & Data Cards */
+.theme-lovable .agent-card,
+.theme-lovable .source-card,
+.theme-lovable .settings-card,
+.theme-lovable .detail-card {
+  background: #12151f !important;
+  border: 1px solid #1c2333 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45) !important;
+}
+
+.theme-lovable .agent-card:hover,
+.theme-lovable .source-card:hover {
+  border-color: #2e3b50 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px -4px rgba(0, 0, 0, 0.6) !important;
+}
+
+.theme-lovable .agent-title,
+.theme-lovable .source-name,
+.theme-lovable .settings-card h3 {
+  color: #ffffff !important;
+}
+
+.theme-lovable .agent-owner,
+.theme-lovable .source-type,
+.theme-lovable .settings-card p {
+  color: #828f9f !important;
+}
+
+.theme-lovable .agent-desc {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .agent-icon,
+.theme-lovable .source-icon {
+  background: #1a202d !important;
+  color: #ff6e67 !important;
+  border-radius: 10px !important;
+}
+
+.theme-lovable .agent-footer,
+.theme-lovable .source-stats {
+  border-top: 1px solid #1a202c !important;
+}
+
+.theme-lovable .chip {
+  background: #181f2b !important;
+  color: #94a3b8 !important;
+  border: 1px solid #232d3d !important;
+}
+
+.theme-lovable .source-stat span {
+  color: #64748b !important;
+}
+
+.theme-lovable .source-stat b {
+  color: #e2e8f0 !important;
+}
+
+.theme-lovable .quality-track {
+  background: #19202d !important;
+}
+
+.theme-lovable .quality-track i {
+  background: #10b981 !important;
+}
+
+/* Modals */
+.theme-lovable .modal-backdrop {
+  background: rgba(5, 7, 10, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.theme-lovable .modal {
+  background: #131722 !important;
+  border: 1px solid #21293a !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.75) !important;
+}
+
+.theme-lovable .modal h2 {
+  color: #ffffff !important;
+}
+
+.theme-lovable .modal p {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .modal label {
+  color: #cbd5e1 !important;
+}
+
+.theme-lovable .modal textarea {
+  background: #0d1017 !important;
+  border: 1px solid #1f2736 !important;
+  color: #ffffff !important;
+}
+
+/* Settings */
+.theme-lovable .settings-nav button {
+  color: #828f9f !important;
+}
+
+.theme-lovable .settings-nav button:hover {
+  color: #f8fafc !important;
+  background: #171c26 !important;
+}
+
+.theme-lovable .settings-nav button.active {
+  background: #1c2332 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.theme-lovable .form-row {
+  border-top: 1px solid #191f2b !important;
+}
+
+.theme-lovable .form-row label {
+  color: #e2e8f0 !important;
+}
+
+.theme-lovable .form-row small {
+  color: #828f9f !important;
+}
+
+.theme-lovable .empty-state {
+  color: #828f9f !important;
+}
+
+.theme-lovable .empty-state b {
+  color: #f1f5f9 !important;
+}
+
+/* Selected Data Table Rows */
+.theme-lovable .data-table tbody tr.is-selected,
+.data-table tbody tr.is-selected {
+  background: rgba(255, 94, 87, 0.14) !important;
+  box-shadow: inset 3px 0 #ff5e57 !important;
+}
+
+.theme-lovable .data-table tbody tr.is-selected td {
+  color: #ffffff !important;
+}
+
+/* Attention & Alert Boxes */
+.theme-lovable .run-attention-box {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.theme-lovable .workspace-banner {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+  color: #fbbf24 !important;
+  border-radius: 8px !important;
+}
+
+/* Toggles & Switches */
+.theme-lovable .toggle {
+  background: #232c3e !important;
+}
+
+.theme-lovable .toggle.on {
+  background: #ff5e57 !important;
+}
+
+.theme-lovable .toggle i {
+  background: #ffffff !important;
+}
+
+/* Toast Notifications */
+.theme-lovable .toast-local {
+  background: rgba(16, 20, 29, 0.94) !important;
+  border: 1px solid rgba(255, 94, 87, 0.3) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Step Timeline (Runs detail) */
+.theme-lovable .step-list:before {
+  background: #232c3e !important;
+}
+
+.theme-lovable .step-marker {
+  background: #161c28 !important;
+  border: 1px solid #283347 !important;
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .step-marker.done {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+  color: #34d399 !important;
+}
+
+.theme-lovable .step-marker.current {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  color: #fbbf24 !important;
+}
+
+.theme-lovable .step-copy b {
+  color: #f8fafc !important;
+}
+
+.theme-lovable .step-copy span {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .step-time {
+  color: #64748b !important;
+}
+
+/* Lineage & Section Labels (Data health) */
+.theme-lovable .lineage-node {
+  border: 1px solid #242e40 !important;
+  background: #161c28 !important;
+  color: #e2e8f0 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .lineage-arrow {
+  color: #64748b !important;
+}
+
+.theme-lovable .section-label {
+  color: #ff6e67 !important;
+  font-weight: 600 !important;
+}
+
+/* Activity Items & Health Rows (Overview) */
+.theme-lovable .activity-item {
+  border-top: 1px solid #1a202d !important;
+}
+
+.theme-lovable .activity-marker {
+  background: #181f2c !important;
+  border: 1px solid #232d3f !important;
+  color: #38bdf8 !important;
+}
+
+.theme-lovable .activity-copy {
+  color: #cbd5e1 !important;
+}
+
+.theme-lovable .activity-copy b {
+  color: #ffffff !important;
+}
+
+.theme-lovable .activity-date {
+  color: #64748b !important;
+}
+
+.theme-lovable .health-row {
+  border-top: 1px solid #1a202d !important;
+}
+
+.theme-lovable .health-icon {
+  background: #181f2c !important;
+  color: #ff6e67 !important;
+  border: 1px solid #232d3f !important;
+}
+
+.theme-lovable .health-copy b {
+  color: #ffffff !important;
+}
+
+.theme-lovable .health-copy span {
+  color: #94a3b8 !important;
+}
+
+/* Databricks Auth Modal (Obsidian Glassmorphism) */
+.theme-lovable .auth-head {
+  border-bottom: 1px solid #1c2333 !important;
+  padding-bottom: 14px !important;
+}
+
+.theme-lovable .auth-head h2 {
+  color: #ffffff !important;
+}
+
+.theme-lovable .auth-head p {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .auth-mark {
+  background: rgba(255, 94, 87, 0.12) !important;
+  color: #ff5e57 !important;
+  border: 1px solid rgba(255, 94, 87, 0.25) !important;
+  border-radius: 10px !important;
+}
+
+.theme-lovable .auth-tabs {
+  background: #10131a !important;
+  border: 1px solid #1f2737 !important;
+  border-radius: 9px !important;
+  padding: 4px !important;
+}
+
+.theme-lovable .auth-tab {
+  color: #94a3b8 !important;
+  border-radius: 6px !important;
+  transition: all 0.15s ease !important;
+}
+
+.theme-lovable .auth-tab:hover {
+  color: #ffffff !important;
+  background: #181e2b !important;
+}
+
+.theme-lovable .auth-tab.active {
+  background: #1d2433 !important;
+  color: #ffffff !important;
+  border: 1px solid #2d384e !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.theme-lovable .auth-subtabs {
+  border-bottom: 1px solid #1e2637 !important;
+}
+
+.theme-lovable .auth-subtab {
+  color: #828f9f !important;
+}
+
+.theme-lovable .auth-subtab:hover {
+  color: #cbd5e1 !important;
+}
+
+.theme-lovable .auth-subtab.active {
+  color: #ff5e57 !important;
+  border-bottom-color: #ff5e57 !important;
+}
+
+.theme-lovable .auth-hint {
+  background: #10141d !important;
+  border: 1px solid #1d2535 !important;
+  color: #94a3b8 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .auth-hint svg {
+  color: #ff6e67 !important;
+}
+
+.theme-lovable .auth-hint code {
+  background: #19202d !important;
+  color: #ff6e67 !important;
+}
+
+.theme-lovable .auth-error {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  border-radius: 8px !important;
+}
+
+.theme-lovable .auth-empty {
+  background: #10131a !important;
+  border: 1px dashed #222b3c !important;
+  color: #94a3b8 !important;
+  border-radius: 9px !important;
+}
+
+.theme-lovable .auth-empty b {
+  color: #f8fafc !important;
+}
+
+.theme-lovable .auth-empty code {
+  background: #19202d !important;
+  color: #38bdf8 !important;
+}
+
+.theme-lovable .auth-success {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  color: #34d399 !important;
+  border-radius: 9px !important;
+}
+
+.theme-lovable .auth-success b {
+  color: #f8fafc !important;
+}
+
+.theme-lovable .auth-success span {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .auth-kv>div {
+  border-top: 1px solid #1c2333 !important;
+}
+
+.theme-lovable .auth-kv span {
+  color: #828f9f !important;
+}
+
+.theme-lovable .auth-kv b {
+  color: #e2e8f0 !important;
+}
+
+.theme-lovable .auth-kv b.mono {
+  color: #93c5fd !important;
+}
+
+.theme-lovable .auth-card-head h3 {
+  color: #ffffff !important;
+}
+
+.theme-lovable .auth-card-head p {
+  color: #828f9f !important;
+}
+
+.theme-lovable .auth-summary {
+  border-top: 1px solid #1c2333 !important;
+}
+
+.theme-lovable .auth-summary-row {
+  border-bottom: 1px solid #19202d !important;
+}
+
+.theme-lovable .auth-summary-row span {
+  color: #828f9f !important;
+}
+
+.theme-lovable .auth-summary-row b {
+  color: #e2e8f0 !important;
+}
+
+.theme-lovable .auth-oauth-wait {
+  background: #10131a !important;
+  border: 1px solid #1d2535 !important;
+  color: #94a3b8 !important;
+  border-radius: 9px !important;
+}
+
+.theme-lovable .auth-oauth-wait b {
+  color: #f8fafc !important;
+}
+
+/* Platform Highlights Bar (Overview) */
+.theme-lovable .platform-highlights-bar,
+.platform-highlights-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.theme-lovable .highlight-pill,
+.highlight-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid #1c2333 !important;
+  padding: 6px 13px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+  transition: all 0.15s ease !important;
+}
+
+.theme-lovable .highlight-pill:hover,
+.highlight-pill:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: #2a354c !important;
+  transform: translateY(-1px) !important;
+}
+
+.theme-lovable .highlight-pill span,
+.highlight-pill span {
+  color: #94a3b8 !important;
+}
+
+.theme-lovable .highlight-pill b,
+.highlight-pill b {
+  color: #f8fafc !important;
+  font-weight: 600 !important;
+}
+
+

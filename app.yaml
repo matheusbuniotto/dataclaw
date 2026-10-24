@@ -1,0 +1,13 @@
+# Databricks Apps runtime manifest for DataClaw
+# Docs: https://docs.databricks.com/en/dev-tools/databricks-apps/index.html
+command:
+  - "bash"
+  - "deploy/databricks/start.sh"
+
+env:
+  - name: "NODE_ENV"
+    value: "production"
+  # Default ephemeral storage inside container; point to a Unity Catalog Volume for multi-turn persistence:
+  # e.g., /Volumes/<catalog>/<schema>/<volume_name>/agent_analyst.sqlite
+  - name: "ANALYST_STORAGE"
+    value: "/tmp/agent_analyst.sqlite"

@@ -86,9 +86,13 @@ export class DatabricksDataAdapter implements DataAdapter {
         config: DatabricksConfigOverrides = {},
         options: DatabricksAdapterOptions = {},
     ): Promise<DatabricksDataAdapter> {
-        const resolved: DatabricksMcpConfig = resolveDatabricksConfig(config);
         const tokenProvider = options.tokenProvider;
-        const token = tokenProvider ? await tokenProvider() : resolved.token;
+        const initialToken = tokenProvider ? await tokenProvider() : config.token;
+        const resolved: DatabricksMcpConfig = resolveDatabricksConfig({
+            ...config,
+            ...(initialToken ? { token: initialToken } : {}),
+        });
+        const token = initialToken ?? resolved.token;
         const client = await McpSqlClient.connect({ ...resolved, token }, {
             // Re-resolve the token on auth failure so long-lived durable tasks survive expiry.
             tokenFactory: tokenProvider ?? (() => resolveDatabricksConfig(config).token),

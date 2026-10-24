@@ -28,6 +28,7 @@ import {
     startBrowserOAuth,
 } from "./databricks-api";
 import { checkPlugins } from "./plugins-api";
+import { getObservabilitySummary, recordSampleTrace } from "./observability-api";
 import {
     DomainError,
     NotFoundError,
@@ -115,7 +116,26 @@ export const routes: RouteTable = {
                     agentId: text(url.searchParams.get("agentId")),
                 };
             },
-            run: ({ format, agentId }) => consoleReport(format, agentId),
+            run: async ({ format, agentId }) => {
+                const res = await consoleReport(format, agentId);
+                if (format === "html" && typeof res.content === "string") {
+                    return new Response(res.content, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+                }
+                return res;
+            },
+        },
+    },
+    "/api/dossier": {
+        GET: {
+            run: async () => {
+                const file = Bun.file("docs/ARCHITECTURE_DOSSIER.md");
+                if (await file.exists()) {
+                    return new Response(await file.text(), {
+                        headers: { "Content-Type": "text/markdown; charset=utf-8" },
+                    });
+                }
+                return new Response("Architecture dossier not found", { status: 404 });
+            },
         },
     },
     "/api/agent/ask": {
@@ -132,6 +152,13 @@ export const routes: RouteTable = {
                 return { workspace: await consoleWorkspace(agentId) };
             },
         },
+    },
+
+    "/api/observability": {
+        GET: { run: () => getObservabilitySummary() },
+    },
+    "/api/observability/trace": {
+        POST: { run: () => recordSampleTrace() },
     },
 
     "/api/capabilities": {
@@ -260,6 +287,7 @@ function message(err: unknown): string {
 export async function respond(run: () => unknown): Promise<Response> {
     try {
         const value = await run();
+        if (value instanceof Response) return value;
         const payload = value && typeof value === "object" && !Array.isArray(value)
             ? value as Record<string, unknown>
             : {};

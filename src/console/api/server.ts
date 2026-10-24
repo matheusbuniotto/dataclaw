@@ -12,6 +12,7 @@ const PAGES = [
     "/console/runs",
     "/console/data",
     "/console/capabilities",
+    "/console/observability",
     "/console/settings",
     // Backward compatibility aliases for /prototype
     "/prototype",
@@ -19,6 +20,7 @@ const PAGES = [
     "/prototype/runs",
     "/prototype/data",
     "/prototype/capabilities",
+    "/prototype/observability",
     "/prototype/settings",
 ];
 
@@ -28,8 +30,10 @@ const PAGES = [
  */
 export function startServer(options: { port?: number; hostname?: string } = {}) {
     // Local-only by default: the auth endpoints can mint Databricks sessions.
-    const port = options.port ?? (Number(process.env.PORT) || 3000);
-    const hostname = options.hostname ?? process.env.HOST ?? "127.0.0.1";
+    // In Databricks Apps or container environments, bind DATABRICKS_APP_PORT and 0.0.0.0.
+    const port = options.port ?? (Number(process.env.DATABRICKS_APP_PORT || process.env.PORT) || 3000);
+    const hostname = options.hostname ?? process.env.HOST ?? (process.env.DATABRICKS_APP_PORT ? "0.0.0.0" : "127.0.0.1");
+    const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.DATABRICKS_APP_PORT);
 
     const server = Bun.serve({
         port,
@@ -43,7 +47,7 @@ export function startServer(options: { port?: number; hostname?: string } = {}) 
         ),
         // Everything else is the API table; an unknown path answers a JSON 404.
         fetch: (request) => handle(request),
-        development: {
+        development: isProd ? false : {
             hmr: true,
             console: true,
         },
@@ -55,6 +59,9 @@ export function startServer(options: { port?: number; hostname?: string } = {}) 
     const base = `http://localhost:${server.port}`;
     console.log("\n==========================================================");
     console.log("  DATACLAW: DURABLE AGENT DATA PLATFORM");
+    if (process.env.DATABRICKS_APP_PORT) {
+        console.log(`  Databricks Apps Runtime (Port: ${server.port})`);
+    }
     console.log("==========================================================");
     console.log(`\n  🚀 URL: ${base}/console`);
     console.log(`\n  Pages:`);

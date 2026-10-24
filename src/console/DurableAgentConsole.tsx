@@ -19,11 +19,13 @@ import { CapabilitiesPage } from "./pages/CapabilitiesPage";
 import { DataPage } from "./pages/DataPage";
 import { LaunchModal } from "./components/LaunchModal";
 import { NotFound } from "./pages/NotFound";
+import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { Overview } from "./pages/Overview";
 import { RunsPage } from "./pages/RunsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import {
     ArrowRight,
+    BarChart2,
     Bell,
     Bot,
     Database,
@@ -43,6 +45,7 @@ const navItems = [
     { href: "/console/runs", label: "Durable runs", icon: Workflow },
     { href: "/console/data", label: "Data health", icon: Database },
     { href: "/console/capabilities", label: "Capabilities", icon: Puzzle },
+    { href: "/console/observability", label: "Evals & Growth", icon: BarChart2 },
 ];
 
 const agentPath = (id: string) => id === "dataclaw"
@@ -209,7 +212,7 @@ export function DurableAgentConsole() {
             className="app-shell"
             style={isAgentsView ? { height: "100dvh", minHeight: "100dvh", overflow: "hidden" } : undefined}
         >
-            {/* Backdrop for Stillwork slide-over drawer when on Agents view */}
+            {/* Backdrop for platform slide-over drawer when on Agents view */}
             {isAgentsView && menuOpen && (
                 <div
                     role="button"
@@ -218,8 +221,8 @@ export function DurableAgentConsole() {
                     style={{
                         position: "fixed",
                         inset: 0,
-                        background: "rgba(18, 46, 42, 0.55)",
-                        backdropFilter: "blur(4px)",
+                        background: "rgba(5, 7, 11, 0.72)",
+                        backdropFilter: "blur(8px)",
                         zIndex: 9998,
                         animation: "fade 0.16s ease",
                     }}
@@ -466,6 +469,9 @@ export function DurableAgentConsole() {
                             notify={notify}
                             onApplied={(workspace) => setSnapshot(workspace)}
                         />
+                    </Route>
+                    <Route path="/console/observability">
+                        <ObservabilityPage notify={notify} />
                     </Route>
                     <Route path="/console/settings">
                         <SettingsPage

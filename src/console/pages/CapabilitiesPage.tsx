@@ -201,6 +201,29 @@ export function CapabilitiesPage({
                 </div>
             </div>
 
+            <div className="platform-highlights-bar" style={{ marginBottom: 18 }}>
+                <div className="highlight-pill">
+                    <Wrench size={13} style={{ color: "var(--green, #10b981)" }} />
+                    <span>Built-in Tools:</span>
+                    <b>{groups.tools.length} registered</b>
+                </div>
+                <div className="highlight-pill">
+                    <Package size={13} style={{ color: "var(--indigo, #6366f1)" }} />
+                    <span>MCP Plugins:</span>
+                    <b>{groups.plugin.length} connected</b>
+                </div>
+                <div className="highlight-pill">
+                    <Bot size={13} style={{ color: "#ff5e57" }} />
+                    <span>Workspace Skills:</span>
+                    <b>{groups.skill.length} compiled</b>
+                </div>
+                <div className="highlight-pill">
+                    <Puzzle size={13} style={{ color: "var(--amber, #f59e0b)" }} />
+                    <span>Enabled Capabilities:</span>
+                    <b>{enabledCount} of {catalog?.entries.length ?? 0}</b>
+                </div>
+            </div>
+
             {error && <div className="workspace-banner">{error}</div>}
             {dirty && (
                 <div className="workspace-banner">

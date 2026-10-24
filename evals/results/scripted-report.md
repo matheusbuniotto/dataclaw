@@ -17,10 +17,10 @@
 | Success when stuck / not stuck | 50.0% / 97.0% | 100.0% / 90.9% |
 | Answered despite a rejected finding | 11.1% | 0.0% |
 | Tool calls per episode | 5.8 | 5.4 |
-| Tool error rate | 5.3% | 6.9% |
-| Tokens per episode | 44,375 | 43,253 |
-| Cost per success [95% CI] | $0.01130 [$0.01032, $0.01305] (nominal) | $0.01073 [$0.00991, $0.01188] (nominal) |
-| Latency p50 / p90 | 145 ms / 161 ms | 139 ms / 149 ms |
+| Tool error rate | 20.2% | 25.3% |
+| Tokens per episode | 103,149 | 100,176 |
+| Cost per success [95% CI] | $0.02550 [$0.02323, $0.02952] (nominal) | $0.02417 [$0.02218, $0.02680] (nominal) |
+| Latency p50 / p90 | 123 ms / 130 ms | 122 ms / 125 ms |
 
 CIs are percentile bootstraps that resample tasks (2,000 draws), since repeats of one task are correlated.
 Latency is wall clock on the machine that ran the evals and is not reproducible run to run.
@@ -34,6 +34,6 @@ Latency is wall clock on the machine that ran the evals and is not reproducible 
 | Success difference, task bootstrap 95% CI | +6.7 pp [-11.1 pp, +24.4 pp] |
 | Effect size (Cohen's h) | 0.21 |
 | Stuck rate difference, task bootstrap 95% CI | -24.4 pp [-40.0 pp, -8.9 pp] |
-| Cost per success difference, task bootstrap 95% CI | $-0.00057 [$-0.00268, $0.00133] |
+| Cost per success difference, task bootstrap 95% CI | $-0.00133 [$-0.00622, $0.00299] |
 
 The Newcombe interval treats episodes as independent; the task bootstrap does not, and is the one to read.

@@ -13,6 +13,7 @@ import { TelemetryDoc } from "../../docs/telemetry";
 import { generateMarkdownReport, generateHtmlReport, generateJsonReport } from "../../docs/report-generator";
 import {
     adoptDatabricksAdapter,
+    connectDatabricks,
     getDatabricksUiStatus,
     recordDatabricksAuthError,
     subscribeDatabricks,
@@ -140,6 +141,20 @@ async function startConsoleHarness(): Promise<AnalystHarness> {
                 recordDatabricksAuthError(message);
                 console.error(`Databricks MCP connect failed: ${message}`);
             });
+    } else if (process.env.DATABRICKS_CLIENT_ID && process.env.DATABRICKS_CLIENT_SECRET && process.env.DATABRICKS_HOST) {
+        // Databricks Apps Service Principal auto-connection (M2M OAuth)
+        void connectDatabricks({
+            host: process.env.DATABRICKS_HOST,
+            warehouseId: process.env.DATABRICKS_WAREHOUSE_ID,
+            oauth: {
+                clientId: process.env.DATABRICKS_CLIENT_ID,
+                clientSecret: process.env.DATABRICKS_CLIENT_SECRET,
+            },
+        }).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            recordDatabricksAuthError(message);
+            console.error(`Databricks Apps Service Principal connect failed: ${message}`);
+        });
     }
 
     return analyst;

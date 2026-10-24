@@ -19,6 +19,10 @@ HOST ?= 127.0.0.1
 PORT ?= 3000
 BASE_URL := http://$(HOST):$(PORT)
 
+TARGET ?= dev
+PROFILE ?= dev
+APP_NAME ?= dataclaw
+
 BUN ?= bun
 ENTRY := src/console/api/server.ts
 
@@ -30,17 +34,27 @@ LOG_FILE := $(RUN_DIR)/console.log
 # Cheap and side-effect free: reads the capability catalog — no harness, no Databricks auth.
 PROBE := $(BASE_URL)/api/capabilities
 
-.PHONY: help start run restart down status logs clean clean-all
+.PHONY: help start run restart down status logs clean clean-all dab-validate dab-deploy dab-logs vps-start vps-run
 
 help:
-	@echo "make start      start the console in the background and wait until it answers"
-	@echo "make run        run it in the foreground (Ctrl-C stops it)"
-	@echo "make restart    down, then start"
-	@echo "make down       stop it, including a server started by hand"
-	@echo "make status     is it up, and on what port"
-	@echo "make logs       tail the background log"
-	@echo "make clean      drop runtime state and build caches; the database and workspace stay"
-	@echo "make clean-all  stop, then drop node_modules, the database, per-agent homes, plugins"
+	@echo "DataClaw Console:"
+	@echo "  make start         start the console in the background and wait until it answers"
+	@echo "  make run           run it in the foreground (Ctrl-C stops it)"
+	@echo "  make restart       down, then start"
+	@echo "  make down          stop it, including a server started by hand"
+	@echo "  make status        is it up, and on what port"
+	@echo "  make logs          tail the background log"
+	@echo "  make clean         drop runtime state and build caches; the database and workspace stay"
+	@echo "  make clean-all     stop, then drop node_modules, the database, per-agent homes, plugins"
+	@echo
+	@echo "Databricks Apps & DAB (Asset Bundles):"
+	@echo "  make dab-validate  validate Databricks Asset Bundle (TARGET=dev PROFILE=dev)"
+	@echo "  make dab-deploy    deploy DataClaw to Databricks Apps via bundle/script"
+	@echo "  make dab-logs      tail Databricks Apps runtime logs"
+	@echo
+	@echo "VPS / Server Production Runner:"
+	@echo "  make vps-start     start on 0.0.0.0 in background (NODE_ENV=production)"
+	@echo "  make vps-run       run on 0.0.0.0 in foreground (NODE_ENV=production)"
 	@echo
 	@echo "Override per invocation: make start PORT=3001 HOST=0.0.0.0"
 
@@ -124,8 +138,25 @@ clean-all: down
 	@printf "This deletes node_modules, the SQLite database, per-agent homes and local plugins.\nContinue? [y/N] "
 	@read answer && [ "$$answer" = "y" ] || { echo "aborted"; exit 1; }
 	@rm -rf node_modules plugins workspace/agents dataclaw.plugins.json dataclaw.capabilities.json
-	@rm -f agent_analyst.sqlite agent_analyst.sqlite-wal agent_analyst.sqlite-shm
+	@rm -f *.sqlite *.sqlite-wal *.sqlite-shm
 	@$(MAKE) --no-print-directory clean
 
 $(RUN_DIR):
 	@mkdir -p $(RUN_DIR)
+
+# Databricks Asset Bundle & Apps
+dab-validate:
+	databricks bundle validate -t $(TARGET) --profile $(PROFILE)
+
+dab-deploy:
+	./deploy/databricks/deploy.sh $(APP_NAME) $(TARGET) $(PROFILE)
+
+dab-logs:
+	databricks apps logs $(APP_NAME) --profile $(PROFILE)
+
+# VPS / Remote Server Runner
+vps-start:
+	@HOST=0.0.0.0 PORT=$${PORT:-3000} NODE_ENV=production $(MAKE) start
+
+vps-run:
+	@HOST=0.0.0.0 PORT=$${PORT:-3000} NODE_ENV=production $(MAKE) run

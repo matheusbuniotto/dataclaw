@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "start": "bun run src/console/api/server.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "console": "bun run src/console/api/server.ts",
@@ -16,7 +17,15 @@
     "evals:report": "bun run evals/report.ts",
     "evals:calibrate": "bun run evals/calibrate.ts",
     "evals:compare": "bun run evals/compare.ts",
-    "plugins:list": "bun run src/plugins/cli.ts"
+    "evals:power": "bun run evals/power.ts",
+    "evals:growth": "bun run evals/growth-funnel.ts",
+    "showcase": "bun run examples/most-impressive-project.ts",
+    "mip": "bun run examples/most-impressive-project.ts",
+    "plugins:list": "bun run src/plugins/cli.ts",
+    "dab:validate": "databricks bundle validate -t dev --profile dev",
+    "dab:deploy": "databricks apps deploy -t dev --profile dev",
+    "dab:logs": "databricks apps logs dataclaw --profile dev",
+    "vps:start": "HOST=0.0.0.0 NODE_ENV=production bun run src/console/api/server.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

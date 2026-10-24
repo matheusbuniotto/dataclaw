@@ -4,6 +4,7 @@ import {
     Bot,
     Database,
     Search,
+    ShieldCheck,
     Workflow,
 } from "lucide-react";
 import type { DataSource, Run } from "../state/workspace-types";
@@ -125,9 +126,7 @@ export function DataPage({
                                     <tr
                                         key={s.id}
                                         onClick={() => setSelected(s.id)}
-                                        style={{
-                                            background: source?.id === s.id ? "#f2f5ec" : undefined,
-                                        }}
+                                        className={source?.id === s.id ? "is-selected" : undefined}
                                     >
                                         <td className="table-strong">
                                             {s.name}
@@ -174,6 +173,25 @@ export function DataPage({
                                 <span>Records available</span>
                                 <b>{source.records}</b>
                             </div>
+                        </div>
+
+                        <div
+                            style={{
+                                marginTop: 14,
+                                padding: "9px 12px",
+                                background: "rgba(16, 185, 129, 0.07)",
+                                border: "1px solid rgba(16, 185, 129, 0.22)",
+                                borderRadius: 8,
+                                fontSize: 11,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                            }}
+                        >
+                            <ShieldCheck size={14} style={{ color: "var(--green, #10b981)", flexShrink: 0 }} />
+                            <span style={{ color: "#cbd5e1", lineHeight: 1.4 }}>
+                                <strong>Safe Data Engine:</strong> Read-only query execution enforced by AST validation. Mutations (DROP, DELETE, UPDATE, ALTER) fail closed.
+                            </span>
                         </div>
 
                         <div className="section-label">Lineage · downstream agents</div>
