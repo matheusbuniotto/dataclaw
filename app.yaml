@@ -11,3 +11,27 @@ env:
   # e.g., /Volumes/<catalog>/<schema>/<volume_name>/agent_analyst.sqlite
   - name: "ANALYST_STORAGE"
     value: "/tmp/agent_analyst.sqlite"
+
+  # =========================================================================
+  # AI Model Configuration
+  # =========================================================================
+  # Option 1: Custom OpenAI-Compatible Model via Databricks DAB Secrets
+  # Point to your custom LLM host (vLLM, LiteLLM, Azure OpenAI, OpenRouter, private gateway)
+  # and resolve credentials securely from a Databricks secret scope:
+  #   databricks secrets create-scope dataclaw
+  #   databricks secrets put-secret dataclaw custom_model_api_key --string-value "your-api-key"
+  #
+  # - name: "CUSTOM_MODEL_BASE_URL"
+  #   value: "https://your-custom-llm-host.com/v1"
+  # - name: "CUSTOM_MODEL_API_KEY"
+  #   value: "{{secrets/dataclaw/custom_model_api_key}}"
+  # - name: "CUSTOM_MODEL_ID"
+  #   value: "meta-llama/Llama-3.3-70B-Instruct"
+
+  # Option 2: Databricks AI-Native Model Serving (Fallback Default)
+  # When Option 1 is not configured, DataClaw automatically connects to Databricks Model Serving
+  # at `${DATABRICKS_HOST}/serving-endpoints` using the ambient container service principal token.
+  # Default model: databricks-meta-llama-3-3-70b-instruct
+  # You can override the model ID to any served endpoint or foundation model:
+  # - name: "DATABRICKS_MODEL_ID"
+  #   value: "databricks-meta-llama-3-3-70b-instruct"

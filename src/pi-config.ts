@@ -26,6 +26,8 @@ const PROVIDER_ENV: Record<string, readonly string[]> = {
     openrouter: ["OPENROUTER_API_KEY"],
     "opencode-go": ["OPENCODE_API_KEY"],
     opencode: ["OPENCODE_API_KEY"],
+    custom: ["CUSTOM_MODEL_API_KEY", "DATABRICKS_MODEL_API_KEY", "MODEL_API_KEY"],
+    databricks: ["DATABRICKS_TOKEN", "DATABRICKS_MODEL_API_KEY"],
 };
 
 export function defaultPiUserSettingsPath(): string {
@@ -150,5 +152,26 @@ export function providerConfigured(
     providerIds: ReadonlySet<string>,
 ): boolean {
     if (providerIds.has(providerId)) return true;
+    if (providerId === "custom") {
+        return Boolean(
+            process.env.CUSTOM_MODEL_BASE_URL?.trim() ||
+            process.env.CUSTOM_MODEL_API_KEY?.trim() ||
+            process.env.DATABRICKS_MODEL_BASE_URL?.trim() ||
+            process.env.DATABRICKS_MODEL_API_KEY?.trim() ||
+            process.env.MODEL_BASE_URL?.trim(),
+        );
+    }
+    if (providerId === "databricks") {
+        const hasHost = Boolean(
+            process.env.DATABRICKS_HOST?.trim() ||
+            process.env.DATABRICKS_PROFILE?.trim() ||
+            process.env.DATABRICKS_APP_PORT,
+        );
+        const hasToken = Boolean(
+            process.env.DATABRICKS_TOKEN?.trim() ||
+            process.env.DATABRICKS_MODEL_API_KEY?.trim(),
+        );
+        return hasHost && hasToken;
+    }
     return providerEnvNames(providerId).some((name) => Boolean(process.env[name]?.trim()));
 }

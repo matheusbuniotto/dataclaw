@@ -100,4 +100,21 @@ export {
 export type { OAuthTokenSet } from "./mcp/databricks-oauth";
 
 // Config
-export { setupModelsRegistry, getDefaultModelRef } from "./config";
+export {
+    setupModelsRegistry,
+    getDefaultModelRef,
+    resolveCustomModelConfig,
+    createCustomModelProvider,
+    resolveDatabricksModelConfig,
+    createDatabricksModelProvider,
+    isCustomModelConfigured,
+    isDatabricksModelConfigured,
+    normalizeBaseUrl,
+    DATABRICKS_FOUNDATION_MODELS,
+} from "./config";
+export type {
+    CustomModelConfig,
+    DatabricksModelConfig,
+    ResolvedModelConfig,
+    ModelRegistryOptions,
+} from "./config";

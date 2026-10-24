@@ -402,7 +402,7 @@ export function DurableAgentConsole() {
                 {loadError && <div className="workspace-banner">{loadError}</div>}
                 {snapshot?.agent.model.startsWith("faux") && !isAgentsView && (
                     <div className="workspace-banner">
-                        {snapshot.agent.name} is on the offline model ({snapshot.agent.model}). Set the model in .pi/settings.json, or set OPENCODE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY.
+                        {snapshot.agent.name} is on the offline model ({snapshot.agent.model}). Configure DAB secrets (CUSTOM_MODEL_BASE_URL / CUSTOM_MODEL_API_KEY), Databricks Model Serving, or set OPENCODE_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY.
                     </div>
                 )}
 

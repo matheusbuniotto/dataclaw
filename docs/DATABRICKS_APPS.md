@@ -184,3 +184,84 @@ Once deployed:
    "Profile the churn patterns in customer_churn table and verify statistical confidence"
    ```
 5. Inspect the live turn in **Durable Runs** (`/console/runs`) and verify atomic WAL checkpointing.
+
+---
+
+## 7. AI Model Providers: DAB Secrets vs. AI-Native Databricks Endpoint Fallback
+
+DataClaw provides a dual-engine architecture for model inference on Databricks:
+
+```
+                  ┌─────────────────────────────────────────────────────────┐
+                  │              DataClaw Model Resolution                  │
+                  └────────────────────────────┬────────────────────────────┘
+                                               │
+                   Is CUSTOM_MODEL_BASE_URL or CUSTOM_MODEL_API_KEY set?
+                                               │
+                        ┌──────────────────────┴──────────────────────┐
+                        │ YES                                         │ NO
+                        ▼                                             ▼
+         ┌─────────────────────────────┐               ┌─────────────────────────────┐
+         │ Option A: Custom Model      │               │ Option B: AI-Native Fallback│
+         │                             │               │                             │
+         │ - Base URL from DAB         │               │ - ${DATABRICKS_HOST}/       │
+         │ - Key from DAB Secret Scope │               │   serving-endpoints         │
+         │   {{secrets/scope/key}}     │               │ - Foundation Model API      │
+         │ - Model: CUSTOM_MODEL_ID    │               │   (Llama 3.3 70B / DBRX)    │
+         │ (vLLM, Azure, LiteLLM, etc) │               │ - Ambient DATABRICKS_TOKEN  │
+         └─────────────────────────────┘               └─────────────────────────────┘
+```
+
+### Option A: Custom OpenAI-Compatible Model via Databricks DAB Secrets
+
+If your organization runs a centralized LLM gateway (e.g. vLLM, LiteLLM, Azure OpenAI, Together AI, OpenRouter) or an internal fine-tuned serving endpoint, configure DataClaw with DAB secrets.
+
+1. **Create a Databricks Secret Scope & Secret**:
+   ```bash
+   # Create a secret scope for DataClaw
+   databricks secrets create-scope dataclaw
+
+   # Store your custom model endpoint API key
+   databricks secrets put-secret dataclaw custom_model_api_key --string-value "sk-your-private-key"
+   ```
+
+2. **Reference the Secret in `app.yaml`**:
+   ```yaml
+   env:
+     - name: "CUSTOM_MODEL_BASE_URL"
+       value: "https://your-custom-llm-host.com/v1"
+     - name: "CUSTOM_MODEL_API_KEY"
+       value: "{{secrets/dataclaw/custom_model_api_key}}"
+     - name: "CUSTOM_MODEL_ID"
+       value: "meta-llama/Llama-3.3-70B-Instruct"
+   ```
+
+3. Databricks Apps automatically interpolates `{{secrets/dataclaw/custom_model_api_key}}` into the container environment at launch time. DataClaw registers a `"custom"` provider using `createCustomModelProvider` and routes inference directly to your private endpoint.
+
+---
+
+### Option B: Databricks AI-Native Model Serving (Zero-Configuration Fallback)
+
+When no custom model secrets are configured, DataClaw **automatically falls back to Databricks Model Serving**:
+
+- **Base URL**: `${DATABRICKS_HOST}/serving-endpoints`
+- **Authentication**: Ambient `DATABRICKS_TOKEN` injected into every Databricks Apps container by the platform.
+- **Default Foundation Model**: `databricks-meta-llama-3-3-70b-instruct` (Meta Llama 3.3 70B Instruct).
+- **Available Databricks Foundation Models**:
+  - `databricks-meta-llama-3-3-70b-instruct` (Default flagship)
+  - `databricks-meta-llama-3-1-405b-instruct` (Ultra-scale reasoning)
+  - `databricks-meta-llama-3-1-70b-instruct`
+  - `databricks-meta-llama-3-1-8b-instruct` (Low latency)
+  - `databricks-dbrx-instruct`
+  - `databricks-mixtral-8x7b-instruct`
+
+To switch to a different Databricks model or custom served endpoint, simply set `DATABRICKS_MODEL_ID` in `app.yaml`:
+
+```yaml
+env:
+  - name: "DATABRICKS_MODEL_ID"
+    value: "databricks-dbrx-instruct"
+```
+
+This requires **zero external API keys**, keeping all model inference and SQL telemetry entirely within your Databricks governance perimeter.
+
