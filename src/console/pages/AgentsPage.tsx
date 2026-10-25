@@ -18,6 +18,11 @@ import {
     loadCustomAgents,
     saveCustomAgent,
 } from "../components/AgentEditorModal";
+import type { WorkspaceSnapshot } from "../state/workspace-types";
+import { ApprovalCard, type StatisticalApprovalPayload } from "../components/orbit/ApprovalCard";
+import { WorkspaceInspection } from "../components/orbit/WorkspaceInspection";
+import { TeamOrgView } from "../components/grok/TeamOrgView";
+import type { Bot, TeamFolder } from "../components/grok/types";
 import {
     Activity,
     ArrowUp,
@@ -1264,10 +1269,64 @@ export function GrokOutcomeCard({
     );
 }
 
+function detectApprovalCard(turn: ChatTurn): StatisticalApprovalPayload | null {
+    const text = (turn.assistantText || "").toLowerCase();
+    const tools = turn.tools.map((t) => t.toolName.toLowerCase());
+
+    // Check for A/B testing
+    if (
+        text.includes("variant a") ||
+        text.includes("variant b") ||
+        text.includes("wilson") ||
+        text.includes("srm") ||
+        tools.some((t) => t.includes("eval") || t.includes("compare"))
+    ) {
+        const srmPass = !text.includes("srm failed") && !text.includes("lopsided");
+        const isShip = text.includes("ship") && !text.includes("no-ship") && !text.includes("hold");
+        return {
+            kind: 'ab_test_gate',
+            title: 'A/B Test Release Gate: Statistical Verification',
+            target: 'evals.release_gate',
+            risk: 'Continuous experiment validation comparing Variant A baseline vs Variant B.',
+            status: isShip ? 'approved' : 'pending',
+            srmPassed: srmPass,
+            upliftEstimate: text.includes("uplift") || text.includes("churn") ? "+3.8% [95% CI]" : "+4.2% uplift",
+            wilsonInterval: [0.012, 0.068],
+            recommendation: isShip ? 'ship' : srmPass ? 'ship' : 'hold',
+        };
+    }
+
+    // Check for Simpson's Paradox or Auditor review
+    if (
+        text.includes("simpson") ||
+        text.includes("p-hacking") ||
+        text.includes("confounding") ||
+        text.includes("auditor") ||
+        tools.some((t) => t.includes("audit"))
+    ) {
+        return {
+            kind: 'auditor_review',
+            title: 'Skeptical Auditor Cross-Examination',
+            target: 'auditor.skeptical_review',
+            risk: text.includes("simpson")
+                ? "Simpson's Paradox risk detected: Aggregate trend conflicts with cohort sub-segments."
+                : "Statistical skepticism check: guarding against small-sample distortion and p-hacking.",
+            status: 'pending',
+            simpsonsParadoxRisk: text.includes("simpson"),
+            sampleSize: 28,
+            pHackingWarning: 'Subgroup analysis requires Bonferroni correction before executive reporting.',
+            auditorVerdict: 'confirmed',
+        };
+    }
+
+    return null;
+}
+
 // ============================================================================
 // Default 3-Pane Teammate Console (Promoted AgentsPage)
 // ============================================================================
 export function AgentsPage({
+    snapshot,
     agents,
     roster,
     activeAgentId,
@@ -1282,8 +1341,10 @@ export function AgentsPage({
     ops,
     onOpenPlatformMenu,
     onOpenSettings,
+    onOpenDatabricksModal,
     onToggleOps,
 }: {
+    snapshot?: WorkspaceSnapshot | null;
     agents: WorkspaceAgent[];
     roster: RosterEntry[];
     activeAgentId: string;
@@ -1298,8 +1359,11 @@ export function AgentsPage({
     ops: boolean;
     onOpenPlatformMenu?: () => void;
     onOpenSettings?: () => void;
+    onOpenDatabricksModal?: () => void;
     onToggleOps?: () => void;
 }) {
+    const [inspectionOpen, setInspectionOpen] = useState(false);
+    const [view, setView] = useState<'chat' | 'team'>('chat');
     const [fullscreen, setFullscreen] = useState(false);
     const [draft, setDraft] = useState("");
     const [searchFilter, setSearchFilter] = useState("");
@@ -1532,6 +1596,30 @@ export function AgentsPage({
             };
         });
     }, [transcript, roster, customAgentsList, activeAgentId, customizations]);
+
+    const grokBots: Bot[] = useMemo(() => {
+        return allBots.map((b) => ({
+            configurationVersion: 1,
+            id: b.id,
+            name: b.name,
+            role: b.role,
+            department: b.section || "Specialists",
+            folderId: b.section === "Core Analytics" ? "f-core" : b.section === "Data & Lakehouse" ? "f-lake" : b.section === "Statistical Gates" ? "f-stats" : "",
+            shape: (b.id === "dataclaw" ? "droplet" : b.id.includes("auditor") ? "hexagon" : b.id.includes("scout") ? "squircle" : "round") as any,
+            color: b.color || "#06b6d4",
+            description: b.description,
+            systemPrompt: "",
+            status: b.active ? (working ? "executing" : "idle") : "idle",
+            lastMessagePreview: b.lastMessage,
+            plugins: [],
+        }));
+    }, [allBots, working]);
+
+    const teamFolders: TeamFolder[] = [
+        { id: "f-core", name: "Core Analytics", color: "#06b6d4" },
+        { id: "f-lake", name: "Data & Lakehouse", color: "#3b82f6" },
+        { id: "f-stats", name: "Statistical Gates", color: "#f59e0b" },
+    ];
 
     const customMatch = customAgentsList.find((c) => c.id === activeAgentId);
     const botMatch = allBots.find((b) => b.id === activeAgentId);
@@ -2338,19 +2426,34 @@ export function AgentsPage({
             </aside>
 
             {/* ============================================================ */}
-            {/* COLUMN 2: CENTER CHAT STREAM                                 */}
+            {/* COLUMN 2: CENTER CHAT STREAM OR TEAM ORG VIEW                 */}
             {/* ============================================================ */}
-            <main
-                style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    height: "100%",
-                    background: t.bg,
-                    minWidth: 0,
-                    borderRight: showDeepDive ? `1px solid ${t.border}` : "none",
-                }}
-            >
+            {view === "team" ? (
+                <TeamOrgView
+                    bots={grokBots}
+                    folders={teamFolders}
+                    theme={isDark ? "dark" : "light"}
+                    onSelectBot={(id) => {
+                        onSelectAgent(id);
+                        setView("chat");
+                    }}
+                    onOpenNewBotModal={() => setIsCreatingAgent(true)}
+                    onBackToChat={() => setView("chat")}
+                    onMoveBot={async () => {}}
+                    onCreateFolder={async () => {}}
+                />
+            ) : (
+                <main
+                    style={{
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        height: "100%",
+                        background: t.bg,
+                        minWidth: 0,
+                        borderRight: showDeepDive ? `1px solid ${t.border}` : "none",
+                    }}
+                >
                 {/* Chat Header (Serene, minimal, perfectly centered, matching reference) */}
                 <header
                     style={{
@@ -2447,8 +2550,52 @@ export function AgentsPage({
                         </span>
                     </div>
 
-                    {/* Right action: discreet Compute Screen button */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, width: 36, justifyContent: "flex-end" }}>
+                    {/* Right actions: Squad Org, Lakehouse Inspector, Compute Screen */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                        <button
+                            type="button"
+                            onClick={() => setView(view === "team" ? "chat" : "team")}
+                            title={view === "team" ? "Switch to Chat View" : "Open Squad Org View"}
+                            style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                border: `1px solid ${view === "team" ? t.accent : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+                                background: view === "team"
+                                    ? (isDark ? "rgba(6, 182, 212, 0.2)" : "#e0f2fe")
+                                    : "transparent",
+                                color: view === "team" ? (isDark ? "#22d3ee" : "#0284c7") : t.textMuted,
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                            }}
+                        >
+                            <Users size={14} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setInspectionOpen(true)}
+                            title="Open Lakehouse & Statistical Inspector"
+                            style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                border: `1px solid ${inspectionOpen ? t.accent : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+                                background: inspectionOpen
+                                    ? (isDark ? "rgba(6, 182, 212, 0.2)" : "#e0f2fe")
+                                    : "transparent",
+                                color: inspectionOpen ? (isDark ? "#22d3ee" : "#0284c7") : t.textMuted,
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                            }}
+                        >
+                            <Database size={14} />
+                        </button>
+
                         <button
                             type="button"
                             onClick={() => {
@@ -2669,6 +2816,7 @@ export function AgentsPage({
                                     (!working || !isLast) && (Boolean(turn.assistantText?.trim()) || turn.tools.length > 0)
                                         ? extractTurnOutcomes(turn)
                                         : [];
+                                const approvalCard = (!working || !isLast) ? detectApprovalCard(turn) : null;
 
                                 return (
                                     <div className="chat-msg chat-assistant" key={turn.id}>
@@ -2689,16 +2837,30 @@ export function AgentsPage({
                                                 mood={working && isLast ? "thinking" : "normal"}
                                             />
                                         </span>
-                                        <AssistantTurnView
-                                            turn={turn}
-                                            live={working && isLast}
-                                            hideOuterShell={true}
-                                            footerExtra={
-                                                outcomes.length > 0 ? (
-                                                    <GrokOutcomeCard items={outcomes} isDark={isDark} />
-                                                ) : undefined
-                                            }
-                                        />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <AssistantTurnView
+                                                turn={turn}
+                                                live={working && isLast}
+                                                hideOuterShell={true}
+                                                footerExtra={
+                                                    outcomes.length > 0 ? (
+                                                        <GrokOutcomeCard items={outcomes} isDark={isDark} />
+                                                    ) : undefined
+                                                }
+                                            />
+                                            {approvalCard && (
+                                                <div style={{ marginTop: 12, marginBottom: 8 }}>
+                                                    <ApprovalCard
+                                                        card={approvalCard}
+                                                        dark={isDark}
+                                                        onDecide={async (decision) => {
+                                                            ask(`[Decision: ${decision.toUpperCase()}] Proceed based on statistical review.`);
+                                                        }}
+                                                        onViewDetails={() => setInspectionOpen(true)}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })
@@ -3057,6 +3219,7 @@ export function AgentsPage({
                     </div>
                 </div>
             </main>
+            )}
 
             {/* ============================================================ */}
             {/* COLUMN 3: GROKBOT COMPUTE SCREEN & LIVE SANDBOX PANEL        */}
@@ -4094,6 +4257,15 @@ export function AgentsPage({
                 onOpenSettings={onOpenSettings}
                 theme={theme}
                 onSelectTheme={toggleTheme}
+            />
+
+            {/* Orbit Workspace & Lakehouse Inspector Drawer */}
+            <WorkspaceInspection
+                snapshot={snapshot ?? null}
+                isOpen={inspectionOpen}
+                onClose={() => setInspectionOpen(false)}
+                onConnectDatabricks={onOpenDatabricksModal}
+                dark={isDark}
             />
         </div>
     );

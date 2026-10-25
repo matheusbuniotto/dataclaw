@@ -1,0 +1,52 @@
+/* Orbit & Grokbot Motion Recipes & Avatar Animations */
+:root {
+  --motion-fast: 140ms;
+  --motion-normal: 220ms;
+  --motion-slow: 280ms;
+  --ease-settle: cubic-bezier(.2, .8, .2, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bot-avatar-entering { animation: bot-arrive 560ms cubic-bezier(.2, .8, .2, 1) both; }
+  .bot-avatar[data-working='true'] > svg { animation: bot-work 1800ms ease-in-out infinite; }
+  .bot-avatar[data-working='true'] .bot-avatar-eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: bot-focus 3200ms ease-in-out infinite;
+  }
+
+  .timeline-entry {
+    animation: surface-rise var(--motion-normal) var(--ease-settle) both;
+  }
+  .surface-fade {
+    animation: surface-fade var(--motion-normal) ease-out both;
+  }
+}
+
+@keyframes bot-arrive {
+  from { opacity: 0; transform: scale(0.85) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes bot-work {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-2px) rotate(-1.5deg); }
+  75% { transform: translateY(1px) rotate(1.5deg); }
+}
+
+@keyframes bot-focus {
+  0%, 100% { transform: scaleY(1); }
+  45% { transform: scaleY(1.1); }
+  50% { transform: scaleY(0.15); }
+  55% { transform: scaleY(1.1); }
+}
+
+@keyframes surface-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes surface-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

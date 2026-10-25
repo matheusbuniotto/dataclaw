@@ -435,6 +435,7 @@ export function DurableAgentConsole() {
                     </Route>
                     <Route path="/console/agents">
                         <AgentsPage
+                            snapshot={snapshot}
                             agents={agents}
                             roster={snapshot?.roster ?? []}
                             activeAgentId={activeAgentId}
@@ -450,6 +451,7 @@ export function DurableAgentConsole() {
                             onToggleOps={() => setOps(!ops)}
                             onOpenPlatformMenu={() => setMenuOpen(true)}
                             onOpenSettings={() => setLocation("/console/settings")}
+                            onOpenDatabricksModal={() => setAuthOpen(true)}
                         />
                     </Route>
                     <Route path="/console/runs">
