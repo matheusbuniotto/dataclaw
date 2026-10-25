@@ -10,6 +10,7 @@ import {
     describeDatabricksConfig,
     listDatabricksProfiles,
 } from "../../mcp/databricks-config";
+import { resolveDatabricksAppContext } from "../../mcp/databricks-env";
 import {
     buildAuthorizeUrl,
     DatabricksOAuthError,
@@ -88,6 +89,7 @@ function errorText(err: unknown): string {
 /** Serialize current auth/connection state for the console. Never includes a token. */
 export function getDatabricksUiStatus(): DatabricksUiStatus {
     const profiles = listDatabricksProfiles();
+    const appContext = resolveDatabricksAppContext();
 
     if (connection) {
         return {
@@ -105,6 +107,10 @@ export function getDatabricksUiStatus(): DatabricksUiStatus {
             connectedAt: connection.connectedAt,
             profiles,
             defaultProfile: defaultProfile(),
+            isApp: appContext.isApp,
+            appId: appContext.appId,
+            appName: appContext.appName,
+            hasLakePostgres: appContext.hasLakePostgres,
         };
     }
 
@@ -121,6 +127,10 @@ export function getDatabricksUiStatus(): DatabricksUiStatus {
         catalogs: [],
         profiles,
         defaultProfile: defaultProfile(),
+        isApp: appContext.isApp,
+        appId: appContext.appId,
+        appName: appContext.appName,
+        hasLakePostgres: appContext.hasLakePostgres,
     };
 }
 

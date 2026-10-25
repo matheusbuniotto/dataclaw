@@ -7,10 +7,18 @@ import {
     isProviderId,
     isTableName,
     isMetricName,
+    isMlflowExperimentId,
+    isMlflowRunId,
+    isGenieSpaceId,
+    isConnectionName,
     parseAgentId,
     parseFindingId,
     parseHypothesisId,
     parseRuleId,
+    parseMlflowExperimentId,
+    parseMlflowRunId,
+    parseGenieSpaceId,
+    parseConnectionName,
 } from "../src/types/brands";
 
 describe("Domain Branded Types and Verifying Guards", () => {
@@ -53,6 +61,26 @@ describe("Domain Branded Types and Verifying Guards", () => {
         expect(isTableName("customers")).toBe(true);
         expect(isTableName("")).toBe(false);
         expect(isMetricName("pearson_correlation")).toBe(true);
+    });
+
+    test("isMlflowExperimentId, isMlflowRunId, isGenieSpaceId and isConnectionName validate strings", () => {
+        expect(isMlflowExperimentId("exp-123")).toBe(true);
+        expect(isMlflowExperimentId("")).toBe(false);
+        expect(isMlflowRunId("run-999")).toBe(true);
+        expect(isMlflowRunId(123)).toBe(false);
+        expect(isGenieSpaceId("space-abc")).toBe(true);
+        expect(isGenieSpaceId("")).toBe(false);
+        expect(isConnectionName("customer_pg")).toBe(true);
+        expect(isConnectionName("")).toBe(false);
+
+        expect(parseMlflowExperimentId("exp-1")).toBe("exp-1" as any);
+        expect(parseMlflowRunId("run-1")).toBe("run-1" as any);
+        expect(parseGenieSpaceId("genie-1")).toBe("genie-1" as any);
+        expect(parseConnectionName("conn-1")).toBe("conn-1" as any);
+        expect(() => parseMlflowExperimentId("")).toThrow(TypeError);
+        expect(() => parseMlflowRunId("")).toThrow(TypeError);
+        expect(() => parseGenieSpaceId("")).toThrow(TypeError);
+        expect(() => parseConnectionName("")).toThrow(TypeError);
     });
 
     test("boundary parsers narrow valid types and throw on invalid input", () => {

@@ -105,6 +105,34 @@ export const TOOL_DECLARATIONS = {
         group: "databricks",
         phrase: { calling: "Calculating metric", called: "Calculated metric" },
     },
+    mlflow_log_eval: {
+        group: "databricks",
+        phrase: { calling: "Logging eval to MLflow", called: "Logged eval to MLflow" },
+        summary: { keys: ["evalName"], fallback: "MLflow eval" },
+    },
+    databricks_ai_query: {
+        group: "databricks",
+        phrase: { calling: "Executing system.ai query", called: "Executed system.ai query" },
+        summary: { keys: ["endpoint"], fallback: "ai_query" },
+    },
+    databricks_ai_function: {
+        group: "databricks",
+        phrase: { calling: "Calling Unity Catalog AI function", called: "Called Unity Catalog AI function" },
+        summary: { keys: ["functionName"], fallback: "ai_function" },
+    },
+    list_databricks_connections: {
+        group: "databricks",
+        phrase: { calling: "Listing Lakehouse connections", called: "Listed Lakehouse connections" },
+    },
+    databricks_genie_ask: {
+        group: "databricks",
+        phrase: { calling: "Consulting AI/BI Genie", called: "Consulted AI/BI Genie" },
+        summary: { keys: ["question"], shape: "line", fallback: "Genie question" },
+    },
+    databricks_genie_list: {
+        group: "databricks",
+        phrase: { calling: "Listing Genie spaces", called: "Listed Genie spaces" },
+    },
 
     // The rest of the analyst extension: datasets, hypotheses, findings, playbook, audit.
     load_dataset: {

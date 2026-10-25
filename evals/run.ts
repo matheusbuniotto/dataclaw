@@ -10,6 +10,7 @@ import { assessStuck, extractTrace, type StuckAssessment, type TraceFinding } fr
 import { SCRIPTED_VARIANTS, sampleFaults, scriptedProvider, type ScriptedFaults } from "./scripted-agent";
 import { hashSeed } from "./stats";
 import { renderReport } from "./report";
+import { DatabricksMlflowClient } from "../src/mcp/databricks-mlflow";
 
 /** USD per million tokens, applied only when the provider reports no cost (the offline scripted model). */
 export const NOMINAL_PRICE_PER_MTOK = { input: 0.5, output: 2, cacheRead: 0.05, cacheWrite: 0.5 };
@@ -188,6 +189,34 @@ async function main() {
     await writeFile(reportPath, report);
     console.log(report);
     console.error(`Wrote ${reportPath}`);
+
+    const host = process.env.DATABRICKS_HOST;
+    const token = process.env.DATABRICKS_TOKEN;
+    if (host && token) {
+        try {
+            const mlflow = new DatabricksMlflowClient({ host, token });
+            const experimentName = process.env.DATABRICKS_EXPERIMENT_PATH ?? "/Shared/dataclaw-evals";
+            const passRate = all.filter((r) => r.success).length / (all.length || 1);
+            const stuckRate = all.filter((r) => r.stuck.stuck).length / (all.length || 1);
+            const avgLatency = all.reduce((sum, r) => sum + r.latencyMs, 0) / (all.length || 1);
+            await mlflow.logEvalResults(
+                experimentName,
+                variants[0] ?? "dataclaw-eval",
+                [
+                    { metricName: "pass_rate", score: passRate, sampleSize: all.length },
+                    { metricName: "stuck_rate", score: stuckRate, sampleSize: all.length },
+                    { metricName: "avg_latency_ms", score: avgLatency },
+                ],
+                {
+                    model: model ? `${model.provider}/${model.modelId}` : "scripted",
+                    repeats,
+                },
+            );
+            console.error(`Logged eval metrics to Databricks MLflow experiment: ${experimentName}`);
+        } catch (err) {
+            console.error(`Databricks MLflow logging skipped: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
 }
 
 if (import.meta.main) await main();

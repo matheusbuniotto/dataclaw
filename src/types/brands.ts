@@ -16,6 +16,10 @@ export type RuleId = Brand<string, "RuleId">;
 export type ProviderId = Brand<string, "ProviderId">;
 export type TableName = Brand<string, "TableName">;
 export type MetricName = Brand<string, "MetricName">;
+export type MlflowExperimentId = Brand<string, "MlflowExperimentId">;
+export type MlflowRunId = Brand<string, "MlflowRunId">;
+export type GenieSpaceId = Brand<string, "GenieSpaceId">;
+export type ConnectionName = Brand<string, "ConnectionName">;
 
 /** Verifying type guard for AgentId */
 export function isAgentId(value: unknown): value is AgentId {
@@ -52,6 +56,26 @@ export function isMetricName(value: unknown): value is MetricName {
     return typeof value === "string" && value.trim().length > 0;
 }
 
+/** Verifying type guard for MlflowExperimentId */
+export function isMlflowExperimentId(value: unknown): value is MlflowExperimentId {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Verifying type guard for MlflowRunId */
+export function isMlflowRunId(value: unknown): value is MlflowRunId {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Verifying type guard for GenieSpaceId */
+export function isGenieSpaceId(value: unknown): value is GenieSpaceId {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Verifying type guard for ConnectionName */
+export function isConnectionName(value: unknown): value is ConnectionName {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
 /** Boundary validation: parse an AgentId from unknown data */
 export function parseAgentId(value: unknown): AgentId {
     if (!isAgentId(value)) {
@@ -80,6 +104,34 @@ export function parseHypothesisId(value: unknown): HypothesisId {
 export function parseRuleId(value: unknown): RuleId {
     if (!isRuleId(value)) {
         throw new TypeError(`Invalid RuleId: expected "rule-vN-M" format, received "${String(value)}"`);
+    }
+    return value;
+}
+
+export function parseMlflowExperimentId(value: unknown): MlflowExperimentId {
+    if (!isMlflowExperimentId(value)) {
+        throw new TypeError(`Invalid MlflowExperimentId: non-empty string required, received "${String(value)}"`);
+    }
+    return value;
+}
+
+export function parseMlflowRunId(value: unknown): MlflowRunId {
+    if (!isMlflowRunId(value)) {
+        throw new TypeError(`Invalid MlflowRunId: non-empty string required, received "${String(value)}"`);
+    }
+    return value;
+}
+
+export function parseGenieSpaceId(value: unknown): GenieSpaceId {
+    if (!isGenieSpaceId(value)) {
+        throw new TypeError(`Invalid GenieSpaceId: non-empty string required, received "${String(value)}"`);
+    }
+    return value;
+}
+
+export function parseConnectionName(value: unknown): ConnectionName {
+    if (!isConnectionName(value)) {
+        throw new TypeError(`Invalid ConnectionName: non-empty string required, received "${String(value)}"`);
     }
     return value;
 }

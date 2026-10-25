@@ -78,8 +78,8 @@ export type PercentilesResult =
       };
 
 export interface DataAdapter {
-    /** Where the data lives: local SQLite/CSV or a remote warehouse. */
-    readonly source: "local" | "databricks";
+    /** Where the data lives: local SQLite/CSV, Databricks Unity Catalog, or Databricks Lakehouse PostgreSQL. */
+    readonly source: "local" | "databricks" | "lakehouse-postgres";
     loadCsv(tableName: string, csvContent: string): Promise<DatasetProfile>;
     loadJson(tableName: string, jsonContent: string): Promise<DatasetProfile>;
     profile(tableName?: string): Promise<DatasetProfile>;

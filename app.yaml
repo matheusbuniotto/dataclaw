@@ -35,3 +35,17 @@ env:
   # You can override the model ID to any served endpoint or foundation model:
   # - name: "DATABRICKS_MODEL_ID"
   #   value: "databricks-meta-llama-3-3-70b-instruct"
+
+  # =========================================================================
+  # Databricks Platform Native Features
+  # =========================================================================
+  # MLflow Tracking: Automatically log eval scores, traces, and metrics
+  # - name: "DATABRICKS_EXPERIMENT_PATH"
+  #   value: "/Shared/dataclaw-evals"
+
+  # Lakehouse PostgreSQL (Lakebase / App Database):
+  # Injected automatically when a Databricks App database is attached
+  # - name: "PGHOST"
+  #   value: "databricks-app-pg-internal"
+  # - name: "PGDATABASE"
+  #   value: "dataclaw_app_db"

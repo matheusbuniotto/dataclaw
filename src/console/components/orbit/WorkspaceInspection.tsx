@@ -14,6 +14,7 @@ import {
     Scale,
     ShieldCheck,
     SlidersHorizontal,
+    Sparkles,
     Table,
     Workflow,
     X,
@@ -152,6 +153,61 @@ export function WorkspaceInspection({
                                     Manage OAuth & Service Principal Credentials →
                                 </button>
                             )}
+                        </div>
+
+                        {/* DATABRICKS NATIVE ECOSYSTEM SUITE */}
+                        <div className="p-4 rounded-xl bg-neutral-900/60 border border-white/5 space-y-3">
+                            <h3 className="text-xs font-semibold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <Sparkles size={13} className="text-cyan-400" />
+                                Databricks Native Integrations
+                            </h3>
+                            <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 space-y-1">
+                                    <div className="flex items-center justify-between text-neutral-200 font-medium">
+                                        <span>MLflow Evals</span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400">
+                                        Traces, statistical power, SRM rates, and experiment runs.
+                                    </p>
+                                </div>
+                                <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 space-y-1">
+                                    <div className="flex items-center justify-between text-neutral-200 font-medium">
+                                        <span>system.ai MCPs</span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400">
+                                        ai_query, ai_summarize, ai_classify, ai_similarity.
+                                    </p>
+                                </div>
+                                <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 space-y-1">
+                                    <div className="flex items-center justify-between text-neutral-200 font-medium">
+                                        <span>Lakehouse Federation</span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400">
+                                        Foreign catalogs & connections via MCP SQL.
+                                    </p>
+                                </div>
+                                <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 space-y-1">
+                                    <div className="flex items-center justify-between text-neutral-200 font-medium">
+                                        <span>AI/BI Genie</span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400">
+                                        Certified semantic spaces & KPI answers.
+                                    </p>
+                                </div>
+                                <div className="col-span-2 p-2.5 rounded-lg bg-black/40 border border-white/5 space-y-1">
+                                    <div className="flex items-center justify-between text-neutral-200 font-medium">
+                                        <span>Lakehouse Postgres (App DB)</span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                    </div>
+                                    <p className="text-[10px] text-neutral-400">
+                                        Databricks App Postgres backend for multi-instance state & durable checkpoints.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <div>

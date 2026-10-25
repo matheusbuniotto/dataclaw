@@ -91,6 +91,12 @@ export interface DatabricksUiStatus {
     profiles: DatabricksProfileInfo[];
     defaultProfile: string;
     error?: string;
+    isApp?: boolean;
+    appId?: string;
+    appName?: string;
+    hasLakePostgres?: boolean;
+    connectionsCount?: number;
+    genieSpacesCount?: number;
 }
 
 /** What the auth panel posts to connect: a CLI profile, a host, a PAT, and/or client credentials. */

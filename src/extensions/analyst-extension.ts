@@ -43,6 +43,7 @@ import {
     featuresRemoveSkillTool,
 } from "../tools/feature-tools";
 import { createDataSourceTools } from "../tools/datasource-tools";
+import { createDatabricksFeatureTools } from "../tools/databricks-features-tools";
 import { toolDeclaration } from "../tools/inventory";
 import { isReadOnlySql } from "../mcp/mcp-sql-client";
 import type { DataSourceRegistry } from "../datasource/session";
@@ -54,6 +55,7 @@ export interface AnalystToolsOptions {
 
 export function createAnalystTools(options: AnalystToolsOptions) {
     const data = createDataSourceTools({ sessions: options.sessions });
+    const databricksFeatures = createDatabricksFeatureTools({ sessions: options.sessions });
     const requestAuditorReviewTool = createAuditorReviewTool({
         tools: [data.queryDataTool, data.discoverDataTool],
     });
@@ -194,6 +196,7 @@ export function createAnalystTools(options: AnalystToolsOptions) {
         // Tools available to the agent
         tools: [
             ...data.all,
+            ...databricksFeatures.all,
             manageHypothesesTool,
             recordFindingTool,
             consultPlaybookTool,
