@@ -1,12 +1,13 @@
 import { defineDoc, type JsonObject } from "@earendil-works/pi-durable";
 import type { SourceRecord } from "../datasource/types";
+import type { HypothesisId, FindingId } from "../types/brands";
 
 export type Hypothesis = {
-    id: string;
+    id: HypothesisId | string;
     title: string;
     description: string;
     status: "proposed" | "testing" | "validated" | "refuted" | "inconclusive";
-    evidenceIds: string[];
+    evidenceIds: Array<FindingId | string>;
     notes?: string;
     proposedAt: number;
     updatedAt: number;

@@ -12,6 +12,31 @@ export {
 } from "./workspace/context";
 export type { CreateAnalystHarnessOptions } from "./harness";
 
+// Domain Brands & Type Guards
+export {
+    isAgentId,
+    isFindingId,
+    isHypothesisId,
+    isRuleId,
+    isProviderId,
+    isTableName,
+    isMetricName,
+    parseAgentId,
+    parseFindingId,
+    parseHypothesisId,
+    parseRuleId,
+} from "./types/brands";
+export type {
+    Brand,
+    AgentId,
+    FindingId,
+    HypothesisId,
+    RuleId,
+    ProviderId,
+    TableName,
+    MetricName,
+} from "./types/brands";
+
 // Documents
 export { AnalystPlanDoc } from "./docs/plan";
 export type { AnalystPlanDocument, Hypothesis, DatasetMeta } from "./docs/plan";

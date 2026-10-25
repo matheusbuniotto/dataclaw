@@ -4,6 +4,7 @@ import { SqliteDataAdapter } from "../adapters/sqlite-adapter";
 import { AnalystPlanDoc } from "../docs/plan";
 import { FindingsDoc, type JsonValue } from "../docs/findings";
 import { appendFinding, nextHypothesisId, recordActiveDataset } from "../docs/writers";
+import { engineLogger } from "../observability/logger";
 
 export interface AnalysisWorkflowInput {
     filePath: string;
@@ -23,7 +24,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
     initial: () => ({ phase: "intake_and_profile" }),
     phases: {
         intake_and_profile: async (task, runtime, context) => {
-            console.log(`[AnalysisWorkflowTask ${task.id}] Phase 1: Intake & Profiling for ${task.input.filePath}...`);
+            engineLogger.info("AnalysisWorkflowTask", `Phase 1: Intake & Profiling for ${task.input.filePath}`, { taskId: task.id, filePath: task.input.filePath });
 
             // Self-contained: the saga owns its scratch database, so it needs no process global.
             const adapter = await SqliteDataAdapter.create(":memory:");
@@ -68,10 +69,12 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
         },
 
         formulate_hypotheses: async (task, runtime, context) => {
-            console.log(`[AnalysisWorkflowTask ${task.id}] Phase 2: Formulating Hypotheses for goal: "${task.input.targetQuestion}"...`);
+            if (task.state.checkpoint.phase !== "formulate_hypotheses") {
+                throw new Error(`Invalid checkpoint phase for formulate_hypotheses: ${task.state.checkpoint.phase}`);
+            }
+            engineLogger.info("AnalysisWorkflowTask", `Phase 2: Formulating Hypotheses for goal: "${task.input.targetQuestion}"`, { taskId: task.id, goal: task.input.targetQuestion });
 
-            const checkpoint = task.state.checkpoint as { columns?: string[] } | undefined;
-            const columns = checkpoint?.columns ?? [];
+            const columns = task.state.checkpoint.columns ?? [];
 
             let hypotheses: string[] = [];
 
@@ -125,7 +128,10 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
         },
 
         deep_dive_analysis: async (task, runtime, context) => {
-            console.log(`[AnalysisWorkflowTask ${task.id}] Phase 3: Executing analytical queries and statistical tests...`);
+            if (task.state.checkpoint.phase !== "deep_dive_analysis") {
+                throw new Error(`Invalid checkpoint phase for deep_dive_analysis: ${task.state.checkpoint.phase}`);
+            }
+            engineLogger.info("AnalysisWorkflowTask", "Phase 3: Executing analytical queries and statistical tests", { taskId: task.id });
             const adapter = await SqliteDataAdapter.create(":memory:");
             const content = readFileSync(task.input.filePath, "utf-8");
             const isJson = task.input.filePath.endsWith(".json") || task.input.filePath.endsWith(".jsonl") || task.input.filePath.endsWith(".ndjson");
@@ -347,7 +353,10 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
         },
 
         audit_and_synthesize: async (task, runtime, context) => {
-            console.log(`[AnalysisWorkflowTask ${task.id}] Phase 4 & 5: Audit & Executive Synthesis...`);
+            if (task.state.checkpoint.phase !== "audit_and_synthesize") {
+                throw new Error(`Invalid checkpoint phase for audit_and_synthesize: ${task.state.checkpoint.phase}`);
+            }
+            engineLogger.info("AnalysisWorkflowTask", "Phase 4 & 5: Audit & Executive Synthesis", { taskId: task.id });
 
             let reportSummary = "";
 
@@ -392,7 +401,7 @@ export const AnalysisWorkflowTask = defineTask<AnalysisWorkflowInput, AnalysisWo
         },
     },
     abort: async (task, runtime, context) => {
-        console.log(`[AnalysisWorkflowTask ${task.id}] Aborted.`);
+        engineLogger.warn("AnalysisWorkflowTask", "Workflow task aborted", { taskId: task.id });
         await runtime.commit(() => ({
             status: "terminal",
             outcome: { status: "aborted" },

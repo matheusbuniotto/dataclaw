@@ -1,4 +1,5 @@
 import { defineDoc } from "@earendil-works/pi-durable";
+import type { AgentId } from "../types/brands";
 import {
     capabilitiesCanManage,
     DEFAULT_SPECIALIST_CAPABILITIES,
@@ -127,7 +128,7 @@ export const AGENT_ROLES = {
 export type AgentRoleName = keyof typeof AGENT_ROLES;
 
 export type RosterAgent = {
-    id: string;
+    id: AgentId | string;
     name: string;
     role: string;
     purpose: string;
@@ -158,7 +159,7 @@ export type RosterAgent = {
 
 export type AgentRun = {
     id: string;
-    agentId: string;
+    agentId: AgentId | string;
     agentName: string;
     label: string;
     mode: "run" | "session";
@@ -176,7 +177,7 @@ export type AgentRosterDocument = {
 
 export type AgentBindingDocument = {
     /** Empty on the root coordinator. A roster id on a specialist session. */
-    agentId: string;
+    agentId: AgentId | string;
     /** `run` is a one-shot delegation and cannot manage the roster. */
     origin: "roster" | "run";
 };

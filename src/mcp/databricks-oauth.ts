@@ -91,9 +91,10 @@ async function postToken(
             body: body.toString(),
             signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         throw new DatabricksOAuthError(
-            `Could not reach the Databricks OAuth token endpoint: ${err?.message ?? String(err)}`,
+            `Could not reach the Databricks OAuth token endpoint: ${message}`,
         );
     }
 

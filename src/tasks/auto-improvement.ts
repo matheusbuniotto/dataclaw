@@ -2,6 +2,8 @@ import { defineTask } from "@earendil-works/pi-durable";
 import { PlaybookDoc } from "../docs/playbook";
 import { TelemetryDoc } from "../docs/telemetry";
 import { FindingsDoc } from "../docs/findings";
+import { engineLogger } from "../observability/logger";
+import { isRuleId } from "../types/brands";
 
 export interface AutoImprovementInput {
     focusDomain?: string;
@@ -26,7 +28,7 @@ export const AutoImprovementTask = defineTask<AutoImprovementInput, AutoImprovem
     initial: () => ({ phase: "scan_telemetry" }),
     phases: {
         scan_telemetry: async (task, runtime, context) => {
-            console.log(`[AutoImprovementTask ${task.id}] Scanning telemetry and feedback records...`);
+            engineLogger.info("AutoImprovementTask", "Scanning telemetry and feedback records", { taskId: task.id });
 
             const candidates: CandidateRule[] = [];
 
@@ -96,8 +98,11 @@ export const AutoImprovementTask = defineTask<AutoImprovementInput, AutoImprovem
         },
 
         distill_rules: async (task, runtime, context) => {
-            const { candidates } = task.state.checkpoint as { phase: "distill_rules"; candidates: CandidateRule[] };
-            console.log(`[AutoImprovementTask ${task.id}] Distilling ${candidates.length} candidate rules...`);
+            if (task.state.checkpoint.phase !== "distill_rules") {
+                throw new Error(`Invalid checkpoint phase for distill_rules: ${task.state.checkpoint.phase}`);
+            }
+            const { candidates } = task.state.checkpoint;
+            engineLogger.info("AutoImprovementTask", `Distilling ${candidates.length} candidate rules`, { taskId: task.id, candidateCount: candidates.length });
 
             // Deduplicate rules by normalized text
             const seen = new Set<string>();
@@ -118,8 +123,11 @@ export const AutoImprovementTask = defineTask<AutoImprovementInput, AutoImprovem
         },
 
         commit_upgrades: async (task, runtime, context) => {
-            const { candidates } = task.state.checkpoint as { phase: "commit_upgrades"; candidates: CandidateRule[] };
-            console.log(`[AutoImprovementTask ${task.id}] Committing ${candidates.length} upgrades to PlaybookDoc...`);
+            if (task.state.checkpoint.phase !== "commit_upgrades") {
+                throw new Error(`Invalid checkpoint phase for commit_upgrades: ${task.state.checkpoint.phase}`);
+            }
+            const { candidates } = task.state.checkpoint;
+            engineLogger.info("AutoImprovementTask", `Committing ${candidates.length} upgrades to PlaybookDoc`, { taskId: task.id, candidateCount: candidates.length });
 
             let newVersion = 1;
             const addedRules: string[] = [];
@@ -171,7 +179,7 @@ export const AutoImprovementTask = defineTask<AutoImprovementInput, AutoImprovem
         },
     },
     abort: async (task, runtime, context) => {
-        console.log(`[AutoImprovementTask ${task.id}] Aborted.`);
+        engineLogger.warn("AutoImprovementTask", "Task aborted", { taskId: task.id });
         await runtime.commit(() => ({
             status: "terminal",
             outcome: { status: "aborted" },

@@ -232,8 +232,6 @@ async function releaseOrphanedSubmissions(analyst: AnalystHarness): Promise<void
     if (orphans.length === 0) return;
     await analyst.conversation.commit(async (tx) => {
         for (const submission of orphans) {
-            const current = await (tx as any).submission(submission.id);
-            if (current?.status !== "placed") continue;
             tx.settleSubmission(submission.id, { status: "unanswered", reason: "aborted" });
         }
     }, analyst.context);

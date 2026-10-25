@@ -186,30 +186,73 @@ function coerceByType(value: unknown, typeName: string | undefined): unknown {
     return value;
 }
 
-function extractRows(payload: any): Array<{ values: unknown[] }> {
+interface DatabricksManifestColumn {
+    name?: unknown;
+    type_name?: unknown;
+    type_text?: unknown;
+}
+
+interface DatabricksStatementManifest {
+    schema?: {
+        columns?: readonly DatabricksManifestColumn[];
+    };
+    total_row_count?: unknown;
+    total_chunk_count?: unknown;
+    truncated?: unknown;
+}
+
+export interface DatabricksStatementPayload {
+    manifest?: DatabricksStatementManifest;
+    result?: {
+        data_array?: unknown;
+        data_typed_array?: unknown;
+    };
+    data_array?: unknown;
+    data_typed_array?: unknown;
+    statement_id?: string;
+    status?: {
+        state?: string;
+        error?: {
+            message?: unknown;
+        };
+    };
+    total_row_count?: unknown;
+    truncated?: unknown;
+    message?: string;
+    error?: string;
+}
+
+function extractRows(payload: unknown): Array<{ values?: unknown[] } | unknown[]> {
+    if (typeof payload !== "object" || payload === null) return [];
+    const p = payload as DatabricksStatementPayload;
     const arrays = [
-        payload?.result?.data_array,
-        payload?.result?.data_typed_array,
-        payload?.data_array,
-        payload?.data_typed_array,
+        p.result?.data_array,
+        p.result?.data_typed_array,
+        p.data_array,
+        p.data_typed_array,
     ];
     for (const candidate of arrays) {
-        if (Array.isArray(candidate)) return candidate;
+        if (Array.isArray(candidate)) return candidate as Array<{ values?: unknown[] } | unknown[]>;
     }
     return [];
 }
 
 /** Convert a Databricks `execute_sql` / `poll_sql_result` payload into tabular rows. */
-export function normalizeStatementResult(payload: any): NormalizedStatement {
-    const schemaColumns: any[] = payload?.manifest?.schema?.columns ?? [];
-    const columns: SqlColumn[] = schemaColumns.map((col: any, index: number) => ({
+export function normalizeStatementResult(payload: unknown): NormalizedStatement {
+    const p = (typeof payload === "object" && payload !== null ? payload : {}) as DatabricksStatementPayload;
+    const schemaColumns: readonly DatabricksManifestColumn[] = p.manifest?.schema?.columns ?? [];
+    const columns: SqlColumn[] = schemaColumns.map((col, index: number) => ({
         name: String(col?.name ?? `col_${index}`),
         type: String(col?.type_name ?? col?.type_text ?? "STRING"),
     }));
 
-    const rawRows = extractRows(payload);
+    const rawRows = extractRows(p);
     const rows = rawRows.map((row) => {
-        const values = Array.isArray(row?.values) ? row.values : Array.isArray(row) ? row : [];
+        const values = (typeof row === "object" && row !== null && "values" in row && Array.isArray((row as { values: unknown[] }).values))
+            ? (row as { values: unknown[] }).values
+            : Array.isArray(row)
+                ? row
+                : [];
         const record: Record<string, unknown> = {};
         for (let i = 0; i < columns.length; i++) {
             const column = columns[i]!;
@@ -218,11 +261,11 @@ export function normalizeStatementResult(payload: any): NormalizedStatement {
         return record;
     });
 
-    const totalRows = Number(payload?.manifest?.total_row_count ?? payload?.total_row_count ?? rows.length);
-    const totalChunks = Number(payload?.manifest?.total_chunk_count ?? 1);
+    const totalRows = Number(p.manifest?.total_row_count ?? p.total_row_count ?? rows.length);
+    const totalChunks = Number(p.manifest?.total_chunk_count ?? 1);
     const truncated = Boolean(
-        payload?.truncated ||
-        payload?.manifest?.truncated ||
+        p.truncated ||
+        p.manifest?.truncated ||
         (Number.isFinite(totalChunks) && totalChunks > 1) ||
         (Number.isFinite(totalRows) && totalRows > rows.length),
     );
@@ -232,17 +275,25 @@ export function normalizeStatementResult(payload: any): NormalizedStatement {
         rows,
         rowCount: Number.isFinite(totalRows) ? totalRows : rows.length,
         truncated,
-        statementId: payload?.statement_id,
-        state: payload?.status?.state,
+        statementId: p.statement_id,
+        state: p.status?.state,
     };
 }
 
-function unwrapToolResult(result: any): any {
-    if (result?.structuredContent && typeof result.structuredContent === "object") {
-        return result.structuredContent;
+function unwrapToolResult(result: unknown): unknown {
+    if (typeof result !== "object" || result === null) return result;
+    const res = result as Record<string, unknown>;
+    if (res.structuredContent && typeof res.structuredContent === "object") {
+        return res.structuredContent;
     }
-    const text = Array.isArray(result?.content)
-        ? result.content.filter((part: any) => part?.type === "text").map((part: any) => part.text).join("")
+    const content = res.content;
+    const text = Array.isArray(content)
+        ? content
+            .filter((part): part is { type: "text"; text: string } =>
+                typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text" && typeof (part as { text?: unknown }).text === "string"
+            )
+            .map((part) => part.text)
+            .join("")
         : undefined;
     if (typeof text === "string" && text.trim()) {
         try {
@@ -292,14 +343,14 @@ export class McpSqlClient implements SqlExecutor {
         name: string,
         args: Record<string, unknown>,
         signal?: AbortSignal,
-    ): Promise<any> {
+    ): Promise<DatabricksStatementPayload> {
         const result = await this.http.callTool(name, args, { ...(signal ? { signal } : {}) });
+        const payload = (unwrapToolResult(result) ?? {}) as DatabricksStatementPayload;
         if (result.isError) {
-            const payload = unwrapToolResult(result);
             const message = payload?.message ?? payload?.error ?? JSON.stringify(payload);
             throw new Error(`Databricks MCP tool ${name} returned an error: ${message}`);
         }
-        return unwrapToolResult(result);
+        return payload;
     }
 
     async execute(sql: string, options: ExecuteSqlOptions = {}): Promise<SqlExecutionResult> {

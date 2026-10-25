@@ -226,13 +226,22 @@ export function parseTabularOutput(text: string): ParsedTable | null {
                 return { headers, rows, rowCountNote: `${rows.length} rows` };
             }
             if (data && typeof data === "object" && Array.isArray(data.columns) && Array.isArray(data.rows)) {
-                const headers = data.columns.map((c: any) =>
-                    typeof c === "string" ? c : c?.name ?? String(c)
+                const headers = data.columns.map((c: unknown) =>
+                    typeof c === "string"
+                        ? c
+                        : typeof c === "object" && c !== null && "name" in c && typeof (c as { name: unknown }).name === "string"
+                            ? (c as { name: string }).name
+                            : String(c)
                 );
-                const rows = data.rows.map((r: any) =>
+                const rows = data.rows.map((r: unknown) =>
                     Array.isArray(r)
-                        ? r.map((cell: any) => (cell !== undefined && cell !== null ? String(cell) : ""))
-                        : headers.map((h: string) => (r[h] !== undefined && r[h] !== null ? String(r[h]) : ""))
+                        ? r.map((cell: unknown) => (cell !== undefined && cell !== null ? String(cell) : ""))
+                        : typeof r === "object" && r !== null
+                            ? headers.map((h: string) => {
+                                  const cell = (r as Record<string, unknown>)[h];
+                                  return cell !== undefined && cell !== null ? String(cell) : "";
+                              })
+                            : []
                 );
                 return { headers, rows, rowCountNote: `${rows.length} rows` };
             }

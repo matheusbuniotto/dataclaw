@@ -137,8 +137,9 @@ function resolveCliToken(profile: string): string {
             stdio: ["ignore", "pipe", "pipe"],
             timeout: 30_000,
         });
-    } catch (err: any) {
-        const detail = err?.stderr?.toString?.().trim() || err?.message || String(err);
+    } catch (err: unknown) {
+        const detail = (err instanceof Error && "stderr" in err && (err as { stderr?: { toString?(): string } }).stderr?.toString?.().trim()) ||
+            (err instanceof Error ? err.message : String(err));
         throw new DatabricksConfigError(
             `Could not obtain a Databricks token for profile "${profile}": ${detail}. ` +
             `Run "databricks auth login --profile ${profile}" or set DATABRICKS_TOKEN.`,
@@ -232,7 +233,8 @@ export function describeDatabricksConfig(overrides: DatabricksConfigOverrides = 
             authMethod: cfg.tokenSource,
             ...(cfg.tokenExpiresAt ? { tokenExpiresAt: cfg.tokenExpiresAt } : {}),
         };
-    } catch (err: any) {
-        return { configured: false, error: err?.message ?? String(err) };
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { configured: false, error: message };
     }
 }

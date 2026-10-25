@@ -17,13 +17,10 @@ import { join, resolve } from "node:path";
 
 export type AgentComputeKind = "shared" | "local" | "docker";
 
-export type AgentCompute = {
-    kind: AgentComputeKind;
-    /** Docker only. Defaults to DATACLAW_COMPUTE_IMAGE or "oven/bun:1". */
-    image?: string;
-    /** Docker only. "none" keeps the container offline; "bridge" gives it internet. */
-    network?: "none" | "bridge";
-};
+export type AgentCompute =
+    | { readonly kind: "shared" }
+    | { readonly kind: "local" }
+    | { readonly kind: "docker"; readonly image?: string; readonly network?: "none" | "bridge" };
 
 export const DEFAULT_AGENT_COMPUTE: AgentCompute = { kind: "local" };
 export const DEFAULT_DOCKER_IMAGE = "oven/bun:1";
@@ -31,7 +28,7 @@ export const DEFAULT_DOCKER_IMAGE = "oven/bun:1";
 const IMAGE = /^[a-zA-Z0-9][a-zA-Z0-9_.:/@-]{0,199}$/;
 
 export function parseAgentCompute(raw: unknown): { ok: true; value: AgentCompute } | { ok: false; error: string } {
-    if (raw === undefined) return { ok: true, value: { ...DEFAULT_AGENT_COMPUTE } };
+    if (raw === undefined) return { ok: true, value: DEFAULT_AGENT_COMPUTE };
 
     const source = typeof raw === "string" ? { kind: raw } : raw;
     if (!source || typeof source !== "object" || Array.isArray(source)) {
@@ -42,8 +39,13 @@ export function parseAgentCompute(raw: unknown): { ok: true; value: AgentCompute
     if (kindRaw !== "shared" && kindRaw !== "local" && kindRaw !== "docker") {
         return { ok: false, error: 'compute.kind must be "shared", "local" or "docker".' };
     }
-    const kind = kindRaw;
-    if (kind !== "docker") return { ok: true, value: { kind } };
+
+    if (kindRaw === "shared") {
+        return { ok: true, value: { kind: "shared" } };
+    }
+    if (kindRaw === "local") {
+        return { ok: true, value: { kind: "local" } };
+    }
 
     const image = typeof object.image === "string" ? object.image.trim() : "";
     if (image && !IMAGE.test(image)) {
@@ -56,7 +58,7 @@ export function parseAgentCompute(raw: unknown): { ok: true; value: AgentCompute
     return {
         ok: true,
         value: {
-            kind,
+            kind: "docker",
             ...(image ? { image } : {}),
             network,
         },

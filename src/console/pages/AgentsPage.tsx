@@ -22,7 +22,8 @@ import type { WorkspaceSnapshot } from "../state/workspace-types";
 import { ApprovalCard, type StatisticalApprovalPayload } from "../components/orbit/ApprovalCard";
 import { WorkspaceInspection } from "../components/orbit/WorkspaceInspection";
 import { TeamOrgView } from "../components/grok/TeamOrgView";
-import type { Bot, TeamFolder } from "../components/grok/types";
+import type { Bot as GrokBot, BotShape, TeamFolder } from "../components/grok/types";
+import { formatCompute } from "../../compute/agent-compute";
 import {
     Activity,
     ArrowUp,
@@ -61,6 +62,7 @@ import {
     Sun,
     Terminal,
     User,
+    Users,
     Workflow,
     X,
     Zap,
@@ -914,7 +916,7 @@ export function GrokbotAvatar({
 export interface GrokQuickAction {
     id: string;
     label: string;
-    icon: any;
+    icon: React.ComponentType<{ className?: string; size?: number | string; color?: string; style?: React.CSSProperties }>;
     prompt: string;
     description: string;
 }
@@ -1516,8 +1518,8 @@ export function AgentsPage({
     const allBots = useMemo(() => {
         const lastTurn = transcript[transcript.length - 1];
         const lastMsgText =
-            lastTurn && "content" in lastTurn && typeof (lastTurn as any).content === "string"
-                ? (lastTurn as any).content.slice(0, 48) + "..."
+            lastTurn && "content" in lastTurn && typeof (lastTurn as { content?: unknown }).content === "string"
+                ? (lastTurn as { content: string }).content.slice(0, 48) + "..."
                 : "Ready for coordination and analytics.";
 
         const list: Array<{
@@ -1597,22 +1599,25 @@ export function AgentsPage({
         });
     }, [transcript, roster, customAgentsList, activeAgentId, customizations]);
 
-    const grokBots: Bot[] = useMemo(() => {
-        return allBots.map((b) => ({
-            configurationVersion: 1,
-            id: b.id,
-            name: b.name,
-            role: b.role,
-            department: b.section || "Specialists",
-            folderId: b.section === "Core Analytics" ? "f-core" : b.section === "Data & Lakehouse" ? "f-lake" : b.section === "Statistical Gates" ? "f-stats" : "",
-            shape: (b.id === "dataclaw" ? "droplet" : b.id.includes("auditor") ? "hexagon" : b.id.includes("scout") ? "squircle" : "round") as any,
-            color: b.color || "#06b6d4",
-            description: b.description,
-            systemPrompt: "",
-            status: b.active ? (working ? "executing" : "idle") : "idle",
-            lastMessagePreview: b.lastMessage,
-            plugins: [],
-        }));
+    const grokBots: GrokBot[] = useMemo(() => {
+        return allBots.map((b) => {
+            const shape: BotShape = b.id === "dataclaw" ? "droplet" : b.id.includes("auditor") ? "hexagon" : b.id.includes("scout") ? "squircle" : "round";
+            return {
+                configurationVersion: 1,
+                id: b.id,
+                name: b.name,
+                role: b.role,
+                department: b.section || "Specialists",
+                folderId: b.section === "Core Analytics" ? "f-core" : b.section === "Data & Lakehouse" ? "f-lake" : b.section === "Statistical Gates" ? "f-stats" : "",
+                shape,
+                color: b.color || "#06b6d4",
+                description: b.description,
+                systemPrompt: "",
+                status: b.active ? (working ? "executing" : "idle") : "idle",
+                lastMessagePreview: b.lastMessage,
+                plugins: [],
+            };
+        });
     }, [allBots, working]);
 
     const teamFolders: TeamFolder[] = [
@@ -2554,17 +2559,15 @@ export function AgentsPage({
                     <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
                         <button
                             type="button"
-                            onClick={() => setView(view === "team" ? "chat" : "team")}
-                            title={view === "team" ? "Switch to Chat View" : "Open Squad Org View"}
+                            onClick={() => setView("team")}
+                            title="Open Squad Org View"
                             style={{
                                 width: 32,
                                 height: 32,
                                 borderRadius: "50%",
-                                border: `1px solid ${view === "team" ? t.accent : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
-                                background: view === "team"
-                                    ? (isDark ? "rgba(6, 182, 212, 0.2)" : "#e0f2fe")
-                                    : "transparent",
-                                color: view === "team" ? (isDark ? "#22d3ee" : "#0284c7") : t.textMuted,
+                                border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+                                background: "transparent",
+                                color: t.textMuted,
                                 display: "grid",
                                 placeItems: "center",
                                 cursor: "pointer",
@@ -3444,19 +3447,19 @@ export function AgentsPage({
                                 background: t.panelBg,
                             }}
                         >
-                            {[
+                            {([
                                 { id: "screen", label: "Screen", icon: Monitor, title: "Live CRT Sandbox Monitor" },
                                 { id: "data", label: "Data", icon: Database, title: "Unity Catalog & Tables Viewer" },
                                 { id: "specs", label: "Specs", icon: Cpu, title: "Specialist Archetype & Capabilities" },
                                 { id: "routines", label: "Routines", icon: Clock, title: "Autonomous background cycles" },
-                            ].map((tab) => {
+                            ] as const).map((tab) => {
                                 const active = sidePanelTab === tab.id;
                                 const TabIcon = tab.icon;
                                 return (
                                     <button
                                         key={tab.id}
                                         type="button"
-                                        onClick={() => setSidePanelTab(tab.id as any)}
+                                        onClick={() => setSidePanelTab(tab.id)}
                                         title={tab.title}
                                         style={{
                                             flex: 1,
@@ -3602,7 +3605,7 @@ export function AgentsPage({
                                             </span>
                                         </div>
                                         <div style={{ fontSize: 11, fontWeight: 700, color: t.textPrimary, textTransform: "capitalize" }}>
-                                            {"compute" in baseAgent ? String((baseAgent as any).compute) : "Local Sandbox"}
+                                            {"compute" in baseAgent ? String(baseAgent.compute) : "Local Sandbox"}
                                         </div>
                                         <div style={{ fontSize: 9, color: t.textMuted, marginTop: 2 }}>
                                             Namespace & FS jailed
@@ -3660,16 +3663,16 @@ export function AgentsPage({
                                         }}
                                     >
                                         <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                                            {[
+                                            {([
                                                 { id: "all", label: "All" },
                                                 { id: "tools", label: "Tools" },
                                                 { id: "system", label: "System" },
                                                 { id: "stdout", label: "Stdout" },
-                                            ].map((f) => (
+                                            ] as const).map((f) => (
                                                 <button
                                                     key={f.id}
                                                     type="button"
-                                                    onClick={() => setLogFilter(f.id as any)}
+                                                    onClick={() => setLogFilter(f.id)}
                                                     style={{
                                                         fontSize: 9,
                                                         fontFamily: "var(--app-font-mono, monospace)",
@@ -4011,7 +4014,7 @@ export function AgentsPage({
                                         <div style={{ display: "flex", justifyContent: "space-between" }}>
                                             <span style={{ color: t.textMuted }}>Compute Sandbox:</span>
                                             <span style={{ fontWeight: 600, color: t.textPrimary, fontFamily: "var(--app-font-mono, monospace)" }}>
-                                                {"compute" in baseAgent ? String((baseAgent as any).compute) : "local-isolated"}
+                                                {"compute" in baseAgent ? String(baseAgent.compute) : "local-isolated"}
                                             </span>
                                         </div>
                                         <div style={{ display: "flex", justifyContent: "space-between" }}>

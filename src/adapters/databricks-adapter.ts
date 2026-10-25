@@ -1,4 +1,13 @@
-import type { ColumnProfile, DataAdapter, DatasetProfile, QueryResult } from "./adapter-interface";
+import type {
+    ColumnProfile,
+    CorrelationMetricOptions,
+    CorrelationResult,
+    DataAdapter,
+    DatasetProfile,
+    PercentilesMetricOptions,
+    PercentilesResult,
+    QueryResult,
+} from "./adapter-interface";
 import {
     resolveDatabricksConfig,
     type DatabricksConfigOverrides,
@@ -219,6 +228,9 @@ export class DatabricksDataAdapter implements DataAdapter {
         };
     }
 
+    async calculateMetric(type: "correlation", options: CorrelationMetricOptions): Promise<CorrelationResult>;
+    async calculateMetric(type: "percentiles", options: PercentilesMetricOptions): Promise<PercentilesResult>;
+    async calculateMetric(type: string, options: Record<string, unknown>): Promise<Record<string, unknown>>;
     async calculateMetric(type: string, options: Record<string, unknown>): Promise<Record<string, unknown>> {
         const table = (options.tableName as string | undefined) ?? this.activeTableName;
         if (!table) {

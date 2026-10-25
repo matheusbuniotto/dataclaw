@@ -6,8 +6,9 @@
  * dataset has one canonical shape here, so every call site writes the same document fields.
  */
 import type { ConversationId, Tx } from "@earendil-works/pi-durable";
-import { FindingsDoc, type AuditVerdict, type Finding, type FindingEvidence } from "./findings";
+import { FindingsDoc, isAuditVerdict, type AuditVerdict, type Finding, type FindingEvidence } from "./findings";
 import { AnalystPlanDoc, type DatasetMeta, type Hypothesis } from "./plan";
+import { isFindingId, isHypothesisId, type FindingId, type HypothesisId } from "../types/brands";
 
 /** What a caller knows about a finding. Audit state is absent: recording one never audits it. */
 export type NewFinding = {
@@ -24,23 +25,31 @@ export type NewFinding = {
  * The next free id, from the highest existing `find-N`, not from the array length. Length is not
  * an id allocator: a saga appending `find-1` and `find-2` (or any deletion) makes it collide.
  */
-export function nextFindingId(findings: readonly Finding[]): string {
+export function nextFindingId(findings: readonly Finding[]): FindingId {
     let highest = 0;
     for (const finding of findings) {
         const match = /^find-(\d+)$/.exec(finding.id);
-        if (match) highest = Math.max(highest, Number(match[1]));
+        if (match && match[1]) highest = Math.max(highest, Number(match[1]));
     }
-    return `find-${highest + 1}`;
+    const candidate = `find-${highest + 1}`;
+    if (!isFindingId(candidate)) {
+        throw new Error(`Allocated finding id failed validation: ${candidate}`);
+    }
+    return candidate;
 }
 
 /** The next free hypothesis id, for the same reason as findings: a second saga run must not collide. */
-export function nextHypothesisId(hypotheses: readonly Hypothesis[]): string {
+export function nextHypothesisId(hypotheses: readonly Hypothesis[]): HypothesisId {
     let highest = 0;
     for (const hypothesis of hypotheses) {
         const match = /^hyp-(\d+)$/.exec(hypothesis.id);
-        if (match) highest = Math.max(highest, Number(match[1]));
+        if (match && match[1]) highest = Math.max(highest, Number(match[1]));
     }
-    return `hyp-${highest + 1}`;
+    const candidate = `hyp-${highest + 1}`;
+    if (!isHypothesisId(candidate)) {
+        throw new Error(`Allocated hypothesis id failed validation: ${candidate}`);
+    }
+    return candidate;
 }
 
 /** Append a finding as unaudited. Callers describe it; the writer owns the id and audit state. */
@@ -73,7 +82,8 @@ export async function appendFinding(
  */
 export function parseAuditVerdict(report: string): AuditVerdict {
     const match = /VERDICT\W*(CONFIRMED|CAUTION|REJECTED)\b/i.exec(report);
-    return (match?.[1]?.toLowerCase() as AuditVerdict | undefined) ?? "caution";
+    const candidate = match?.[1]?.toLowerCase();
+    return isAuditVerdict(candidate) ? candidate : "caution";
 }
 
 /**

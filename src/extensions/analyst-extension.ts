@@ -10,6 +10,7 @@ import { AnalystPlanDoc } from "../docs/plan";
 import { FindingsDoc } from "../docs/findings";
 import { PlaybookDoc } from "../docs/playbook";
 import { TelemetryDoc } from "../docs/telemetry";
+import { engineLogger } from "../observability/logger";
 import { consultPlaybookTool, manageHypothesesTool, recordFindingTool } from "../tools/analyst-tools";
 import {
     promotePlaybookRuleTool,
@@ -236,14 +237,14 @@ export function createAnalystTools(options: AnalystToolsOptions) {
                     }
                     return undefined;
                 },
-                afterTool: async (call, result, api, context) => {
+                afterTool: async (call, result, api) => {
                     if (!toolDeclaration(call.name)?.runsSql || !result.isError) return result;
                     const outputText = result.output?.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("") ?? "";
-                    await (api as any).commit?.(async (tx: any) => {
-                        const telemetry = await tx.doc(TelemetryDoc, api.conversationId);
-                        const lastRecord = telemetry.records.slice(-1)[0];
-                        if (lastRecord) lastRecord.errorsEncountered.push(outputText.slice(0, 150));
-                    }, context);
+                    engineLogger.warn("SqlExecution", `SQL tool execution failed: ${call.name}`, {
+                        taskId: api.taskId,
+                        conversationId: api.conversationId,
+                        error: outputText.slice(0, 150),
+                    });
                     return result;
                 },
             }),

@@ -228,11 +228,12 @@ export class LangWatchTracer {
             }
 
             return { ok: true, status: response.status };
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
             return {
                 ok: false,
                 status: 500,
-                error: err.message || "Failed to reach LangWatch collector",
+                error: message || "Failed to reach LangWatch collector",
             };
         }
     }

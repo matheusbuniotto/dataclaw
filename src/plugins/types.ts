@@ -57,17 +57,20 @@ export type DataSourceAuth =
  * `role` declares a server-enforced read-only role, `checked` parses the statement client-side.
  * A data source with none of these is refused at connect.
  */
-export interface DataSourceReadOnly {
-    mode: "tool" | "role" | "checked";
-    /** Tool that is read-only. Defaults to `tools.query`. */
-    tool?: string;
-    /** When the read-only guarantee is an argument on a tool, its name... */
-    argument?: string;
-    /** ...and the value that makes the call read-only. */
-    value?: boolean | string;
-    /** Free text for the record, e.g. the role name. */
-    note?: string;
-}
+export type DataSourceReadOnly =
+    | { readonly mode: "checked"; readonly note?: string }
+    | { readonly mode: "role"; readonly note?: string }
+    | {
+          readonly mode: "tool";
+          /** Tool that is read-only. Defaults to `tools.query`. */
+          readonly tool?: string;
+          /** When the read-only guarantee is an argument on a tool, its name... */
+          readonly argument?: string;
+          /** ...and the value that makes the call read-only. */
+          readonly value?: boolean | string;
+          /** Free text for the record, e.g. the role name. */
+          readonly note?: string;
+      };
 
 /**
  * A plugin that is a data source rather than a capability provider. It is not started at harness

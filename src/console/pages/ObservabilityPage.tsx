@@ -37,8 +37,8 @@ export function ObservabilityPage({
             const json = (await res.json()) as ObservabilitySummary;
             setData(json);
             setError("");
-        } catch (e: any) {
-            setError(e.message || "Could not load metrics");
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Could not load metrics");
         } finally {
             setLoading(false);
         }
@@ -51,8 +51,8 @@ export function ObservabilityPage({
             if (!res.ok) throw new Error("Trace emission failed");
             notify?.("Trace emitted to LangWatch buffer");
             await loadData();
-        } catch (e: any) {
-            notify?.(e.message || "Failed to emit trace");
+        } catch (e: unknown) {
+            notify?.(e instanceof Error ? e.message : "Failed to emit trace");
         } finally {
             setEmittingTrace(false);
         }

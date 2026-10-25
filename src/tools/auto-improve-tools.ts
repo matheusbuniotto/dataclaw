@@ -185,9 +185,31 @@ export const triggerAutoImprovementTool = defineTool({
         const outcome = await api.waitForTask(taskId, context);
         const { state } = outcome;
 
-        const resultText = state.outcome.status === "completed"
-            ? (state.outcome.result as string)
-            : `Auto-improvement task failed: ${(state.outcome as any).error?.message}`;
+        let resultText = "";
+        switch (state.outcome.status) {
+            case "completed":
+                resultText = String(state.outcome.result);
+                break;
+            case "failed":
+            case "faulted": {
+                const error = state.outcome.error;
+                const msg = typeof error === "object" && error !== null && "message" in error
+                    ? String((error as { message: unknown }).message)
+                    : String(error);
+                resultText = `Auto-improvement task failed: ${msg}`;
+                break;
+            }
+            case "aborted":
+                resultText = "Auto-improvement task was aborted.";
+                break;
+            case "orphaned":
+                resultText = `Auto-improvement task was orphaned: ${state.outcome.reason}`;
+                break;
+            default: {
+                const _exhaustive: never = state.outcome;
+                resultText = `Unknown outcome status: ${String((_exhaustive as { status?: unknown }).status)}`;
+            }
+        }
 
         return {
             output: [{ type: "text", text: resultText }],

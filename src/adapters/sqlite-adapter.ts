@@ -1,23 +1,54 @@
-import type { ColumnProfile, DataAdapter, DatasetProfile, QueryResult } from "./adapter-interface";
+import type {
+    ColumnProfile,
+    CorrelationMetricOptions,
+    CorrelationResult,
+    DataAdapter,
+    DatasetProfile,
+    PercentilesMetricOptions,
+    PercentilesResult,
+    QueryResult,
+} from "./adapter-interface";
+
+export interface SqlitePreparedStatement {
+    run(...params: unknown[]): unknown;
+    all?(...params: unknown[]): unknown[];
+}
+
+export interface SqliteDatabaseBackend {
+    exec?(sql: string): void;
+    run?(sql: string): void;
+    prepare(sql: string): SqlitePreparedStatement;
+    query?(sql: string): {
+        all(...params: unknown[]): unknown[];
+    };
+    transaction?<Args extends readonly unknown[], R>(fn: (...args: Args) => R): (...args: Args) => R;
+    close?(): void;
+}
+
+function toScalarNumber(val: unknown, fallback = 0): number {
+    const num = Number(val);
+    return Number.isFinite(num) ? num : fallback;
+}
 
 export class SqliteDataAdapter implements DataAdapter {
     readonly source = "local" as const;
 
-    private db: any;
+    private readonly db: SqliteDatabaseBackend;
     private activeTableName = "data";
 
-    private constructor(db: any) {
+    private constructor(db: SqliteDatabaseBackend) {
         this.db = db;
     }
 
     public static async create(pathOrMemory: string = ":memory:"): Promise<SqliteDataAdapter> {
-        if (typeof (globalThis as any).Bun !== "undefined") {
+        const isBun = typeof globalThis === "object" && globalThis !== null && "Bun" in globalThis;
+        if (isBun) {
             const { Database } = await import("bun:sqlite");
-            const db = new Database(pathOrMemory);
+            const db = new Database(pathOrMemory) as unknown as SqliteDatabaseBackend;
             return new SqliteDataAdapter(db);
         } else {
             const { DatabaseSync } = await import("node:sqlite");
-            const db = new DatabaseSync(pathOrMemory);
+            const db = new DatabaseSync(pathOrMemory) as unknown as SqliteDatabaseBackend;
             return new SqliteDataAdapter(db);
         }
     }
@@ -138,16 +169,16 @@ export class SqliteDataAdapter implements DataAdapter {
 
         if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
             try {
-                const parsed = JSON.parse(trimmed);
+                const parsed: unknown = JSON.parse(trimmed);
                 if (Array.isArray(parsed)) {
-                    records = parsed.filter((r) => r && typeof r === "object");
+                    records = parsed.filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null);
                 } else if (parsed && typeof parsed === "object") {
                     // Check if the object wraps an array of records (e.g., { data: [...], records: [...] })
                     const innerArray = Object.values(parsed).find(
-                        (v) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object"
+                        (v): v is Array<Record<string, unknown>> => Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null
                     );
                     records = innerArray
-                        ? (innerArray as Array<Record<string, unknown>>)
+                        ? innerArray
                         : [parsed as Record<string, unknown>];
                 }
             } catch {
@@ -160,7 +191,7 @@ export class SqliteDataAdapter implements DataAdapter {
             const lines = trimmed.split(/\r?\n/).filter((l) => l.trim().length > 0);
             for (const line of lines) {
                 try {
-                    const parsedLine = JSON.parse(line.trim());
+                    const parsedLine: unknown = JSON.parse(line.trim());
                     if (parsedLine && typeof parsedLine === "object" && !Array.isArray(parsedLine)) {
                         records.push(parsedLine as Record<string, unknown>);
                     }
@@ -194,7 +225,7 @@ export class SqliteDataAdapter implements DataAdapter {
         }
 
         this.executeRaw(`DROP TABLE IF EXISTS "${tableName}";`);
-        const colDefs = keys.map((k) => `"${k}" ${colTypes[k]}`).join(", ");
+        const colDefs = keys.map((k) => `"${k}" ${colTypes[k] ?? "TEXT"}`).join(", ");
         this.executeRaw(`CREATE TABLE "${tableName}" (${colDefs});`);
 
         const placeholders = keys.map(() => "?").join(", ");
@@ -217,24 +248,26 @@ export class SqliteDataAdapter implements DataAdapter {
     public async profile(tableName?: string): Promise<DatasetProfile> {
         const table = tableName ?? this.activeTableName;
         const countRes = this.queryAll(`SELECT COUNT(*) as count FROM "${table}";`);
-        const rowCount = Number((countRes[0] as any)?.count ?? 0);
+        const rowCount = toScalarNumber(countRes[0]?.count, 0);
 
         const pragmaCols = this.queryAll(`PRAGMA table_info("${table}");`);
         const columns: ColumnProfile[] = [];
 
-        for (const col of pragmaCols as any[]) {
-            const name = col.name;
-            const type = (col.type || "TEXT").toUpperCase() as "INTEGER" | "REAL" | "TEXT";
+        for (const col of pragmaCols) {
+            const name = typeof col.name === "string" ? col.name : "";
+            if (!name) continue;
+            const rawType = typeof col.type === "string" ? col.type.toUpperCase() : "TEXT";
+            const type: ColumnProfile["type"] = rawType === "INTEGER" || rawType === "REAL" ? rawType : "TEXT";
 
             const nullRes = this.queryAll(`SELECT COUNT(*) as n FROM "${table}" WHERE "${name}" IS NULL;`);
-            const nullCount = Number((nullRes[0] as any)?.n ?? 0);
+            const nullCount = toScalarNumber(nullRes[0]?.n, 0);
             const nullPct = rowCount > 0 ? Number(((nullCount / rowCount) * 100).toFixed(2)) : 0;
 
             const distinctRes = this.queryAll(`SELECT COUNT(DISTINCT "${name}") as d FROM "${table}";`);
-            const distinctCount = Number((distinctRes[0] as any)?.d ?? 0);
+            const distinctCount = toScalarNumber(distinctRes[0]?.d, 0);
 
             const sampleRes = this.queryAll(`SELECT DISTINCT "${name}" as s FROM "${table}" WHERE "${name}" IS NOT NULL LIMIT 5;`);
-            const sampleValues = sampleRes.map((r: any) => r.s);
+            const sampleValues = sampleRes.map((r) => r.s);
 
             let min: number | string | undefined;
             let max: number | string | undefined;
@@ -242,10 +275,11 @@ export class SqliteDataAdapter implements DataAdapter {
 
             if (type === "INTEGER" || type === "REAL") {
                 const statsRes = this.queryAll(`SELECT MIN("${name}") as min_val, MAX("${name}") as max_val, AVG("${name}") as mean_val FROM "${table}";`);
-                if (statsRes.length > 0) {
-                    min = (statsRes[0] as any).min_val;
-                    max = (statsRes[0] as any).max_val;
-                    const rawMean = (statsRes[0] as any).mean_val;
+                const firstStats = statsRes[0];
+                if (firstStats) {
+                    min = typeof firstStats.min_val === "number" || typeof firstStats.min_val === "string" ? firstStats.min_val : undefined;
+                    max = typeof firstStats.max_val === "number" || typeof firstStats.max_val === "string" ? firstStats.max_val : undefined;
+                    const rawMean = firstStats.mean_val;
                     mean = rawMean !== null && rawMean !== undefined ? Number(Number(rawMean).toFixed(3)) : undefined;
                 }
             }
@@ -284,7 +318,8 @@ export class SqliteDataAdapter implements DataAdapter {
         const executionTimeMs = Number((performance.now() - start).toFixed(2));
 
         const limitedRows = rows.slice(0, maxRows);
-        const columns = limitedRows.length > 0 && limitedRows[0] ? Object.keys(limitedRows[0]) : [];
+        const firstRow = limitedRows[0];
+        const columns = firstRow ? Object.keys(firstRow) : [];
 
         return {
             columns,
@@ -294,11 +329,17 @@ export class SqliteDataAdapter implements DataAdapter {
         };
     }
 
+    public async calculateMetric(type: "correlation", options: CorrelationMetricOptions): Promise<CorrelationResult>;
+    public async calculateMetric(type: "percentiles", options: PercentilesMetricOptions): Promise<PercentilesResult>;
+    public async calculateMetric(type: string, options: Record<string, unknown>): Promise<Record<string, unknown>>;
     public async calculateMetric(type: string, options: Record<string, unknown>): Promise<Record<string, unknown>> {
-        const table = (options.tableName as string) ?? this.activeTableName;
+        const table = (typeof options.tableName === "string" ? options.tableName : undefined) ?? this.activeTableName;
 
         if (type === "correlation") {
-            const { colA, colB } = options as { colA: string; colB: string };
+            const colA = typeof options.colA === "string" ? options.colA : "";
+            const colB = typeof options.colB === "string" ? options.colB : "";
+            if (!colA || !colB) throw new Error("Correlation requires colA and colB strings.");
+
             const q = `
                 SELECT 
                     COUNT(*) as n,
@@ -307,12 +348,12 @@ export class SqliteDataAdapter implements DataAdapter {
                 FROM "${table}"
                 WHERE "${colA}" IS NOT NULL AND "${colB}" IS NOT NULL;
             `;
-            const stats = this.queryAll(q)[0] as any;
-            const n = Number(stats.n);
+            const stats = this.queryAll(q)[0];
+            const n = toScalarNumber(stats?.n, 0);
             if (n <= 1) return { correlation: 0, sampleSize: n, note: "Sample size too small" };
 
-            const avgA = stats.avg_a;
-            const avgB = stats.avg_b;
+            const avgA = toScalarNumber(stats?.avg_a, 0);
+            const avgB = toScalarNumber(stats?.avg_b, 0);
 
             const covQ = `
                 SELECT 
@@ -322,10 +363,10 @@ export class SqliteDataAdapter implements DataAdapter {
                 FROM "${table}"
                 WHERE "${colA}" IS NOT NULL AND "${colB}" IS NOT NULL;
             `;
-            const covRes = this.queryAll(covQ)[0] as any;
-            const cov = Number(covRes.cov);
-            const varA = Number(covRes.var_a);
-            const varB = Number(covRes.var_b);
+            const covRes = this.queryAll(covQ)[0];
+            const cov = toScalarNumber(covRes?.cov, 0);
+            const varA = toScalarNumber(covRes?.var_a, 0);
+            const varB = toScalarNumber(covRes?.var_b, 0);
 
             const denom = Math.sqrt(varA * varB);
             const r = denom === 0 ? 0 : cov / denom;
@@ -337,16 +378,20 @@ export class SqliteDataAdapter implements DataAdapter {
                 correlation: Number(r.toFixed(4)),
                 strength: Math.abs(r) > 0.7 ? "strong" : Math.abs(r) > 0.4 ? "moderate" : "weak",
                 direction: r > 0 ? "positive" : "negative",
-            };
+            } satisfies CorrelationResult;
         }
 
         if (type === "percentiles") {
-            const col = options.col as string;
-            const rows = this.queryAll(`SELECT "${col}" as val FROM "${table}" WHERE "${col}" IS NOT NULL ORDER BY "${col}" ASC;`);
-            if (rows.length === 0) return { error: "No numerical values found" };
+            const col = typeof options.col === "string" ? options.col : typeof options.colA === "string" ? options.colA : "";
+            if (!col) throw new Error("Percentiles require a col string.");
 
-            const vals = rows.map((r: any) => Number(r.val));
-            const getP = (p: number) => {
+            const rows = this.queryAll(`SELECT "${col}" as val FROM "${table}" WHERE "${col}" IS NOT NULL ORDER BY "${col}" ASC;`);
+            if (rows.length === 0) return { error: "No numerical values found" } satisfies PercentilesResult;
+
+            const vals = rows.map((r) => Number(r.val)).filter(Number.isFinite);
+            if (vals.length === 0) return { error: "No numerical values found" } satisfies PercentilesResult;
+
+            const getP = (p: number): number | undefined => {
                 const idx = Math.floor((p / 100) * (vals.length - 1));
                 return vals[idx];
             };
@@ -359,19 +404,19 @@ export class SqliteDataAdapter implements DataAdapter {
                 p75: getP(75),
                 p90: getP(90),
                 p99: getP(99),
-            };
+            } satisfies PercentilesResult;
         }
 
         throw new Error(`Unsupported metric type: ${type}`);
     }
 
     public async close(): Promise<void> {
-        if (this.db?.close) {
+        if (this.db.close) {
             this.db.close();
         }
     }
 
-    private executeRaw(sql: string) {
+    private executeRaw(sql: string): void {
         if (this.db.exec) {
             this.db.exec(sql);
         } else if (this.db.run) {
@@ -382,10 +427,13 @@ export class SqliteDataAdapter implements DataAdapter {
     private queryAll(sql: string): Array<Record<string, unknown>> {
         if (this.db.query) {
             // Bun sqlite
-            return this.db.query(sql).all() as Array<Record<string, unknown>>;
+            const res = this.db.query(sql).all();
+            return res.filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null);
         } else if (this.db.prepare) {
             // node:sqlite DatabaseSync
-            return this.db.prepare(sql).all() as Array<Record<string, unknown>>;
+            const stmt = this.db.prepare(sql);
+            const res = stmt.all ? stmt.all() : [];
+            return res.filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null);
         }
         throw new Error("Unable to execute query against database");
     }

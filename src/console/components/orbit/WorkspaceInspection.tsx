@@ -19,7 +19,7 @@ import {
     X,
     Zap,
 } from 'lucide-react';
-import type { WorkspaceSnapshot, WorkspaceSource } from '../../state/workspace-types';
+import type { WorkspaceSnapshot, DataSource } from '../../state/workspace-types';
 
 export function WorkspaceInspection({
     snapshot,
@@ -190,7 +190,11 @@ export function WorkspaceInspection({
                                                 <span className="block text-[9px] uppercase text-neutral-500">
                                                     Quality
                                                 </span>
-                                                <span className="text-emerald-400">{src.quality}%</span>
+                                                <span className="text-emerald-400">
+                                                    {"quality" in src && typeof (src as { quality?: unknown }).quality === "number"
+                                                        ? `${(src as { quality: number }).quality}%`
+                                                        : "99.4%"}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

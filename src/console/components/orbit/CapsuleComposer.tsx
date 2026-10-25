@@ -168,7 +168,7 @@ export function CapsuleComposer({
                                     idx === selectedMentionIndex
                                         ? 'bg-cyan-500/20 text-cyan-300'
                                         : 'hover:bg-white/5'
-                                Could }`}
+                                }`}
                             >
                                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: bot.color }} />
                                 <span className="font-semibold truncate">{bot.name}</span>

@@ -52,11 +52,11 @@ export type Derivation = "native" | `dialect:${DialectName}`;
  * A type alias, not an interface: durable documents hold this, and only object literal types get
  * the implicit index signature `JsonObject` requires.
  */
-export type SourceCredential = {
-    kind: "env" | "cli-profile" | "oauth" | "service-principal";
-    /** CLI profile name, for `kind: "cli-profile"`. */
-    profile?: string;
-};
+export type SourceCredential =
+    | { readonly kind: "env" }
+    | { readonly kind: "cli-profile"; readonly profile: string }
+    | { readonly kind: "oauth"; readonly clientId?: string }
+    | { readonly kind: "service-principal"; readonly clientId?: string };
 
 /**
  * Exactly what `AnalystPlanDoc.dataSource` stores. Everything here is safe to persist.

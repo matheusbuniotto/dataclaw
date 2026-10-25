@@ -97,12 +97,29 @@ export function createAuditorReviewTool(options: AuditorToolOptions) {
 
         const settled = await submission.wait(context);
 
+        if (settled.status !== "done" || !settled.answer) {
+            return {
+                output: [{ type: "text", text: `Auditor subagent finished without an answer (status: ${settled.status}).` }],
+                isError: true,
+            };
+        }
+
         // 5. Read auditor answer
-        const entry = await api.commit((tx) => tx.entry(AssistantEntry, settled.answer!), context);
-        const message = entry?.model?.[0] as AssistantMessage | undefined;
-        const auditReportText = message?.content
-            ?.flatMap((c) => (c.type === "text" ? [c.text] : []))
-            .join("") ?? "";
+        const answerId = settled.answer;
+        const entry = await api.commit((tx) => tx.entry(AssistantEntry, answerId), context);
+        const message = entry?.model?.[0];
+        const rawContent = message?.content;
+        const auditReportText = typeof rawContent === "string"
+            ? rawContent
+            : Array.isArray(rawContent)
+                ? rawContent
+                    .flatMap((c) =>
+                        typeof c === "object" && c !== null && "type" in c && (c as { type: unknown }).type === "text" && "text" in c && typeof (c as { text: unknown }).text === "string"
+                            ? [(c as { text: string }).text]
+                            : []
+                    )
+                    .join("")
+                : "";
 
         // 6. Attach the verdict through the one audit writer; it parses the report itself.
         const auditedFinding = await api.commit(

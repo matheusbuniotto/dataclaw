@@ -1,4 +1,5 @@
 import { defineDoc } from "@earendil-works/pi-durable";
+import type { FindingId, HypothesisId } from "../types/brands";
 
 /** JSON-safe by construction: a document must satisfy the durable store's JsonObject. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -12,9 +13,13 @@ export type FindingEvidence = {
 
 export type AuditVerdict = "confirmed" | "caution" | "rejected";
 
+export function isAuditVerdict(val: unknown): val is AuditVerdict {
+    return val === "confirmed" || val === "caution" || val === "rejected";
+}
+
 export type Finding = {
-    id: string;
-    hypothesisId?: string;
+    id: FindingId | string;
+    hypothesisId?: HypothesisId | string;
     title: string;
     observation: string;
     impact: "critical" | "high" | "medium" | "low";

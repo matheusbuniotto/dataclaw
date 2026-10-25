@@ -47,10 +47,10 @@ const CID = "c1" as unknown as ConversationId;
 
 describe("the document writers", () => {
     test("finding ids come from the highest existing id, not the array length", () => {
-        expect(nextFindingId([])).toBe("find-1");
-        expect(nextFindingId([finding("find-1")])).toBe("find-2");
+        expect(String(nextFindingId([]))).toBe("find-1");
+        expect(String(nextFindingId([finding("find-1")]))).toBe("find-2");
         // Two findings with a gap (a deletion, a saga run) must not collide with find-3.
-        expect(nextFindingId([finding("find-2"), finding("find-7"), finding("legacy")])).toBe("find-8");
+        expect(String(nextFindingId([finding("find-2"), finding("find-7"), finding("legacy")]))).toBe("find-8");
     });
 
     test("appendFinding allocates the id and never audits", async () => {
