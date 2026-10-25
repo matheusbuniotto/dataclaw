@@ -169,6 +169,13 @@ DataClaw connects over streamable HTTP to Databricks' internal SQL MCP server (`
 ### 6. Databricks Lakehouse App Database (PostgreSQL)
 - Automatically mounts the Databricks App internal PostgreSQL instance (`PGHOST`, `PGDATABASE`) for high-concurrency multi-tenant state storage and collaborative session management.
 
+### 7. Multi-Model Routing (OpenRouter) with Databricks AI Gateway Fallback
+DataClaw features a resilient, hybrid AI architecture:
+- **Zero-Egress by Default**: In Databricks Apps, DataClaw automatically defaults to Databricks Model Serving foundation models (`databricks-meta-llama-3-3-70b-instruct`, `databricks-dbrx-instruct`).
+- **Databricks AI Gateway Routes**: Reference any endpoint configured in Databricks Model Serving (`gateway/openai-gpt-4o`, `gateway/claude-3-7-sonnet`, `gateway/mistral-large`, or custom fine-tuned endpoints) with zero data egress outside the Databricks perimeter.
+- **OpenRouter & Multi-Model Catalog**: First-class support for OpenRouter (`openrouter/anthropic/claude-3.7-sonnet`, `openrouter/deepseek/deepseek-r1`, `openrouter/openai/gpt-4o`, `openrouter/google/gemini-2.5-pro`, etc.) and arbitrary user-defined model IDs.
+- **Resilient AI Gateway Failover**: When using external routers, DataClaw wraps streaming calls with automatic failover. If external token quotas, rate limits (HTTP 429), or network dropouts occur, execution seamlessly falls back to the in-perimeter Databricks AI Gateway (`databricks-meta-llama-3-3-70b-instruct`) without aborting tasks or corrupting agent state.
+
 ---
 
 ## Statistical Rigor, Stuck Detection & Evaluation Methodology

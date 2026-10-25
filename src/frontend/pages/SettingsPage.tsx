@@ -51,6 +51,88 @@ function DataSourcesCard({ agentId }: { agentId: string }) {
     );
 }
 
+function AiModelsCard({ currentModel }: { currentModel?: string }) {
+    const [aiInfo, setAiInfo] = useState<{
+        ok?: boolean;
+        current?: { provider: string; modelId: string };
+        fallback?: { model: { provider: string; modelId: string }; available: boolean; reason: string };
+        categories?: Array<{ id: string; name: string; description: string; models: Array<unknown> }>;
+    } | null>(null);
+
+    useEffect(() => {
+        let live = true;
+        fetch("/api/ai/models")
+            .then((res) => res.json())
+            .then((data) => {
+                if (live && data?.ok) setAiInfo(data);
+            })
+            .catch(() => undefined);
+        return () => { live = false; };
+    }, []);
+
+    const fallback = aiInfo?.fallback;
+    const current = aiInfo?.current;
+
+    return (
+        <section className="panel settings-card" style={{ borderLeft: "3px solid #10b981" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ margin: 0 }}>AI Models & Databricks Gateway Fallback</h3>
+                <span className="badge" style={{ fontSize: 10, background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 6px", borderRadius: 4 }}>
+                    Resilient Failover
+                </span>
+            </div>
+            <p style={{ marginTop: 6, marginBottom: 12 }}>
+                DataClaw supports OpenRouter, custom multi-model endpoints, and in-perimeter Databricks AI Gateway routes.
+            </p>
+
+            <div className="form-row">
+                <div>
+                    <label>Active Primary Model</label>
+                    <small>
+                        {current ? `${current.provider} / ${current.modelId}` : currentModel ?? "Resolving…"}
+                    </small>
+                </div>
+                <span className="chip">{current?.provider ?? "default"}</span>
+            </div>
+
+            <div className="form-row">
+                <div>
+                    <label>Databricks AI Gateway Fallback</label>
+                    <small>
+                        {fallback?.available
+                            ? `Active: fails over to ${fallback.model.provider} / ${fallback.model.modelId} if external router encounters rate limits or errors.`
+                            : "Primary model is already running within Databricks perimeter (Zero Data Egress)."}
+                    </small>
+                </div>
+                <span
+                    className="chip"
+                    style={{
+                        background: fallback?.available ? "rgba(16, 185, 129, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                        color: fallback?.available ? "#10b981" : "#3b82f6",
+                    }}
+                >
+                    {fallback?.available ? "Gateway Fallback Ready" : "In-Perimeter"}
+                </span>
+            </div>
+
+            {aiInfo?.categories && (
+                <div style={{ marginTop: 12 }}>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 6, color: "var(--app-text-muted)" }}>
+                        Configured Model Catalogs
+                    </label>
+                    <div className="data-chips">
+                        {aiInfo.categories.map((cat) => (
+                            <span className="chip" key={cat.id} title={cat.description}>
+                                {cat.name} ({cat.models.length})
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
+
 export function SettingsPage({
     snapshot,
     ops,
@@ -105,6 +187,8 @@ export function SettingsPage({
                             </button>
                         </div>
                     </section>
+
+                    <AiModelsCard currentModel={snapshot?.agent.model} />
 
                     <DataSourcesCard agentId={snapshot?.agent.id ?? "dataclaw"} />
 

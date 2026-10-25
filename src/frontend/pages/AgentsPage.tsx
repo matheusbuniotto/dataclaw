@@ -1857,6 +1857,7 @@ export function AgentsPage({
         compute?: { kind: "shared" | "local" | "docker"; image?: string; network?: "none" | "bridge" };
         skills?: string[];
         initialTask?: string;
+        model?: string;
     }) => {
         const cleanId =
             newAgentData.name
@@ -1878,6 +1879,7 @@ export function AgentsPage({
             skills: newAgentData.skills,
             initialTask: newAgentData.initialTask,
             createdAt: Date.now(),
+            model: newAgentData.model,
         };
 
         const updated = saveCustomAgent(record);
@@ -1893,6 +1895,7 @@ export function AgentsPage({
             capabilities: newAgentData.capabilities,
             compute: newAgentData.compute?.kind,
             skills: newAgentData.skills,
+            model: newAgentData.model,
         });
         setCustomizations(loadAgentCustomizations());
 
@@ -1910,10 +1913,11 @@ export function AgentsPage({
         const skillsStr = newAgentData.skills && newAgentData.skills.length > 0
             ? ` skills: [${newAgentData.skills.map((s) => `"${s}"`).join(", ")}]`
             : "";
+        const modelStr = newAgentData.model ? ` model: "${newAgentData.model}"` : "";
 
         const directive = newAgentData.initialTask
-            ? `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${instrStr}${skillsStr} Set up their workspace and run kickoff task: "${newAgentData.initialTask}".`
-            : `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${instrStr}${skillsStr} Set up their workspace.`;
+            ? `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${modelStr}${instrStr}${skillsStr} Set up their workspace and run kickoff task: "${newAgentData.initialTask}".`
+            : `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${modelStr}${instrStr}${skillsStr} Set up their workspace.`;
         ask(directive);
         setScreenLogs((prev) => [
             ...prev,

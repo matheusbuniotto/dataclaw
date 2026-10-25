@@ -30,6 +30,7 @@ export interface AgentCustomization {
     capabilities?: string[];
     compute?: { kind: "shared" | "local" | "docker"; image?: string; network?: "none" | "bridge" } | string;
     skills?: string[];
+    model?: string;
 }
 
 export interface CustomAgentRecord {
@@ -45,6 +46,7 @@ export interface CustomAgentRecord {
     skills?: string[];
     initialTask?: string;
     createdAt: number;
+    model?: string;
 }
 
 export interface SpecialistArchetype {
@@ -58,6 +60,7 @@ export interface SpecialistArchetype {
     capabilities: string[];
     compute: { kind: "shared" | "local" | "docker"; image?: string; network?: "none" | "bridge" };
     instructions: string;
+    model?: string;
 }
 
 export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
@@ -71,6 +74,7 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
         icon: "database",
         capabilities: ["databricks", "analyst", "data", "plugins"],
         compute: { kind: "local" },
+        model: "databricks/databricks-meta-llama-3-3-70b-instruct",
         instructions:
             "You are a Databricks Lakehouse Scout & Architect for DataClaw.\nExplore Unity Catalog metastores, schemas, and table lineage. Discover Lakehouse Federation connections (Postgres, Snowflake, BigQuery) and profile tabular distributions.\nInspect column nullability, distinct counts, and statistics before making claims.",
     },
@@ -84,6 +88,7 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
         icon: "sparkles",
         capabilities: ["databricks", "analyst", "data", "coding"],
         compute: { kind: "local" },
+        model: "databricks/databricks-meta-llama-3-3-70b-instruct",
         instructions:
             "You are a Delta Lake & SQL Optimization Specialist for DataClaw.\nWrite performant, idiomatic Databricks SQL queries utilizing Unity Catalog features, liquid clustering, and partition pruning.\nLeverage native Databricks functions (corr, percentile_approx, system.ai functions) and never issue mutating SQL commands.",
     },
@@ -97,6 +102,7 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
         icon: "workflow",
         capabilities: ["databricks", "analyst", "data"],
         compute: { kind: "local" },
+        model: "gateway/claude-3-7-sonnet",
         instructions:
             "You are an AI/BI Genie Partner for DataClaw.\nConsult curated Databricks Genie spaces to extract certified business logic, metric definitions, and gold-standard queries.\nCross-check user KPI questions against enterprise semantic definitions before formulating ad-hoc SQL.",
     },
@@ -110,6 +116,7 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
         icon: "shield",
         capabilities: ["databricks", "analyst", "coding", "plugins"],
         compute: { kind: "local" },
+        model: "openrouter/anthropic/claude-3.7-sonnet",
         instructions:
             "You are an MLflow & Eval Engineer for DataClaw.\nEvaluate agent analytical quality, detect stuck loops, measure statistical power, and log benchmark scores and experiment artifacts to Databricks MLflow tracking server.\nEnsure reproducible evaluation runs with git commit hashes and model metadata.",
     },
@@ -266,6 +273,26 @@ export const ICON_OPTIONS = [
     { id: "shield", label: "Shield", icon: ShieldCheck },
 ];
 
+export const CURATED_MODEL_PRESETS = [
+    { value: "", label: "Inherit Workspace Default (Coordinator Model)" },
+    { value: "databricks/databricks-meta-llama-3-3-70b-instruct", label: "Meta Llama 3.3 70B (Databricks Foundation)" },
+    { value: "databricks/databricks-dbrx-instruct", label: "Databricks DBRX Instruct" },
+    { value: "databricks/databricks-meta-llama-3-1-405b-instruct", label: "Meta Llama 3.1 405B Instruct" },
+    { value: "databricks/databricks-mixtral-8x7b-instruct", label: "Mixtral 8x7B Instruct" },
+    { value: "gateway/openai-gpt-4o", label: "OpenAI GPT-4o (AI Gateway Route)" },
+    { value: "gateway/openai-gpt-4o-mini", label: "OpenAI GPT-4o mini (AI Gateway Route)" },
+    { value: "gateway/claude-3-7-sonnet", label: "Claude 3.7 Sonnet (AI Gateway Route)" },
+    { value: "gateway/claude-3-5-sonnet", label: "Claude 3.5 Sonnet (AI Gateway Route)" },
+    { value: "gateway/mistral-large", label: "Mistral Large (AI Gateway Route)" },
+    { value: "openrouter/anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet (OpenRouter + Gateway Fallback)" },
+    { value: "openrouter/anthropic/claude-3.7-sonnet:thinking", label: "Claude 3.7 Sonnet Thinking (OpenRouter)" },
+    { value: "openrouter/deepseek/deepseek-r1", label: "DeepSeek R1 Reasoning (OpenRouter + Gateway Fallback)" },
+    { value: "openrouter/deepseek/deepseek-chat", label: "DeepSeek V3 (OpenRouter)" },
+    { value: "openrouter/openai/gpt-4o", label: "OpenAI GPT-4o (OpenRouter + Gateway Fallback)" },
+    { value: "openrouter/google/gemini-2.5-pro", label: "Google Gemini 2.5 Pro (OpenRouter)" },
+    { value: "openrouter/qwen/qwen-2.5-coder-32b-instruct", label: "Qwen 2.5 Coder 32B (OpenRouter)" },
+];
+
 export function loadAgentCustomizations(): Record<string, AgentCustomization> {
     try {
         if (typeof window === "undefined") return {};
@@ -382,6 +409,7 @@ export function AgentEditorModal({
         color?: string;
         icon?: string;
         role?: string;
+        model?: string;
     };
     isOpen: boolean;
     onClose: () => void;
@@ -396,6 +424,10 @@ export function AgentEditorModal({
     const [description, setDescription] = useState(agent.description);
     const [color, setColor] = useState(agent.color || "#276d60");
     const [icon, setIcon] = useState(agent.icon || "dot-eyes");
+    const [model, setModel] = useState(agent.model || "");
+    const [isCustomModel, setIsCustomModel] = useState(
+        Boolean(agent.model && !CURATED_MODEL_PRESETS.some((p) => p.value === agent.model))
+    );
 
     if (!isOpen) return null;
 
@@ -407,6 +439,7 @@ export function AgentEditorModal({
             description: description.trim() || agent.description,
             color,
             icon,
+            model: model.trim() || undefined,
         });
         onClose();
     };
@@ -618,6 +651,106 @@ export function AgentEditorModal({
                         />
                     </div>
 
+                    {/* AI Model & Databricks Gateway Fallback */}
+                    <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                            <label style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
+                                AI Model & Router Fallback
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => setIsCustomModel(!isCustomModel)}
+                                style={{
+                                    fontSize: 10.5,
+                                    color: theme.accent,
+                                    background: "transparent",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    padding: 0,
+                                    textDecoration: "underline",
+                                }}
+                            >
+                                {isCustomModel ? "Pick from catalog" : "Enter custom model ID"}
+                            </button>
+                        </div>
+
+                        {isCustomModel ? (
+                            <input
+                                type="text"
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                placeholder="e.g. openrouter/deepseek/deepseek-r1 or gateway/custom-endpoint"
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 12.5,
+                                    fontFamily: "var(--app-font-mono, monospace)",
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+                        ) : (
+                            <select
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 12.5,
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                <option value="">Inherit Workspace Default (Coordinator Model)</option>
+                                <optgroup label="Databricks Foundation (Zero Data Egress)">
+                                    <option value="databricks/databricks-meta-llama-3-3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
+                                    <option value="databricks/databricks-dbrx-instruct">Databricks DBRX Instruct</option>
+                                    <option value="databricks/databricks-meta-llama-3-1-405b-instruct">Meta Llama 3.1 405B Instruct</option>
+                                    <option value="databricks/databricks-mixtral-8x7b-instruct">Mixtral 8x7B Instruct</option>
+                                </optgroup>
+                                <optgroup label="Databricks AI Gateway (Zero-Egress Proxy)">
+                                    <option value="gateway/openai-gpt-4o">OpenAI GPT-4o (AI Gateway Route)</option>
+                                    <option value="gateway/openai-gpt-4o-mini">OpenAI GPT-4o mini (AI Gateway Route)</option>
+                                    <option value="gateway/claude-3-7-sonnet">Claude 3.7 Sonnet (AI Gateway Route)</option>
+                                    <option value="gateway/claude-3-5-sonnet">Claude 3.5 Sonnet (AI Gateway Route)</option>
+                                    <option value="gateway/mistral-large">Mistral Large (AI Gateway Route)</option>
+                                </optgroup>
+                                <optgroup label="OpenRouter & External Routers (With Databricks Gateway Fallback)">
+                                    <option value="openrouter/anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet (OpenRouter)</option>
+                                    <option value="openrouter/anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet Thinking (OpenRouter)</option>
+                                    <option value="openrouter/deepseek/deepseek-r1">DeepSeek R1 Reasoning (OpenRouter)</option>
+                                    <option value="openrouter/deepseek/deepseek-chat">DeepSeek V3 (OpenRouter)</option>
+                                    <option value="openrouter/openai/gpt-4o">OpenAI GPT-4o (OpenRouter)</option>
+                                    <option value="openrouter/google/gemini-2.5-pro">Google Gemini 2.5 Pro (OpenRouter)</option>
+                                    <option value="openrouter/qwen/qwen-2.5-coder-32b-instruct">Qwen 2.5 Coder 32B (OpenRouter)</option>
+                                </optgroup>
+                            </select>
+                        )}
+
+                        <div style={{ marginTop: 5, fontSize: 10.5, color: theme.textMuted, lineHeight: 1.3 }}>
+                            {model.startsWith("openrouter/") ? (
+                                <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
+                                    <ShieldCheck size={12} /> External router calls automatically fail over to Databricks AI Gateway on errors or rate limits.
+                                </span>
+                            ) : model.startsWith("gateway/") ? (
+                                <span style={{ color: "#3b82f6", display: "flex", alignItems: "center", gap: 4 }}>
+                                    <ShieldCheck size={12} /> Routes securely through Databricks AI Gateway with zero data egress outside workspace perimeter.
+                                </span>
+                            ) : (
+                                <span>Select a model override for this specialist, or inherit the workspace default.</span>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Icon Selection */}
                     <div style={{ marginBottom: 14 }}>
                         <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 6 }}>
@@ -786,6 +919,7 @@ export function CreateAgentModal({
         compute?: { kind: "shared" | "local" | "docker"; image?: string; network?: "none" | "bridge" };
         skills?: string[];
         initialTask?: string;
+        model?: string;
     }) => void;
     availableSkills?: Array<{ name: string; description: string }>;
     isDark?: boolean;
@@ -807,6 +941,8 @@ export function CreateAgentModal({
     const [color, setColor] = useState(defaultArchetype.color);
     const [icon, setIcon] = useState(defaultArchetype.icon);
     const [initialTask, setInitialTask] = useState("");
+    const [model, setModel] = useState(defaultArchetype.model || "");
+    const [isCustomModel, setIsCustomModel] = useState(false);
 
     // Progressive Disclosure Collapsible States
     const [openCapabilities, setOpenCapabilities] = useState(false);
@@ -830,6 +966,8 @@ export function CreateAgentModal({
         if (arch.compute.network) setDockerNetwork(arch.compute.network);
         setColor(arch.color);
         setIcon(arch.icon);
+        setModel(arch.model || "");
+        setIsCustomModel(false);
     };
 
     const toggleCapability = (capId: string) => {
@@ -865,6 +1003,7 @@ export function CreateAgentModal({
             color,
             icon,
             initialTask: initialTask.trim() || undefined,
+            model: model.trim() || undefined,
         });
         onClose();
     };
@@ -1169,6 +1308,106 @@ export function CreateAgentModal({
                                 fontFamily: "inherit",
                             }}
                         />
+                    </div>
+
+                    {/* AI Model & Databricks Gateway Fallback */}
+                    <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                            <label style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
+                                AI Model & Router Fallback
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => setIsCustomModel(!isCustomModel)}
+                                style={{
+                                    fontSize: 10.5,
+                                    color: theme.accent,
+                                    background: "transparent",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    padding: 0,
+                                    textDecoration: "underline",
+                                }}
+                            >
+                                {isCustomModel ? "Pick from catalog" : "Enter custom model ID"}
+                            </button>
+                        </div>
+
+                        {isCustomModel ? (
+                            <input
+                                type="text"
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                placeholder="e.g. openrouter/deepseek/deepseek-r1 or gateway/custom-endpoint"
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 12.5,
+                                    fontFamily: "var(--app-font-mono, monospace)",
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+                        ) : (
+                            <select
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 12.5,
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                <option value="">Inherit Workspace Default (Coordinator Model)</option>
+                                <optgroup label="Databricks Foundation (Zero Data Egress)">
+                                    <option value="databricks/databricks-meta-llama-3-3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
+                                    <option value="databricks/databricks-dbrx-instruct">Databricks DBRX Instruct</option>
+                                    <option value="databricks/databricks-meta-llama-3-1-405b-instruct">Meta Llama 3.1 405B Instruct</option>
+                                    <option value="databricks/databricks-mixtral-8x7b-instruct">Mixtral 8x7B Instruct</option>
+                                </optgroup>
+                                <optgroup label="Databricks AI Gateway (Zero-Egress Proxy)">
+                                    <option value="gateway/openai-gpt-4o">OpenAI GPT-4o (AI Gateway Route)</option>
+                                    <option value="gateway/openai-gpt-4o-mini">OpenAI GPT-4o mini (AI Gateway Route)</option>
+                                    <option value="gateway/claude-3-7-sonnet">Claude 3.7 Sonnet (AI Gateway Route)</option>
+                                    <option value="gateway/claude-3-5-sonnet">Claude 3.5 Sonnet (AI Gateway Route)</option>
+                                    <option value="gateway/mistral-large">Mistral Large (AI Gateway Route)</option>
+                                </optgroup>
+                                <optgroup label="OpenRouter & External Routers (With Databricks Gateway Fallback)">
+                                    <option value="openrouter/anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet (OpenRouter)</option>
+                                    <option value="openrouter/anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet Thinking (OpenRouter)</option>
+                                    <option value="openrouter/deepseek/deepseek-r1">DeepSeek R1 Reasoning (OpenRouter)</option>
+                                    <option value="openrouter/deepseek/deepseek-chat">DeepSeek V3 (OpenRouter)</option>
+                                    <option value="openrouter/openai/gpt-4o">OpenAI GPT-4o (OpenRouter)</option>
+                                    <option value="openrouter/google/gemini-2.5-pro">Google Gemini 2.5 Pro (OpenRouter)</option>
+                                    <option value="openrouter/qwen/qwen-2.5-coder-32b-instruct">Qwen 2.5 Coder 32B (OpenRouter)</option>
+                                </optgroup>
+                            </select>
+                        )}
+
+                        <div style={{ marginTop: 5, fontSize: 10.5, color: theme.textMuted, lineHeight: 1.3 }}>
+                            {model.startsWith("openrouter/") ? (
+                                <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
+                                    <ShieldCheck size={12} /> External router calls automatically fail over to Databricks AI Gateway on errors or rate limits.
+                                </span>
+                            ) : model.startsWith("gateway/") ? (
+                                <span style={{ color: "#3b82f6", display: "flex", alignItems: "center", gap: 4 }}>
+                                    <ShieldCheck size={12} /> Routes securely through Databricks AI Gateway with zero data egress outside workspace perimeter.
+                                </span>
+                            ) : (
+                                <span>Select a model override for this specialist, or inherit the workspace default.</span>
+                            )}
+                        </div>
                     </div>
 
                     {/* Step 4: Optional Kickoff Task */}

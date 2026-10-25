@@ -154,6 +154,12 @@ describe("the route table is data, not a listener", () => {
         expect(mlflow.body.ok).toBe(true);
         expect(typeof mlflow.body.enabled).toBe("boolean");
 
+        const aiModels = await answer("GET", "/api/ai/models");
+        expect(aiModels.status).toBe(200);
+        expect(aiModels.body.ok).toBe(true);
+        expect(aiModels.body.current).toBeDefined();
+        expect(Array.isArray(aiModels.body.categories)).toBe(true);
+
         const obs = await answer("GET", "/api/observability");
         expect(obs.status).toBe(200);
         expect(obs.body.evals).toBeDefined();

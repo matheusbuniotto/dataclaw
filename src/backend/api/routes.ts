@@ -32,6 +32,7 @@ import {
 } from "./databricks-api";
 import { checkPlugins } from "./plugins-api";
 import { getObservabilitySummary, recordSampleTrace } from "./observability-api";
+import { listAvailableAiModels } from "../../config";
 import {
     DomainError,
     NotFoundError,
@@ -272,6 +273,9 @@ export const routes: RouteTable = {
     },
     "/api/databricks/mlflow/status": {
         GET: { run: () => getMlflowStatus() },
+    },
+    "/api/ai/models": {
+        GET: { run: () => listAvailableAiModels() },
     },
 };
 

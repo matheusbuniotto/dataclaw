@@ -3,12 +3,18 @@ import {
     createCustomModelProvider,
     createDatabricksModelProvider,
     DATABRICKS_FOUNDATION_MODELS,
+    DATABRICKS_GATEWAY_ROUTES,
     getDefaultModelRef,
     isCustomModelConfigured,
     isDatabricksModelConfigured,
+    listAvailableAiModels,
     normalizeBaseUrl,
+    OPENROUTER_RECOMMENDED_MODELS,
+    parseConfiguredGatewayEndpoints,
+    parseConfiguredOpenRouterModels,
     resolveCustomModelConfig,
     resolveDatabricksModelConfig,
+    resolveModelFallback,
     setupModelsRegistry,
 } from "../src/config";
 
@@ -39,6 +45,9 @@ describe("Model Configuration & Provider Wrapping", () => {
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.GEMINI_API_KEY;
         delete process.env.OPENROUTER_API_KEY;
+        delete process.env.OPENROUTER_MODELS;
+        delete process.env.DATABRICKS_GATEWAY_ENDPOINTS;
+        delete process.env.DATABRICKS_FALLBACK_MODEL_ID;
     });
 
     afterEach(() => {
@@ -267,6 +276,225 @@ describe("Model Configuration & Provider Wrapping", () => {
             const databricksModel = await registry.getModel("databricks", "databricks-meta-llama-3-3-70b-instruct");
             expect(databricksModel).toBeDefined();
             expect(databricksModel?.baseUrl).toBe("https://dbc-test.cloud.databricks.com/serving-endpoints");
+        });
+    });
+
+    describe("Databricks AI Gateway Routes & Referencing", () => {
+        test("createDatabricksModelProvider supports gateway providerId and routes", async () => {
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+
+            const provider = createDatabricksModelProvider(undefined, "gateway");
+            expect(provider.id).toBe("gateway");
+            expect(provider.name).toBe("Databricks AI Gateway");
+
+            const models = await provider.getModels();
+            const modelIds = models.map((m) => m.id);
+
+            // Gateway routes must be registered
+            expect(modelIds).toContain("openai-gpt-4o");
+            expect(modelIds).toContain("claude-3-7-sonnet");
+            expect(modelIds).toContain("mistral-large");
+        });
+
+        test("parses custom DATABRICKS_GATEWAY_ENDPOINTS", () => {
+            process.env.DATABRICKS_GATEWAY_ENDPOINTS = "fraud-detector, sales-copilot, custom-qa";
+            const endpoints = parseConfiguredGatewayEndpoints();
+            expect(endpoints).toEqual(["fraud-detector", "sales-copilot", "custom-qa"]);
+        });
+
+        test("dynamic model resolution resolves arbitrary Databricks gateway endpoint names", async () => {
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+
+            const registry = setupModelsRegistry(isolatedOptions);
+
+            const dynamicEndpoint = await registry.getModel("gateway", "my-internal-fine-tuned-endpoint");
+            expect(dynamicEndpoint).toBeDefined();
+            expect(dynamicEndpoint?.id).toBe("my-internal-fine-tuned-endpoint");
+            expect(dynamicEndpoint?.provider).toBe("gateway");
+            expect(dynamicEndpoint?.baseUrl).toBe("https://dbc-test.cloud.databricks.com/serving-endpoints");
+        });
+    });
+
+    describe("OpenRouter Catalog & Dynamic Resolution", () => {
+        test("OPENROUTER_RECOMMENDED_MODELS includes Claude 3.7 Sonnet, DeepSeek R1, GPT-4o", () => {
+            const ids = OPENROUTER_RECOMMENDED_MODELS.map((m) => m.id);
+            expect(ids).toContain("anthropic/claude-3.7-sonnet");
+            expect(ids).toContain("deepseek/deepseek-r1");
+            expect(ids).toContain("openai/gpt-4o");
+            expect(ids).toContain("google/gemini-2.5-pro");
+            expect(ids).toContain("qwen/qwen-2.5-coder-32b-instruct");
+        });
+
+        test("parses custom OPENROUTER_MODELS", () => {
+            process.env.OPENROUTER_MODELS = "meta-llama/llama-3.2-3b-instruct, mistralai/codestral-2501";
+            const models = parseConfiguredOpenRouterModels();
+            expect(models).toEqual(["meta-llama/llama-3.2-3b-instruct", "mistralai/codestral-2501"]);
+        });
+
+        test("registers recommended models and dynamically synthesizes unknown OpenRouter models", async () => {
+            process.env.OPENROUTER_API_KEY = "sk-or-test-key";
+
+            const registry = setupModelsRegistry(isolatedOptions);
+
+            const sonnet = await registry.getModel("openrouter", "anthropic/claude-3.7-sonnet");
+            expect(sonnet).toBeDefined();
+            expect(sonnet?.id).toBe("anthropic/claude-3.7-sonnet");
+
+            const dynamicModel = await registry.getModel("openrouter", "custom-org/experimental-model");
+            expect(dynamicModel).toBeDefined();
+            expect(dynamicModel?.id).toBe("custom-org/experimental-model");
+            expect(dynamicModel?.provider).toBe("openrouter");
+        });
+    });
+
+    describe("Databricks AI Gateway Fallback Resolution", () => {
+        test("resolves fallback when primary is OpenRouter and Databricks is configured", () => {
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+
+            const fallback = resolveModelFallback({
+                provider: "openrouter",
+                modelId: "anthropic/claude-3.7-sonnet",
+            });
+
+            expect(fallback).toEqual({
+                provider: "databricks",
+                modelId: "databricks-meta-llama-3-3-70b-instruct",
+            });
+        });
+
+        test("returns undefined fallback when primary is already in-perimeter (databricks or gateway)", () => {
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+
+            expect(resolveModelFallback({ provider: "databricks", modelId: "databricks-dbrx-instruct" })).toBeUndefined();
+            expect(resolveModelFallback({ provider: "gateway", modelId: "openai-gpt-4o" })).toBeUndefined();
+        });
+
+        test("returns undefined fallback when Databricks is not configured", () => {
+            const fallback = resolveModelFallback({
+                provider: "openrouter",
+                modelId: "deepseek/deepseek-r1",
+            });
+            expect(fallback).toBeUndefined();
+        });
+
+        test("respects DATABRICKS_FALLBACK_MODEL_ID override", () => {
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+            process.env.DATABRICKS_FALLBACK_MODEL_ID = "databricks-dbrx-instruct";
+
+            const fallback = resolveModelFallback({
+                provider: "openrouter",
+                modelId: "openai/gpt-4o",
+            });
+
+            expect(fallback).toEqual({
+                provider: "databricks",
+                modelId: "databricks-dbrx-instruct",
+            });
+        });
+    });
+
+    describe("listAvailableAiModels Catalog", () => {
+        test("returns categorized models and fallback info", () => {
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+            process.env.OPENROUTER_API_KEY = "sk-or-test";
+            process.env.DEFAULT_MODEL_PROVIDER = "openrouter";
+            process.env.DEFAULT_MODEL_ID = "anthropic/claude-3.7-sonnet";
+
+            const catalog = listAvailableAiModels(isolatedOptions);
+
+            expect(catalog.current).toEqual({
+                provider: "openrouter",
+                modelId: "anthropic/claude-3.7-sonnet",
+            });
+
+            expect(catalog.fallback).toBeDefined();
+            expect(catalog.fallback?.model).toEqual({
+                provider: "databricks",
+                modelId: "databricks-meta-llama-3-3-70b-instruct",
+            });
+            expect(catalog.fallback?.available).toBe(true);
+
+            const categoryIds = catalog.categories.map((c) => c.id);
+            expect(categoryIds).toContain("databricks_foundation");
+            expect(categoryIds).toContain("databricks_gateway");
+            expect(categoryIds).toContain("openrouter");
+
+            const foundationCat = catalog.categories.find((c) => c.id === "databricks_foundation");
+            expect(foundationCat?.models.some((m) => m.id === "databricks/databricks-meta-llama-3-3-70b-instruct")).toBe(true);
+
+            const gatewayCat = catalog.categories.find((c) => c.id === "databricks_gateway");
+            expect(gatewayCat?.models.some((m) => m.id === "gateway/openai-gpt-4o")).toBe(true);
+
+            const openRouterCat = catalog.categories.find((c) => c.id === "openrouter");
+            expect(openRouterCat?.models.some((m) => m.id === "openrouter/anthropic/claude-3.7-sonnet")).toBe(true);
+        });
+    });
+
+    describe("Resilient Streaming Fallback to Databricks Gateway", () => {
+        test("streamSimple catches primary failure and streams from Databricks fallback model", async () => {
+            const { fauxProvider, fauxAssistantMessage } = await import("@earendil-works/pi-ai/providers/faux");
+
+            process.env.DATABRICKS_HOST = "https://dbc-test.cloud.databricks.com";
+            process.env.DATABRICKS_TOKEN = "dapi_token";
+
+            const registry = setupModelsRegistry(isolatedOptions);
+
+            const brokenProvider = {
+                id: "broken-router",
+                name: "Broken Router",
+                baseUrl: "https://broken.example.com",
+                auth: { apiKey: { name: "Key", resolve: async () => ({ auth: { apiKey: "key" } }) } },
+                getModels: () => [{
+                    id: "fragile-model",
+                    name: "Fragile Model",
+                    api: "openai-completions" as const,
+                    provider: "broken-router",
+                    baseUrl: "https://broken.example.com",
+                    reasoning: false,
+                    input: ["text" as const],
+                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                    contextWindow: 128_000,
+                    maxTokens: 4096,
+                    type: "chat" as const,
+                }],
+                getAllModels: () => [],
+                streamSimple: () => {
+                    throw new Error("HTTP 429: Too Many Requests / Quota Exceeded");
+                },
+            };
+
+            const databricksFaux = fauxProvider({
+                provider: "databricks",
+                models: [{ id: "databricks-meta-llama-3-3-70b-instruct", name: "Databricks Llama 3.3" }],
+            });
+            databricksFaux.setResponses([
+                fauxAssistantMessage("Recovered seamlessly via Databricks AI Gateway!"),
+            ]);
+
+            registry.setProvider(brokenProvider as any);
+            registry.setProvider(databricksFaux.provider);
+
+            const primaryModel = registry.getModel("broken-router", "fragile-model")!;
+            expect(primaryModel).toBeDefined();
+
+            const stream = registry.streamSimple(primaryModel, { messages: [{ role: "user", content: "test" }] });
+            const chunks: string[] = [];
+            for await (const event of stream) {
+                if (event.type === "text_delta" && event.delta) {
+                    chunks.push(event.delta);
+                }
+            }
+
+            const result = await stream.result();
+            expect(result.stopReason).toBe("stop");
+            expect(result.provider).toBe("databricks");
+            expect(chunks.join("")).toContain("Recovered seamlessly via Databricks AI Gateway!");
         });
     });
 });

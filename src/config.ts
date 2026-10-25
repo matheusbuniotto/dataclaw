@@ -48,6 +48,55 @@ export const DATABRICKS_FOUNDATION_MODELS = [
     "databricks-bge-large-en",
 ] as const;
 
+export const DATABRICKS_GATEWAY_ROUTES = [
+    { id: "openai-gpt-4o", name: "OpenAI GPT-4o", description: "Databricks AI Gateway route to GPT-4o" },
+    { id: "openai-gpt-4o-mini", name: "OpenAI GPT-4o mini", description: "Databricks AI Gateway route to GPT-4o mini" },
+    { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", description: "Databricks AI Gateway route to Claude 3.7 Sonnet" },
+    { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", description: "Databricks AI Gateway route to Claude 3.5 Sonnet" },
+    { id: "mistral-large", name: "Mistral Large", description: "Databricks AI Gateway route to Mistral Large" },
+    { id: "meta-llama-3-3-70b-instruct", name: "Meta Llama 3.3 70B", description: "Databricks AI Gateway route to Llama 3.3" },
+] as const;
+
+export const OPENROUTER_RECOMMENDED_MODELS = [
+    { id: "anthropic/claude-3.7-sonnet", name: "Claude 3.7 Sonnet", reasoning: true, description: "Hybrid reasoning with adjustable thinking" },
+    { id: "anthropic/claude-3.7-sonnet:thinking", name: "Claude 3.7 Sonnet (Thinking)", reasoning: true, description: "Extended deliberate reasoning" },
+    { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", reasoning: false, description: "Fast analysis and coding" },
+    { id: "deepseek/deepseek-r1", name: "DeepSeek R1", reasoning: true, description: "Open weights reasoning model" },
+    { id: "deepseek/deepseek-chat", name: "DeepSeek V3", reasoning: false, description: "Cost-effective fast reasoning" },
+    { id: "meta-llama/llama-3.3-70b-instruct", name: "Meta Llama 3.3 70B Instruct", reasoning: false, description: "Open source standard" },
+    { id: "openai/gpt-4o", name: "OpenAI GPT-4o", reasoning: false, description: "Omni multimodal model" },
+    { id: "openai/gpt-4o-mini", name: "OpenAI GPT-4o mini", reasoning: false, description: "Fast lightweight model" },
+    { id: "openai/o3-mini", name: "OpenAI o3-mini", reasoning: true, description: "STEM and coding reasoning" },
+    { id: "google/gemini-2.5-pro", name: "Google Gemini 2.5 Pro", reasoning: true, description: "Large context reasoning" },
+    { id: "google/gemini-2.0-flash-001", name: "Google Gemini 2.0 Flash", reasoning: false, description: "Sub-second multimodal model" },
+    { id: "qwen/qwen-2.5-coder-32b-instruct", name: "Qwen 2.5 Coder 32B", reasoning: false, description: "Code intelligence specialist" },
+    { id: "mistralai/mistral-large-2407", name: "Mistral Large 2", reasoning: false, description: "Enterprise multilingual reasoning" },
+] as const;
+
+export interface ModelOptionInfo {
+    id: string;
+    name: string;
+    provider: string;
+    category: "databricks_foundation" | "databricks_gateway" | "openrouter" | "custom" | "other";
+    reasoning?: boolean;
+    description?: string;
+}
+
+export interface AvailableAiModelsResponse {
+    current: ResolvedModelConfig;
+    fallback?: {
+        model: ResolvedModelConfig;
+        available: boolean;
+        reason: string;
+    };
+    categories: {
+        id: string;
+        name: string;
+        description: string;
+        models: ModelOptionInfo[];
+    }[];
+}
+
 const REAL_PROVIDERS = ["openai", "anthropic", "google", "openrouter", "opencode-go"] as const;
 
 /**
@@ -211,28 +260,54 @@ export function createCustomModelProvider(config?: CustomModelConfig) {
     });
 }
 
+export function parseConfiguredGatewayEndpoints(): string[] {
+    const raw = process.env.DATABRICKS_GATEWAY_ENDPOINTS?.trim();
+    if (!raw) return [];
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export function parseConfiguredOpenRouterModels(): string[] {
+    const raw = process.env.OPENROUTER_MODELS?.trim();
+    if (!raw) return [];
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function formatDatabricksModelName(id: string, provider: string): string {
+    if (provider === "gateway") {
+        const found = DATABRICKS_GATEWAY_ROUTES.find((r) => r.id === id);
+        return found ? found.name : `Gateway: ${id}`;
+    }
+    return id.replace(/^databricks-/, "").replace(/-/g, " ");
+}
+
 /**
- * Creates a provider for Databricks AI-native Model Serving.
+ * Creates a provider for Databricks AI-native Model Serving or Databricks AI Gateway routes.
  * Interacts with Databricks Foundation Model APIs (such as Meta Llama 3.3 70B Instruct or DBRX)
- * using the standard OpenAI-compatible `/serving-endpoints` interface.
+ * and proxied Gateway endpoints using the standard OpenAI-compatible `/serving-endpoints` interface.
  */
-export function createDatabricksModelProvider(config?: DatabricksModelConfig) {
+export function createDatabricksModelProvider(
+    config?: DatabricksModelConfig,
+    providerId: "databricks" | "gateway" = "databricks",
+) {
     const resolved = config ?? resolveDatabricksModelConfig();
     const baseUrl = resolved?.baseUrl ?? "https://dbc-cloud.databricks.com/serving-endpoints";
     const defaultModelId = resolved?.defaultModelId ?? "databricks-meta-llama-3-3-70b-instruct";
+    const gatewayEndpoints = parseConfiguredGatewayEndpoints();
 
     const allModelIds = Array.from(new Set([
         defaultModelId,
         ...DATABRICKS_FOUNDATION_MODELS,
+        ...DATABRICKS_GATEWAY_ROUTES.map((r) => r.id),
+        ...gatewayEndpoints,
     ]));
 
     const models = allModelIds.map((id) => ({
         id,
-        name: id.replace(/^databricks-/, "").replace(/-/g, " "),
+        name: formatDatabricksModelName(id, providerId),
         api: "openai-completions" as const,
-        provider: "databricks",
+        provider: providerId,
         baseUrl,
-        reasoning: false,
+        reasoning: id.includes("reasoning") || id.includes("thinking") || id.includes("r1") || id.includes("o3"),
         input: ["text" as const],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 128_000,
@@ -241,12 +316,12 @@ export function createDatabricksModelProvider(config?: DatabricksModelConfig) {
     }));
 
     return createProvider({
-        id: "databricks",
-        name: "Databricks Model Serving",
+        id: providerId,
+        name: providerId === "gateway" ? "Databricks AI Gateway" : "Databricks Model Serving",
         baseUrl,
         auth: {
             apiKey: {
-                name: "Databricks Token",
+                name: providerId === "gateway" ? "Databricks AI Gateway Token" : "Databricks Token",
                 resolve: async ({ ctx, credential, signal }) => {
                     signal.throwIfAborted();
                     let token =
@@ -284,20 +359,54 @@ export function setupModelsRegistry(options: ModelRegistryOptions = {}) {
     }
 
     const databricksConfig = resolveDatabricksModelConfig();
-    if (databricksConfig || configured("databricks")) {
-        models.setProvider(createDatabricksModelProvider(databricksConfig));
+    if (databricksConfig || configured("databricks") || configured("gateway")) {
+        models.setProvider(createDatabricksModelProvider(databricksConfig, "databricks"));
+        models.setProvider(createDatabricksModelProvider(databricksConfig, "gateway"));
     }
 
     if (configured("openai")) models.setProvider(openaiProvider());
     if (configured("anthropic")) models.setProvider(anthropicProvider());
     if (configured("google")) models.setProvider(googleProvider());
-    if (configured("openrouter")) models.setProvider(openrouterProvider());
+    if (configured("openrouter")) {
+        const rawOpenRouter = openrouterProvider();
+        const origGetModels = rawOpenRouter.getModels.bind(rawOpenRouter);
+        const configuredCustom = parseConfiguredOpenRouterModels();
+        const extraModelIds = Array.from(new Set([
+            ...OPENROUTER_RECOMMENDED_MODELS.map((m) => m.id),
+            ...configuredCustom,
+        ]));
+        const extraModels = extraModelIds.map((id) => {
+            const rec = OPENROUTER_RECOMMENDED_MODELS.find((m) => m.id === id);
+            const openRouterBaseUrl = rawOpenRouter.baseUrl || "https://openrouter.ai/api/v1";
+            return {
+                id,
+                name: rec?.name || id,
+                api: "openai-completions" as const,
+                baseUrl: openRouterBaseUrl,
+                provider: "openrouter",
+                reasoning: rec?.reasoning ?? (id.includes("r1") || id.includes("o1") || id.includes("o3") || id.includes("thinking")),
+                input: ["text" as const, "image" as const],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 128_000,
+                maxTokens: 8192,
+                type: "chat" as const,
+            };
+        });
+        const combinedGetModels = () => {
+            const existing = origGetModels();
+            const existingIds = new Set(existing.map((m) => m.id));
+            return [...existing, ...extraModels.filter((m) => !existingIds.has(m.id))];
+        };
+        rawOpenRouter.getModels = combinedGetModels as typeof origGetModels;
+        models.setProvider(rawOpenRouter);
+    }
     if (configured("opencode-go")) models.setProvider(opencodeGoProvider());
 
     const hasAnyRealProvider =
         Boolean(customConfig) ||
         Boolean(databricksConfig) ||
-        REAL_PROVIDERS.some(configured);
+        REAL_PROVIDERS.some(configured) ||
+        configured("gateway");
 
     if (options.fauxHandle) {
         models.setProvider(options.fauxHandle.provider);
@@ -311,6 +420,123 @@ export function setupModelsRegistry(options: ModelRegistryOptions = {}) {
         ]);
         models.setProvider(fallbackFaux.provider);
     }
+
+    // Dynamic model synthesis for OpenRouter, Databricks, and Gateway
+    const origGetModel = models.getModel.bind(models);
+    const dynamicModelCache = new Map<string, unknown>();
+
+    models.getModel = function (provider: string, id: string) {
+        const found = origGetModel(provider, id);
+        if (found) return found;
+
+        const cacheKey = `${provider}:${id}`;
+        if (dynamicModelCache.has(cacheKey)) {
+            return dynamicModelCache.get(cacheKey) as ReturnType<typeof origGetModel>;
+        }
+
+        if (provider === "openrouter") {
+            const dyn = {
+                id,
+                name: `OpenRouter: ${id}`,
+                api: "openai-completions" as const,
+                baseUrl: "https://openrouter.ai/api/v1",
+                provider: "openrouter",
+                reasoning: id.includes("r1") || id.includes("o1") || id.includes("o3") || id.includes("thinking"),
+                input: ["text" as const],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 128_000,
+                maxTokens: 8192,
+                type: "chat" as const,
+            };
+            dynamicModelCache.set(cacheKey, dyn);
+            return dyn as unknown as ReturnType<typeof origGetModel>;
+        }
+
+        if (provider === "databricks" || provider === "gateway") {
+            const baseUrl = databricksConfig?.baseUrl ?? "https://dbc-cloud.databricks.com/serving-endpoints";
+            const dyn = {
+                id,
+                name: formatDatabricksModelName(id, provider),
+                api: "openai-completions" as const,
+                baseUrl,
+                provider,
+                reasoning: id.includes("reasoning") || id.includes("thinking") || id.includes("r1"),
+                input: ["text" as const],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 128_000,
+                maxTokens: 4096,
+                type: "chat" as const,
+            };
+            dynamicModelCache.set(cacheKey, dyn);
+            return dyn as unknown as ReturnType<typeof origGetModel>;
+        }
+
+        return undefined;
+    };
+
+    // Resilient streaming fallback from external router models to Databricks AI Gateway
+    const origStreamSimple = models.streamSimple.bind(models);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    models.streamSimple = function (primaryModel: any, context: any, streamOpts: any) {
+        const isDatabricksNative = primaryModel?.provider === "databricks" || primaryModel?.provider === "gateway";
+        const fallbackRef = resolveModelFallback(
+            primaryModel ? { provider: primaryModel.provider, modelId: primaryModel.id } : undefined,
+        );
+        const fallbackModel = fallbackRef ? models.getModel(fallbackRef.provider, fallbackRef.modelId) : undefined;
+
+        if (isDatabricksNative || !fallbackModel) {
+            return origStreamSimple(primaryModel, context, streamOpts);
+        }
+
+        const targetFallbackModel = fallbackModel;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let activeStream: any = null;
+
+        async function* resilientEvents() {
+            let emittedContent = false;
+            try {
+                activeStream = origStreamSimple(primaryModel, context, streamOpts);
+                for await (const event of activeStream) {
+                    if (event.type === "error" && !emittedContent) {
+                        throw new Error(event.error?.errorMessage || "Primary AI router error");
+                    }
+                    if (event.type !== "error" && event.type !== "done") {
+                        emittedContent = true;
+                    }
+                    yield event;
+                }
+                const finalRes = await activeStream.result();
+                if (finalRes?.stopReason === "error" && !emittedContent) {
+                    throw new Error(finalRes.errorMessage || "Primary AI router stopped with error");
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                console.warn(`[AI Fallback] ${primaryModel.provider}/${primaryModel.id} failed (${message}). Falling back to Databricks AI Gateway (${targetFallbackModel.provider}/${targetFallbackModel.id})...`);
+                activeStream = origStreamSimple(targetFallbackModel, context, streamOpts);
+                for await (const event of activeStream) {
+                    yield event;
+                }
+            }
+        }
+
+        const generator = resilientEvents();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const wrapper: any = {
+            [Symbol.asyncIterator]() {
+                return generator;
+            },
+            async result() {
+                if (!activeStream) {
+                    for await (const _ of this) { /* iterate */ }
+                }
+                return await activeStream.result();
+            },
+            get finalResultPromise() {
+                return activeStream?.finalResultPromise;
+            },
+        };
+        return wrapper;
+    };
 
     return models;
 }
@@ -371,4 +597,161 @@ export function getDefaultModelRef(options: PiConfigOptions = {}): ResolvedModel
 
     // 6. Offline faux fallback
     return { provider: "faux", modelId: "faux-analyst" };
+}
+
+/**
+ * Resolves the Databricks AI Gateway fallback model when an external router model is requested.
+ * Returns undefined if the primary model is already within the Databricks perimeter, or if Databricks is not configured.
+ */
+export function resolveModelFallback(primaryRef?: ResolvedModelConfig): ResolvedModelConfig | undefined {
+    const primary = primaryRef ?? getDefaultModelRef();
+
+    // In-perimeter Databricks models do not require gateway failover
+    if (primary.provider === "databricks" || primary.provider === "gateway") {
+        return undefined;
+    }
+
+    const databricksConfig = resolveDatabricksModelConfig();
+    const isDatabricksConfigured = isDatabricksModelConfigured();
+
+    if (isDatabricksConfigured && databricksConfig) {
+        const fallbackModelId =
+            process.env.DATABRICKS_FALLBACK_MODEL_ID?.trim() ||
+            process.env.DATABRICKS_MODEL_ID?.trim() ||
+            databricksConfig.defaultModelId ||
+            "databricks-meta-llama-3-3-70b-instruct";
+        return {
+            provider: "databricks",
+            modelId: fallbackModelId,
+        };
+    }
+
+    return undefined;
+}
+
+/**
+ * Lists available AI models categorized by source (Databricks Foundation, Databricks AI Gateway,
+ * OpenRouter, and Direct/Custom providers), along with current selection and active Databricks AI Gateway fallback info.
+ */
+export function listAvailableAiModels(options: ModelRegistryOptions = {}): AvailableAiModelsResponse {
+    const current = getDefaultModelRef(options);
+    const fallbackModel = resolveModelFallback(current);
+    const hasDatabricks = isDatabricksModelConfigured();
+    const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
+
+    const databricksFoundationList: ModelOptionInfo[] = DATABRICKS_FOUNDATION_MODELS.map((id) => ({
+        id: `databricks/${id}`,
+        name: id.replace(/^databricks-/, "").replace(/-/g, " "),
+        provider: "databricks",
+        category: "databricks_foundation",
+        reasoning: id.includes("reasoning") || id.includes("dbrx"),
+        description: "Zero data egress in-perimeter Databricks Foundation model",
+    }));
+
+    const databricksGatewayList: ModelOptionInfo[] = DATABRICKS_GATEWAY_ROUTES.map((route) => ({
+        id: `gateway/${route.id}`,
+        name: route.name,
+        provider: "gateway",
+        category: "databricks_gateway",
+        reasoning: route.id.includes("thinking") || route.id.includes("3-7"),
+        description: route.description,
+    }));
+
+    for (const ep of parseConfiguredGatewayEndpoints()) {
+        databricksGatewayList.push({
+            id: `gateway/${ep}`,
+            name: `${ep} (Gateway Endpoint)`,
+            provider: "gateway",
+            category: "databricks_gateway",
+            description: "Custom endpoint on Databricks Model Serving",
+        });
+    }
+
+    const openRouterList: ModelOptionInfo[] = OPENROUTER_RECOMMENDED_MODELS.map((m) => ({
+        id: `openrouter/${m.id}`,
+        name: m.name,
+        provider: "openrouter",
+        category: "openrouter",
+        reasoning: m.reasoning,
+        description: m.description,
+    }));
+
+    for (const modelId of parseConfiguredOpenRouterModels()) {
+        if (!openRouterList.some((m) => m.id === `openrouter/${modelId}`)) {
+            openRouterList.push({
+                id: `openrouter/${modelId}`,
+                name: modelId,
+                provider: "openrouter",
+                category: "openrouter",
+                description: "Configured OpenRouter model",
+            });
+        }
+    }
+
+    const otherList: ModelOptionInfo[] = [];
+    if (process.env.OPENAI_API_KEY?.trim()) {
+        otherList.push({ id: "openai/gpt-4o", name: "GPT-4o (Direct OpenAI)", provider: "openai", category: "other" });
+        otherList.push({ id: "openai/gpt-4o-mini", name: "GPT-4o mini (Direct OpenAI)", provider: "openai", category: "other" });
+    }
+    if (process.env.ANTHROPIC_API_KEY?.trim()) {
+        otherList.push({ id: "anthropic/claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet (Direct Anthropic)", provider: "anthropic", category: "other" });
+    }
+    if (process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()) {
+        otherList.push({ id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro (Direct Google)", provider: "google", category: "other" });
+    }
+    if (isCustomModelConfigured()) {
+        const custom = resolveCustomModelConfig();
+        otherList.push({
+            id: `custom/${custom?.modelId || "custom-model"}`,
+            name: custom?.name || "Custom Model Endpoint",
+            provider: "custom",
+            category: "custom",
+            description: custom?.baseUrl,
+        });
+    }
+
+    return {
+        current,
+        ...(fallbackModel
+            ? {
+                fallback: {
+                    model: fallbackModel,
+                    available: hasDatabricks,
+                    reason: "External router calls automatically fail over to Databricks AI Gateway if external rate limits or token exhaustion occur.",
+                },
+            }
+            : {}),
+        categories: [
+            {
+                id: "databricks_foundation",
+                name: "Databricks Foundation Models (In-Perimeter)",
+                description: "Zero data egress models running directly on Databricks Model Serving.",
+                models: databricksFoundationList,
+            },
+            {
+                id: "databricks_gateway",
+                name: "Databricks AI Gateway Routes (Zero-Egress Proxy)",
+                description: "External models proxied through Databricks AI Gateway with governance and rate limiting.",
+                models: databricksGatewayList,
+            },
+            {
+                id: "openrouter",
+                name: "OpenRouter & Multi-Model Catalog",
+                description: hasOpenRouter
+                    ? "Curated multi-model router with automatic Databricks AI Gateway fallback."
+                    : "Configure OPENROUTER_API_KEY to activate external routing with Databricks AI Gateway fallback.",
+                models: openRouterList,
+            },
+            ...(otherList.length > 0
+                ? [
+                    {
+                        id: "other",
+                        name: "Direct API Keys & Custom Endpoints",
+                        description: "Direct vendor API keys configured in the environment.",
+                        models: otherList,
+                    },
+                ]
+                : []),
+        ],
+    };
 }

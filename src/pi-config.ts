@@ -28,6 +28,7 @@ const PROVIDER_ENV: Record<string, readonly string[]> = {
     opencode: ["OPENCODE_API_KEY"],
     custom: ["CUSTOM_MODEL_API_KEY", "DATABRICKS_MODEL_API_KEY", "MODEL_API_KEY"],
     databricks: ["DATABRICKS_TOKEN", "DATABRICKS_MODEL_API_KEY"],
+    gateway: ["DATABRICKS_TOKEN", "DATABRICKS_MODEL_API_KEY"],
 };
 
 export function defaultPiUserSettingsPath(): string {
@@ -161,7 +162,7 @@ export function providerConfigured(
             process.env.MODEL_BASE_URL?.trim(),
         );
     }
-    if (providerId === "databricks") {
+    if (providerId === "databricks" || providerId === "gateway") {
         const hasHost = Boolean(
             process.env.DATABRICKS_HOST?.trim() ||
             process.env.DATABRICKS_PROFILE?.trim() ||
