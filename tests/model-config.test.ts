@@ -4,6 +4,7 @@ import {
     createDatabricksModelProvider,
     DATABRICKS_FOUNDATION_MODELS,
     DATABRICKS_GATEWAY_ROUTES,
+    fetchRemoteRouterModels,
     getDefaultModelRef,
     isCustomModelConfigured,
     isDatabricksModelConfigured,
@@ -318,7 +319,11 @@ describe("Model Configuration & Provider Wrapping", () => {
     });
 
     describe("OpenRouter Catalog & Dynamic Resolution", () => {
-        test("OPENROUTER_RECOMMENDED_MODELS includes Claude 3.7 Sonnet, DeepSeek R1, GPT-4o", () => {
+        test("OPENROUTER_RECOMMENDED_MODELS starts with openai/gpt-6-luna with reasoning enabled", () => {
+            expect(OPENROUTER_RECOMMENDED_MODELS[0].id).toBe("openai/gpt-6-luna");
+            expect(OPENROUTER_RECOMMENDED_MODELS[0].name).toBe("OpenAI GPT-6 Luna");
+            expect(OPENROUTER_RECOMMENDED_MODELS[0].reasoning).toBe(true);
+
             const ids = OPENROUTER_RECOMMENDED_MODELS.map((m) => m.id);
             expect(ids).toContain("anthropic/claude-3.7-sonnet");
             expect(ids).toContain("deepseek/deepseek-r1");
@@ -327,16 +332,37 @@ describe("Model Configuration & Provider Wrapping", () => {
             expect(ids).toContain("qwen/qwen-2.5-coder-32b-instruct");
         });
 
-        test("parses custom OPENROUTER_MODELS", () => {
+        test("parses custom OPENROUTER_MODELS with comma separation, labels, or JSON format", () => {
+            // Standard comma-separated
             process.env.OPENROUTER_MODELS = "meta-llama/llama-3.2-3b-instruct, mistralai/codestral-2501";
-            const models = parseConfiguredOpenRouterModels();
-            expect(models).toEqual(["meta-llama/llama-3.2-3b-instruct", "mistralai/codestral-2501"]);
+            expect(parseConfiguredOpenRouterModels()).toEqual(["meta-llama/llama-3.2-3b-instruct", "mistralai/codestral-2501"]);
+
+            // With :Friendly Label syntax
+            process.env.OPENROUTER_MODELS = "openai/gpt-6-luna:Luna Reasoning, deepseek/deepseek-r1:DeepSeek R1";
+            expect(parseConfiguredOpenRouterModels()).toEqual(["openai/gpt-6-luna", "deepseek/deepseek-r1"]);
+
+            // JSON array format
+            delete process.env.OPENROUTER_MODELS;
+            process.env.AI_MODELS = JSON.stringify([
+                "openai/gpt-6-luna",
+                { id: "anthropic/claude-3.7-sonnet", name: "Claude" },
+            ]);
+            expect(parseConfiguredOpenRouterModels()).toEqual(["openai/gpt-6-luna", "anthropic/claude-3.7-sonnet"]);
+
+            // Fallback env RECOMMENDED_MODELS
+            delete process.env.AI_MODELS;
+            process.env.RECOMMENDED_MODELS = "meta-llama/llama-3.3-70b-instruct";
+            expect(parseConfiguredOpenRouterModels()).toEqual(["meta-llama/llama-3.3-70b-instruct"]);
         });
 
         test("registers recommended models and dynamically synthesizes unknown OpenRouter models", async () => {
             process.env.OPENROUTER_API_KEY = "sk-or-test-key";
 
             const registry = setupModelsRegistry(isolatedOptions);
+
+            const luna = await registry.getModel("openrouter", "openai/gpt-6-luna");
+            expect(luna).toBeDefined();
+            expect(luna?.id).toBe("openai/gpt-6-luna");
 
             const sonnet = await registry.getModel("openrouter", "anthropic/claude-3.7-sonnet");
             expect(sonnet).toBeDefined();
@@ -346,6 +372,59 @@ describe("Model Configuration & Provider Wrapping", () => {
             expect(dynamicModel).toBeDefined();
             expect(dynamicModel?.id).toBe("custom-org/experimental-model");
             expect(dynamicModel?.provider).toBe("openrouter");
+        });
+
+        test("fetchRemoteRouterModels discovers live models from OpenAI and Ollama formats", async () => {
+            const originalFetch = globalThis.fetch;
+            try {
+                // OpenAI format
+                globalThis.fetch = (async (url: any, init?: any) => {
+                    expect(String(url)).toBe("https://openrouter.ai/api/v1/models");
+                    expect(init?.headers?.Authorization).toBe("Bearer test-token");
+                    return new Response(
+                        JSON.stringify({
+                            data: [
+                                { id: "openai/gpt-6-luna", name: "OpenAI GPT-6 Luna", reasoning: true },
+                                { id: "custom-provider/fast-model", name: "Fast Model" },
+                            ],
+                        }),
+                        { status: 200, headers: { "Content-Type": "application/json" } },
+                    );
+                }) as any;
+
+                const models = await fetchRemoteRouterModels({
+                    baseUrl: "https://openrouter.ai/api/v1",
+                    apiKey: "test-token",
+                });
+                expect(models.length).toBe(2);
+                expect(models[0]!.id).toBe("openrouter/openai/gpt-6-luna");
+                expect(models[0]!.reasoning).toBe(true);
+                expect(models[1]!.id).toBe("openrouter/custom-provider/fast-model");
+
+                // Ollama format with local endpoint
+                globalThis.fetch = (async (url: any) => {
+                    expect(String(url)).toBe("http://localhost:11434/v1/models");
+                    return new Response(
+                        JSON.stringify({
+                            models: [
+                                { name: "deepseek-r1:latest" },
+                                { name: "llama3.2:latest" },
+                            ],
+                        }),
+                        { status: 200, headers: { "Content-Type": "application/json" } },
+                    );
+                }) as any;
+
+                const ollamaModels = await fetchRemoteRouterModels({
+                    baseUrl: "http://localhost:11434/v1",
+                });
+                expect(ollamaModels.length).toBe(2);
+                expect(ollamaModels[0]!.id).toBe("deepseek-r1:latest");
+                expect(ollamaModels[0]!.reasoning).toBe(true);
+                expect(ollamaModels[0]!.provider).toBe("custom");
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
         });
     });
 
@@ -483,7 +562,9 @@ describe("Model Configuration & Provider Wrapping", () => {
             const primaryModel = registry.getModel("broken-router", "fragile-model")!;
             expect(primaryModel).toBeDefined();
 
-            const stream = registry.streamSimple(primaryModel, { messages: [{ role: "user", content: "test" }] });
+            const stream = registry.streamSimple(primaryModel, {
+                messages: [{ role: "user", content: "test", timestamp: Date.now() }],
+            });
             const chunks: string[] = [];
             for await (const event of stream) {
                 if (event.type === "text_delta" && event.delta) {

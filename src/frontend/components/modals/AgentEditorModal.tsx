@@ -7,6 +7,7 @@ import {
     ChevronRight,
     Cpu,
     Database,
+    Globe,
     Layers,
     Palette,
     Pencil,
@@ -116,7 +117,7 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
         icon: "shield",
         capabilities: ["databricks", "analyst", "coding", "plugins"],
         compute: { kind: "local" },
-        model: "openrouter/anthropic/claude-3.7-sonnet",
+        model: "openrouter/openai/gpt-6-luna",
         instructions:
             "You are an MLflow & Eval Engineer for DataClaw.\nEvaluate agent analytical quality, detect stuck loops, measure statistical power, and log benchmark scores and experiment artifacts to Databricks MLflow tracking server.\nEnsure reproducible evaluation runs with git commit hashes and model metadata.",
     },
@@ -284,6 +285,7 @@ export const CURATED_MODEL_PRESETS = [
     { value: "gateway/claude-3-7-sonnet", label: "Claude 3.7 Sonnet (AI Gateway Route)" },
     { value: "gateway/claude-3-5-sonnet", label: "Claude 3.5 Sonnet (AI Gateway Route)" },
     { value: "gateway/mistral-large", label: "Mistral Large (AI Gateway Route)" },
+    { value: "openrouter/openai/gpt-6-luna", label: "OpenAI GPT-6 Luna (OpenRouter Reasoning)" },
     { value: "openrouter/anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet (OpenRouter + Gateway Fallback)" },
     { value: "openrouter/anthropic/claude-3.7-sonnet:thinking", label: "Claude 3.7 Sonnet Thinking (OpenRouter)" },
     { value: "openrouter/deepseek/deepseek-r1", label: "DeepSeek R1 Reasoning (OpenRouter + Gateway Fallback)" },
@@ -393,6 +395,316 @@ function getModalTheme(isDark: boolean) {
 }
 
 // ============================================================================
+// Shared Reusable AI Model Picker (Catalog, Remote Router URL, Custom ID)
+// ============================================================================
+export function AgentModelPicker({
+    model,
+    onChange,
+    theme,
+}: {
+    model: string;
+    onChange: (next: string) => void;
+    theme: ReturnType<typeof getModalTheme>;
+}) {
+    const isKnownPreset = CURATED_MODEL_PRESETS.some((p) => p.value === model);
+    const [mode, setMode] = useState<"catalog" | "remote" | "custom">(() => {
+        if (!model || isKnownPreset) return "catalog";
+        return "custom";
+    });
+
+    const [baseUrl, setBaseUrl] = useState("https://openrouter.ai/api/v1");
+    const [apiKey, setApiKey] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [remoteModels, setRemoteModels] = useState<Array<{ id: string; name: string; reasoning?: boolean; description?: string }>>([]);
+    const [searchFilter, setSearchFilter] = useState("");
+
+    const handleFetchRemote = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch("/api/ai/models/fetch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() || undefined }),
+            });
+            if (!res.ok) {
+                throw new Error(`Failed to query endpoint: HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const list = Array.isArray(data?.models) ? data.models : [];
+            setRemoteModels(list);
+            if (list.length === 0) {
+                setError("No models discovered at this endpoint. Check the base URL and API key.");
+            }
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredRemote = remoteModels.filter((m) =>
+        !searchFilter ||
+        m.id.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        m.name.toLowerCase().includes(searchFilter.toLowerCase())
+    );
+
+    return (
+        <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <label style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
+                    AI Model & Router Fallback
+                </label>
+                <div style={{ display: "flex", gap: 3, background: theme.cardBg, padding: 2, borderRadius: 6, border: `1px solid ${theme.borderSubtle}` }}>
+                    <button
+                        type="button"
+                        onClick={() => setMode("catalog")}
+                        style={{
+                            fontSize: 10,
+                            padding: "2px 7px",
+                            borderRadius: 4,
+                            border: "none",
+                            background: mode === "catalog" ? theme.accentSubtle : "transparent",
+                            color: mode === "catalog" ? theme.accentText : theme.textMuted,
+                            cursor: "pointer",
+                            fontWeight: mode === "catalog" ? 600 : 400,
+                        }}
+                    >
+                        Catalog
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setMode("remote")}
+                        style={{
+                            fontSize: 10,
+                            padding: "2px 7px",
+                            borderRadius: 4,
+                            border: "none",
+                            background: mode === "remote" ? theme.accentSubtle : "transparent",
+                            color: mode === "remote" ? theme.accentText : theme.textMuted,
+                            cursor: "pointer",
+                            fontWeight: mode === "remote" ? 600 : 400,
+                        }}
+                    >
+                        Fetch URL
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setMode("custom")}
+                        style={{
+                            fontSize: 10,
+                            padding: "2px 7px",
+                            borderRadius: 4,
+                            border: "none",
+                            background: mode === "custom" ? theme.accentSubtle : "transparent",
+                            color: mode === "custom" ? theme.accentText : theme.textMuted,
+                            cursor: "pointer",
+                            fontWeight: mode === "custom" ? 600 : 400,
+                        }}
+                    >
+                        Custom ID
+                    </button>
+                </div>
+            </div>
+
+            {mode === "catalog" && (
+                <select
+                    value={model}
+                    onChange={(e) => onChange(e.target.value)}
+                    style={{
+                        width: "100%",
+                        background: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        borderRadius: 8,
+                        padding: "7px 10px",
+                        fontSize: 12.5,
+                        color: theme.textPrimary,
+                        outline: "none",
+                        boxSizing: "border-box",
+                        cursor: "pointer",
+                    }}
+                >
+                    <option value="">Inherit Workspace Default (Coordinator Model)</option>
+                    <optgroup label="Databricks Foundation (Zero Data Egress)">
+                        <option value="databricks/databricks-meta-llama-3-3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
+                        <option value="databricks/databricks-dbrx-instruct">Databricks DBRX Instruct</option>
+                        <option value="databricks/databricks-meta-llama-3-1-405b-instruct">Meta Llama 3.1 405B Instruct</option>
+                        <option value="databricks/databricks-mixtral-8x7b-instruct">Mixtral 8x7B Instruct</option>
+                    </optgroup>
+                    <optgroup label="Databricks AI Gateway (Zero-Egress Proxy)">
+                        <option value="gateway/openai-gpt-4o">OpenAI GPT-4o (AI Gateway Route)</option>
+                        <option value="gateway/openai-gpt-4o-mini">OpenAI GPT-4o mini (AI Gateway Route)</option>
+                        <option value="gateway/claude-3-7-sonnet">Claude 3.7 Sonnet (AI Gateway Route)</option>
+                        <option value="gateway/claude-3-5-sonnet">Claude 3.5 Sonnet (AI Gateway Route)</option>
+                        <option value="gateway/mistral-large">Mistral Large (AI Gateway Route)</option>
+                    </optgroup>
+                    <optgroup label="OpenRouter & External Routers (With Databricks Gateway Fallback)">
+                        <option value="openrouter/openai/gpt-6-luna">OpenAI GPT-6 Luna (OpenRouter Reasoning)</option>
+                        <option value="openrouter/anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet (OpenRouter)</option>
+                        <option value="openrouter/anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet Thinking (OpenRouter)</option>
+                        <option value="openrouter/deepseek/deepseek-r1">DeepSeek R1 Reasoning (OpenRouter)</option>
+                        <option value="openrouter/deepseek/deepseek-chat">DeepSeek V3 (OpenRouter)</option>
+                        <option value="openrouter/openai/gpt-4o">OpenAI GPT-4o (OpenRouter)</option>
+                        <option value="openrouter/google/gemini-2.5-pro">Google Gemini 2.5 Pro (OpenRouter)</option>
+                        <option value="openrouter/qwen/qwen-2.5-coder-32b-instruct">Qwen 2.5 Coder 32B (OpenRouter)</option>
+                    </optgroup>
+                </select>
+            )}
+
+            {mode === "remote" && (
+                <div style={{ background: theme.cardBg, border: `1px solid ${theme.cardBorder}`, borderRadius: 8, padding: "8px 10px" }}>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                        <input
+                            type="text"
+                            value={baseUrl}
+                            onChange={(e) => setBaseUrl(e.target.value)}
+                            placeholder="Router Base URL (e.g. https://openrouter.ai/api/v1)"
+                            style={{
+                                flex: 1,
+                                background: theme.inputBg,
+                                border: `1px solid ${theme.inputBorder}`,
+                                borderRadius: 6,
+                                padding: "5px 8px",
+                                fontSize: 11.5,
+                                fontFamily: "var(--app-font-mono, monospace)",
+                                color: theme.textPrimary,
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={handleFetchRemote}
+                            disabled={loading}
+                            style={{
+                                background: theme.accent,
+                                color: "#ffffff",
+                                border: "none",
+                                borderRadius: 6,
+                                padding: "5px 10px",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: loading ? "wait" : "pointer",
+                                opacity: loading ? 0.7 : 1,
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {loading ? "Fetching…" : "Fetch Models"}
+                        </button>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6, marginBottom: remoteModels.length > 0 ? 6 : 0 }}>
+                        <input
+                            type="password"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            placeholder="Optional API key (leave blank to use env / OPENROUTER_API_KEY)"
+                            style={{
+                                flex: 1,
+                                background: theme.inputBg,
+                                border: `1px solid ${theme.inputBorder}`,
+                                borderRadius: 6,
+                                padding: "5px 8px",
+                                fontSize: 11.5,
+                                color: theme.textPrimary,
+                            }}
+                        />
+                    </div>
+
+                    {error && (
+                        <div style={{ marginTop: 6, fontSize: 11, color: "#ef4444" }}>
+                            {error}
+                        </div>
+                    )}
+
+                    {remoteModels.length > 0 && (
+                        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: theme.textMuted }}>
+                                <span>Discovered {remoteModels.length} models:</span>
+                                <input
+                                    type="text"
+                                    value={searchFilter}
+                                    onChange={(e) => setSearchFilter(e.target.value)}
+                                    placeholder="Filter by name / id…"
+                                    style={{
+                                        width: 140,
+                                        background: theme.inputBg,
+                                        border: `1px solid ${theme.inputBorder}`,
+                                        borderRadius: 4,
+                                        padding: "2px 6px",
+                                        fontSize: 10.5,
+                                        color: theme.textPrimary,
+                                    }}
+                                />
+                            </div>
+                            <select
+                                value={model}
+                                onChange={(e) => onChange(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 6,
+                                    padding: "6px 8px",
+                                    fontSize: 12,
+                                    color: theme.textPrimary,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                <option value="">-- Select from fetched models ({filteredRemote.length}) --</option>
+                                {filteredRemote.slice(0, 200).map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name || m.id} {m.reasoning ? "🧠" : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {mode === "custom" && (
+                <input
+                    type="text"
+                    value={model}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder="e.g. openrouter/openai/gpt-6-luna or gateway/custom-endpoint"
+                    style={{
+                        width: "100%",
+                        background: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        borderRadius: 8,
+                        padding: "7px 10px",
+                        fontSize: 12.5,
+                        fontFamily: "var(--app-font-mono, monospace)",
+                        color: theme.textPrimary,
+                        outline: "none",
+                        boxSizing: "border-box",
+                    }}
+                />
+            )}
+
+            <div style={{ marginTop: 5, fontSize: 10.5, color: theme.textMuted, lineHeight: 1.3 }}>
+                {model.startsWith("openrouter/") ? (
+                    <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
+                        <ShieldCheck size={12} /> External router calls automatically fail over to Databricks AI Gateway on errors or rate limits.
+                    </span>
+                ) : model.startsWith("gateway/") ? (
+                    <span style={{ color: "#3b82f6", display: "flex", alignItems: "center", gap: 4 }}>
+                        <ShieldCheck size={12} /> Routes securely through Databricks AI Gateway with zero data egress outside workspace perimeter.
+                    </span>
+                ) : model.startsWith("databricks/") ? (
+                    <span style={{ color: "#8b5cf6", display: "flex", alignItems: "center", gap: 4 }}>
+                        <ShieldCheck size={12} /> In-perimeter Databricks Foundation model (zero egress).
+                    </span>
+                ) : (
+                    <span>Selected: {model || "Inherit workspace default (coordinator model)"}</span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
 // Modal to Customize an Existing Specialist Teammate
 // ============================================================================
 export function AgentEditorModal({
@@ -425,9 +737,6 @@ export function AgentEditorModal({
     const [color, setColor] = useState(agent.color || "#276d60");
     const [icon, setIcon] = useState(agent.icon || "dot-eyes");
     const [model, setModel] = useState(agent.model || "");
-    const [isCustomModel, setIsCustomModel] = useState(
-        Boolean(agent.model && !CURATED_MODEL_PRESETS.some((p) => p.value === agent.model))
-    );
 
     if (!isOpen) return null;
 
@@ -652,104 +961,7 @@ export function AgentEditorModal({
                     </div>
 
                     {/* AI Model & Databricks Gateway Fallback */}
-                    <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                            <label style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
-                                AI Model & Router Fallback
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => setIsCustomModel(!isCustomModel)}
-                                style={{
-                                    fontSize: 10.5,
-                                    color: theme.accent,
-                                    background: "transparent",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    padding: 0,
-                                    textDecoration: "underline",
-                                }}
-                            >
-                                {isCustomModel ? "Pick from catalog" : "Enter custom model ID"}
-                            </button>
-                        </div>
-
-                        {isCustomModel ? (
-                            <input
-                                type="text"
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                placeholder="e.g. openrouter/deepseek/deepseek-r1 or gateway/custom-endpoint"
-                                style={{
-                                    width: "100%",
-                                    background: theme.inputBg,
-                                    border: `1px solid ${theme.inputBorder}`,
-                                    borderRadius: 8,
-                                    padding: "7px 10px",
-                                    fontSize: 12.5,
-                                    fontFamily: "var(--app-font-mono, monospace)",
-                                    color: theme.textPrimary,
-                                    outline: "none",
-                                    boxSizing: "border-box",
-                                }}
-                            />
-                        ) : (
-                            <select
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    background: theme.inputBg,
-                                    border: `1px solid ${theme.inputBorder}`,
-                                    borderRadius: 8,
-                                    padding: "7px 10px",
-                                    fontSize: 12.5,
-                                    color: theme.textPrimary,
-                                    outline: "none",
-                                    boxSizing: "border-box",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                <option value="">Inherit Workspace Default (Coordinator Model)</option>
-                                <optgroup label="Databricks Foundation (Zero Data Egress)">
-                                    <option value="databricks/databricks-meta-llama-3-3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
-                                    <option value="databricks/databricks-dbrx-instruct">Databricks DBRX Instruct</option>
-                                    <option value="databricks/databricks-meta-llama-3-1-405b-instruct">Meta Llama 3.1 405B Instruct</option>
-                                    <option value="databricks/databricks-mixtral-8x7b-instruct">Mixtral 8x7B Instruct</option>
-                                </optgroup>
-                                <optgroup label="Databricks AI Gateway (Zero-Egress Proxy)">
-                                    <option value="gateway/openai-gpt-4o">OpenAI GPT-4o (AI Gateway Route)</option>
-                                    <option value="gateway/openai-gpt-4o-mini">OpenAI GPT-4o mini (AI Gateway Route)</option>
-                                    <option value="gateway/claude-3-7-sonnet">Claude 3.7 Sonnet (AI Gateway Route)</option>
-                                    <option value="gateway/claude-3-5-sonnet">Claude 3.5 Sonnet (AI Gateway Route)</option>
-                                    <option value="gateway/mistral-large">Mistral Large (AI Gateway Route)</option>
-                                </optgroup>
-                                <optgroup label="OpenRouter & External Routers (With Databricks Gateway Fallback)">
-                                    <option value="openrouter/anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet (OpenRouter)</option>
-                                    <option value="openrouter/anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet Thinking (OpenRouter)</option>
-                                    <option value="openrouter/deepseek/deepseek-r1">DeepSeek R1 Reasoning (OpenRouter)</option>
-                                    <option value="openrouter/deepseek/deepseek-chat">DeepSeek V3 (OpenRouter)</option>
-                                    <option value="openrouter/openai/gpt-4o">OpenAI GPT-4o (OpenRouter)</option>
-                                    <option value="openrouter/google/gemini-2.5-pro">Google Gemini 2.5 Pro (OpenRouter)</option>
-                                    <option value="openrouter/qwen/qwen-2.5-coder-32b-instruct">Qwen 2.5 Coder 32B (OpenRouter)</option>
-                                </optgroup>
-                            </select>
-                        )}
-
-                        <div style={{ marginTop: 5, fontSize: 10.5, color: theme.textMuted, lineHeight: 1.3 }}>
-                            {model.startsWith("openrouter/") ? (
-                                <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
-                                    <ShieldCheck size={12} /> External router calls automatically fail over to Databricks AI Gateway on errors or rate limits.
-                                </span>
-                            ) : model.startsWith("gateway/") ? (
-                                <span style={{ color: "#3b82f6", display: "flex", alignItems: "center", gap: 4 }}>
-                                    <ShieldCheck size={12} /> Routes securely through Databricks AI Gateway with zero data egress outside workspace perimeter.
-                                </span>
-                            ) : (
-                                <span>Select a model override for this specialist, or inherit the workspace default.</span>
-                            )}
-                        </div>
-                    </div>
+                    <AgentModelPicker model={model} onChange={setModel} theme={theme} />
 
                     {/* Icon Selection */}
                     <div style={{ marginBottom: 14 }}>
@@ -942,7 +1154,6 @@ export function CreateAgentModal({
     const [icon, setIcon] = useState(defaultArchetype.icon);
     const [initialTask, setInitialTask] = useState("");
     const [model, setModel] = useState(defaultArchetype.model || "");
-    const [isCustomModel, setIsCustomModel] = useState(false);
 
     // Progressive Disclosure Collapsible States
     const [openCapabilities, setOpenCapabilities] = useState(false);
@@ -967,7 +1178,6 @@ export function CreateAgentModal({
         setColor(arch.color);
         setIcon(arch.icon);
         setModel(arch.model || "");
-        setIsCustomModel(false);
     };
 
     const toggleCapability = (capId: string) => {
@@ -1311,104 +1521,7 @@ export function CreateAgentModal({
                     </div>
 
                     {/* AI Model & Databricks Gateway Fallback */}
-                    <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                            <label style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
-                                AI Model & Router Fallback
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => setIsCustomModel(!isCustomModel)}
-                                style={{
-                                    fontSize: 10.5,
-                                    color: theme.accent,
-                                    background: "transparent",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    padding: 0,
-                                    textDecoration: "underline",
-                                }}
-                            >
-                                {isCustomModel ? "Pick from catalog" : "Enter custom model ID"}
-                            </button>
-                        </div>
-
-                        {isCustomModel ? (
-                            <input
-                                type="text"
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                placeholder="e.g. openrouter/deepseek/deepseek-r1 or gateway/custom-endpoint"
-                                style={{
-                                    width: "100%",
-                                    background: theme.inputBg,
-                                    border: `1px solid ${theme.inputBorder}`,
-                                    borderRadius: 8,
-                                    padding: "7px 10px",
-                                    fontSize: 12.5,
-                                    fontFamily: "var(--app-font-mono, monospace)",
-                                    color: theme.textPrimary,
-                                    outline: "none",
-                                    boxSizing: "border-box",
-                                }}
-                            />
-                        ) : (
-                            <select
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    background: theme.inputBg,
-                                    border: `1px solid ${theme.inputBorder}`,
-                                    borderRadius: 8,
-                                    padding: "7px 10px",
-                                    fontSize: 12.5,
-                                    color: theme.textPrimary,
-                                    outline: "none",
-                                    boxSizing: "border-box",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                <option value="">Inherit Workspace Default (Coordinator Model)</option>
-                                <optgroup label="Databricks Foundation (Zero Data Egress)">
-                                    <option value="databricks/databricks-meta-llama-3-3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
-                                    <option value="databricks/databricks-dbrx-instruct">Databricks DBRX Instruct</option>
-                                    <option value="databricks/databricks-meta-llama-3-1-405b-instruct">Meta Llama 3.1 405B Instruct</option>
-                                    <option value="databricks/databricks-mixtral-8x7b-instruct">Mixtral 8x7B Instruct</option>
-                                </optgroup>
-                                <optgroup label="Databricks AI Gateway (Zero-Egress Proxy)">
-                                    <option value="gateway/openai-gpt-4o">OpenAI GPT-4o (AI Gateway Route)</option>
-                                    <option value="gateway/openai-gpt-4o-mini">OpenAI GPT-4o mini (AI Gateway Route)</option>
-                                    <option value="gateway/claude-3-7-sonnet">Claude 3.7 Sonnet (AI Gateway Route)</option>
-                                    <option value="gateway/claude-3-5-sonnet">Claude 3.5 Sonnet (AI Gateway Route)</option>
-                                    <option value="gateway/mistral-large">Mistral Large (AI Gateway Route)</option>
-                                </optgroup>
-                                <optgroup label="OpenRouter & External Routers (With Databricks Gateway Fallback)">
-                                    <option value="openrouter/anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet (OpenRouter)</option>
-                                    <option value="openrouter/anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet Thinking (OpenRouter)</option>
-                                    <option value="openrouter/deepseek/deepseek-r1">DeepSeek R1 Reasoning (OpenRouter)</option>
-                                    <option value="openrouter/deepseek/deepseek-chat">DeepSeek V3 (OpenRouter)</option>
-                                    <option value="openrouter/openai/gpt-4o">OpenAI GPT-4o (OpenRouter)</option>
-                                    <option value="openrouter/google/gemini-2.5-pro">Google Gemini 2.5 Pro (OpenRouter)</option>
-                                    <option value="openrouter/qwen/qwen-2.5-coder-32b-instruct">Qwen 2.5 Coder 32B (OpenRouter)</option>
-                                </optgroup>
-                            </select>
-                        )}
-
-                        <div style={{ marginTop: 5, fontSize: 10.5, color: theme.textMuted, lineHeight: 1.3 }}>
-                            {model.startsWith("openrouter/") ? (
-                                <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
-                                    <ShieldCheck size={12} /> External router calls automatically fail over to Databricks AI Gateway on errors or rate limits.
-                                </span>
-                            ) : model.startsWith("gateway/") ? (
-                                <span style={{ color: "#3b82f6", display: "flex", alignItems: "center", gap: 4 }}>
-                                    <ShieldCheck size={12} /> Routes securely through Databricks AI Gateway with zero data egress outside workspace perimeter.
-                                </span>
-                            ) : (
-                                <span>Select a model override for this specialist, or inherit the workspace default.</span>
-                            )}
-                        </div>
-                    </div>
+                    <AgentModelPicker model={model} onChange={setModel} theme={theme} />
 
                     {/* Step 4: Optional Kickoff Task */}
                     <div>

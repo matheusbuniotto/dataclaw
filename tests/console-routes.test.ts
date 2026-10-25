@@ -160,6 +160,14 @@ describe("the route table is data, not a listener", () => {
         expect(aiModels.body.current).toBeDefined();
         expect(Array.isArray(aiModels.body.categories)).toBe(true);
 
+        const fetchModelsGet = await answer("GET", "/api/ai/models/fetch");
+        expect(fetchModelsGet.status).toBe(200);
+        expect(Array.isArray(fetchModelsGet.body.models)).toBe(true);
+
+        const fetchModelsPost = await answer("POST", "/api/ai/models/fetch", {});
+        expect(fetchModelsPost.status).toBe(200);
+        expect(Array.isArray(fetchModelsPost.body.models)).toBe(true);
+
         const obs = await answer("GET", "/api/observability");
         expect(obs.status).toBe(200);
         expect(obs.body.evals).toBeDefined();

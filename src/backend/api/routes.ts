@@ -32,7 +32,7 @@ import {
 } from "./databricks-api";
 import { checkPlugins } from "./plugins-api";
 import { getObservabilitySummary, recordSampleTrace } from "./observability-api";
-import { listAvailableAiModels } from "../../config";
+import { fetchRemoteRouterModels, listAvailableAiModels } from "../../config";
 import {
     DomainError,
     NotFoundError,
@@ -276,6 +276,30 @@ export const routes: RouteTable = {
     },
     "/api/ai/models": {
         GET: { run: () => listAvailableAiModels() },
+    },
+    "/api/ai/models/fetch": {
+        GET: {
+            input: async (request) => {
+                const url = new URL(request.url);
+                return {
+                    baseUrl: text(url.searchParams.get("baseUrl")),
+                    apiKey: text(url.searchParams.get("apiKey")),
+                    provider: text(url.searchParams.get("provider")),
+                };
+            },
+            run: async (input) => ({ models: await fetchRemoteRouterModels(input) }),
+        },
+        POST: {
+            input: async (request) => {
+                const parsed = await body(request);
+                return {
+                    baseUrl: text(parsed.baseUrl),
+                    apiKey: text(parsed.apiKey),
+                    provider: text(parsed.provider),
+                };
+            },
+            run: async (input) => ({ models: await fetchRemoteRouterModels(input) }),
+        },
     },
 };
 

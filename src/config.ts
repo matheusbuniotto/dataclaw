@@ -58,6 +58,7 @@ export const DATABRICKS_GATEWAY_ROUTES = [
 ] as const;
 
 export const OPENROUTER_RECOMMENDED_MODELS = [
+    { id: "openai/gpt-6-luna", name: "OpenAI GPT-6 Luna", reasoning: true, description: "Next-generation multimodal reasoning & synthesis" },
     { id: "anthropic/claude-3.7-sonnet", name: "Claude 3.7 Sonnet", reasoning: true, description: "Hybrid reasoning with adjustable thinking" },
     { id: "anthropic/claude-3.7-sonnet:thinking", name: "Claude 3.7 Sonnet (Thinking)", reasoning: true, description: "Extended deliberate reasoning" },
     { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", reasoning: false, description: "Fast analysis and coding" },
@@ -267,9 +268,127 @@ export function parseConfiguredGatewayEndpoints(): string[] {
 }
 
 export function parseConfiguredOpenRouterModels(): string[] {
-    const raw = process.env.OPENROUTER_MODELS?.trim();
+    const raw = (
+        process.env.OPENROUTER_MODELS?.trim() ||
+        process.env.AI_MODELS?.trim() ||
+        process.env.RECOMMENDED_MODELS?.trim()
+    );
     if (!raw) return [];
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+
+    if (raw.startsWith("[") && raw.endsWith("]")) {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                return parsed
+                    .map((item) => (typeof item === "string" ? item.trim() : (item?.id || item?.name)?.trim()))
+                    .filter((x): x is string => Boolean(x));
+            }
+        } catch {
+            // fall through
+        }
+    }
+
+    return raw
+        .split(",")
+        .map((s) => {
+            const trimmed = s.trim();
+            if (!trimmed) return "";
+            const colon = trimmed.indexOf(":");
+            if (colon > 0 && !trimmed.slice(colon).includes("/") && !trimmed.startsWith("http")) {
+                return trimmed.slice(0, colon).trim();
+            }
+            return trimmed;
+        })
+        .filter(Boolean);
+}
+
+export interface RemoteModelFetchOptions {
+    baseUrl?: string;
+    apiKey?: string;
+    provider?: string;
+}
+
+/**
+ * Dynamically queries an OpenAI-compatible router endpoint (such as OpenRouter, LiteLLM,
+ * vLLM, or Ollama) to discover and retrieve the live catalog of available models.
+ */
+export async function fetchRemoteRouterModels(
+    options: RemoteModelFetchOptions = {},
+): Promise<ModelOptionInfo[]> {
+    const rawUrl = options.baseUrl?.trim() || process.env.OPENROUTER_BASE_URL?.trim();
+    const apiKey =
+        options.apiKey?.trim() ||
+        process.env.OPENROUTER_API_KEY?.trim() ||
+        process.env.CUSTOM_MODEL_API_KEY?.trim() ||
+        process.env.MODEL_API_KEY?.trim();
+
+    if (!rawUrl && !apiKey) {
+        return [];
+    }
+
+    const resolvedUrl = rawUrl || "https://openrouter.ai/api/v1";
+    const normalized = normalizeBaseUrl(resolvedUrl);
+    const modelsUrl = normalized.endsWith("/models") ? normalized : `${normalized}/models`;
+
+    const headers: Record<string, string> = {
+        Accept: "application/json",
+        "User-Agent": "DataClaw/1.0",
+    };
+    if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+    }
+
+    try {
+        const response = await fetch(modelsUrl, {
+            headers,
+            signal: AbortSignal.timeout(4000),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = (await response.json()) as Record<string, unknown>;
+        const list = Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.models)
+                ? data.models
+                : [];
+
+        const provider = options.provider || (rawUrl.includes("openrouter") ? "openrouter" : "custom");
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const models: ModelOptionInfo[] = list
+            .map((item: any): ModelOptionInfo | null => {
+                const id = typeof item === "string" ? item : (item?.id || item?.name);
+                if (!id || typeof id !== "string") return null;
+                const name = typeof item?.name === "string" && item.name ? item.name : id;
+                const description = typeof item?.description === "string" ? item.description : undefined;
+                const reasoning = Boolean(
+                    item?.reasoning ||
+                    id.includes("r1") ||
+                    id.includes("thinking") ||
+                    id.includes("o1") ||
+                    id.includes("o3") ||
+                    id.includes("luna"),
+                );
+                return {
+                    id: provider === "openrouter" && !id.startsWith("openrouter/") ? `openrouter/${id}` : id,
+                    name,
+                    provider,
+                    category: (provider === "openrouter" ? "openrouter" : "custom") as ModelOptionInfo["category"],
+                    reasoning,
+                    description,
+                };
+            })
+            .filter((m): m is ModelOptionInfo => m !== null);
+
+        return models;
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[Remote Models] Failed to query ${modelsUrl}: ${msg}`);
+        return [];
+    }
 }
 
 function formatDatabricksModelName(id: string, provider: string): string {

@@ -140,6 +140,7 @@ export {
     OPENROUTER_RECOMMENDED_MODELS,
     resolveModelFallback,
     listAvailableAiModels,
+    fetchRemoteRouterModels,
 } from "./config";
 export type {
     CustomModelConfig,
@@ -148,4 +149,5 @@ export type {
     ModelRegistryOptions,
     ModelOptionInfo,
     AvailableAiModelsResponse,
+    RemoteModelFetchOptions,
 } from "./config";
