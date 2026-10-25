@@ -268,9 +268,11 @@ function resolveIsDark(explicitDark?: boolean): boolean {
     if (explicitDark !== undefined) return explicitDark;
     if (typeof document !== "undefined") {
         return (
+            document.documentElement.classList.contains("theme-dark") ||
             document.documentElement.classList.contains("theme-lovable") ||
-            document.documentElement.getAttribute("data-theme") === "lovable" ||
-            document.documentElement.getAttribute("data-theme") === "dark"
+            document.documentElement.classList.contains("dark") ||
+            document.documentElement.getAttribute("data-theme") === "dark" ||
+            document.documentElement.getAttribute("data-theme") === "lovable"
         );
     }
     return false;

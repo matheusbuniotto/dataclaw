@@ -1,8 +1,11 @@
-/* The Lovable dark theme: recolours the chat surface when `.theme-lovable` is on. */
+/* Dark theme: recolours the chat surface when `.theme-dark` or `.theme-lovable` is on. */
 /* ============================================================================
-   Lovable Dark Theme (Obsidian & Vibrant Coral / Slate)
+   Dark Theme (Obsidian & Vibrant Coral / Slate)
    ============================================================================ */
 :root,
+html.theme-dark,
+body.theme-dark,
+.theme-dark,
 html.theme-lovable,
 body.theme-lovable,
 .theme-lovable {
@@ -19,6 +22,10 @@ body.theme-lovable,
   color: #f1f3f7 !important;
 }
 
+body.theme-dark .app-shell,
+body.theme-dark .main-area,
+.theme-dark .app-shell,
+.theme-dark .main-area,
 body.theme-lovable .app-shell,
 body.theme-lovable .main-area,
 .theme-lovable .app-shell,

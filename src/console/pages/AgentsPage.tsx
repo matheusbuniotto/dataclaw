@@ -118,15 +118,15 @@ export function ProfileSettingsModal({
     ops: boolean;
     onToggleOps?: () => void;
     onOpenSettings?: () => void;
-    theme?: "classic" | "lovable";
-    onSelectTheme?: (theme: "classic" | "lovable") => void;
+    theme?: "classic" | "dark" | "lovable";
+    onSelectTheme?: (theme: "classic" | "dark") => void;
 }) {
     if (!isOpen) return null;
 
     const [name, setName] = useState(profile.name);
     const [role, setRole] = useState(profile.role);
     const [avatarColor, setAvatarColor] = useState(profile.avatarColor);
-    const isDark = theme === "lovable";
+    const isDark = theme === "dark" || theme === "lovable";
 
     const derivedInitials = useMemo(() => {
         return (
@@ -288,7 +288,7 @@ export function ProfileSettingsModal({
 
                                 <button
                                     type="button"
-                                    onClick={() => onSelectTheme("lovable")}
+                                    onClick={() => onSelectTheme?.("dark")}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -296,7 +296,7 @@ export function ProfileSettingsModal({
                                         padding: "10px 12px",
                                         borderRadius: 9,
                                         border:
-                                            theme === "lovable"
+                                            theme === "dark" || theme === "lovable"
                                                 ? "2px solid #ff5e57"
                                                 : `1px solid ${isDark ? "#262c3b" : "#ded8cb"}`,
                                         background: isDark ? "#191e29" : "#1a1e28",
@@ -305,7 +305,7 @@ export function ProfileSettingsModal({
                                         fontWeight: 600,
                                         fontSize: 12,
                                         boxShadow:
-                                            theme === "lovable"
+                                            theme === "dark" || theme === "lovable"
                                                 ? "0 0 0 2px rgba(255, 94, 87, 0.35)"
                                                 : "none",
                                         transition: "all 0.15s ease",
@@ -323,10 +323,10 @@ export function ProfileSettingsModal({
                                         }}
                                     />
                                     <div style={{ textAlign: "left", flex: 1 }}>
-                                        <div style={{ lineHeight: 1.2 }}>Lovable Dark</div>
+                                        <div style={{ lineHeight: 1.2 }}>Dark theme</div>
                                         <div style={{ fontSize: 9.5, color: "#9ca7b6" }}>Obsidian & Coral</div>
                                     </div>
-                                    {theme === "lovable" && <Check size={14} style={{ color: "#ff5e57" }} />}
+                                    {(theme === "dark" || theme === "lovable") && <Check size={14} style={{ color: "#ff5e57" }} />}
                                 </button>
                             </div>
                         </div>
@@ -1315,25 +1315,25 @@ export function AgentsPage({
     );
     const [userProfile, setUserProfile] = useState<UserProfile>(loadUserProfile);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
-    const [theme, setTheme] = useState<"classic" | "lovable">(() => {
+    const [theme, setTheme] = useState<"classic" | "dark">(() => {
         if (typeof window !== "undefined") {
-            return (
-                (window.localStorage.getItem("dataclaw.theme") as "classic" | "lovable") ||
-                "lovable"
-            );
+            const stored = window.localStorage.getItem("dataclaw.theme");
+            if (stored === "dark" || stored === "lovable") return "dark";
+            if (stored === "classic") return "classic";
+            return "dark";
         }
-        return "lovable";
+        return "dark";
     });
 
-    const toggleTheme = (next?: "classic" | "lovable") => {
-        const val = next || (theme === "classic" ? "lovable" : "classic");
+    const toggleTheme = (next?: "classic" | "dark") => {
+        const val = next || (theme === "classic" ? "dark" : "classic");
         setTheme(val);
         if (typeof window !== "undefined") {
             window.localStorage.setItem("dataclaw.theme", val);
         }
     };
 
-    const isDark = theme === "lovable";
+    const isDark = theme === "dark";
     const t = {
         isDark,
         bg: isDark ? "#0d0f12" : "#f9f7f1",
@@ -1365,13 +1365,13 @@ export function AgentsPage({
     useEffect(() => {
         if (typeof document !== "undefined") {
             if (isDark) {
-                document.documentElement.classList.add("theme-lovable");
-                document.body.classList.add("theme-lovable");
-                document.documentElement.setAttribute("data-theme", "lovable");
+                document.documentElement.classList.add("theme-dark", "theme-lovable", "dark");
+                document.body.classList.add("theme-dark", "theme-lovable", "dark");
+                document.documentElement.setAttribute("data-theme", "dark");
             } else {
-                document.documentElement.classList.remove("theme-lovable");
-                document.body.classList.remove("theme-lovable");
-                document.documentElement.removeAttribute("data-theme");
+                document.documentElement.classList.remove("theme-dark", "theme-lovable", "dark");
+                document.body.classList.remove("theme-dark", "theme-lovable", "dark");
+                document.documentElement.setAttribute("data-theme", "classic");
             }
         }
     }, [isDark]);
@@ -1831,7 +1831,7 @@ export function AgentsPage({
 
     return (
         <div
-            className={isDark ? "theme-lovable" : ""}
+            className={isDark ? "theme-dark theme-lovable dark" : ""}
             style={{
                 display: "flex",
                 height: "100dvh",
