@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { ArrowLeft, MoreHorizontal, Plus, Search, Users, X } from 'lucide-react';
-import type { Bot, TeamFolder } from './types';
-import { BotAvatar } from './BotAvatar';
-import { useBotGrouping } from './useBotGrouping';
+import type { Specialist, SquadFolder } from './types';
+import { SpecialistAvatar } from './SpecialistAvatar';
+import { useSquadGrouping } from './useSquadGrouping';
 
-interface Props {
+export interface SquadOrgViewProps {
     disabled?: boolean;
-    bots: Bot[];
-    folders: TeamFolder[];
+    bots: Specialist[];
+    folders: SquadFolder[];
     theme: 'dark' | 'light';
     onSelectBot: (id: string) => void;
     onOpenNewBotModal: (folderId?: string) => void;
@@ -17,12 +17,12 @@ interface Props {
     onCreateFolder: (name: string, color: string) => Promise<void>;
 }
 
-export function TeamOrgView(props: Props) {
+export function SquadOrgView(props: SquadOrgViewProps) {
     const { bots, folders, theme } = props;
     const [search, setSearch] = useState('');
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-    const grouping = useBotGrouping(
+    const grouping = useSquadGrouping(
         bots,
         folders,
         props.onMoveBot,
@@ -140,14 +140,14 @@ export function TeamOrgView(props: Props) {
                                         </p>
                                     ) : (
                                         members.map((bot) => (
-                                            <div
+                                             <div
                                                 key={bot.id}
                                                 {...grouping.source(bot)}
                                                 onClick={() => props.onSelectBot(bot.id)}
                                                 className="p-3 flex items-center justify-between gap-3 hover:bg-white/5 rounded-xl cursor-pointer transition-colors"
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <BotAvatar
+                                                    <SpecialistAvatar
                                                         shape={bot.shape}
                                                         color={bot.color}
                                                         size={36}
@@ -177,3 +177,5 @@ export function TeamOrgView(props: Props) {
         </main>
     );
 }
+
+export const TeamOrgView = SquadOrgView;

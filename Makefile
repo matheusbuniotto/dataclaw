@@ -24,7 +24,7 @@ PROFILE ?= dev
 APP_NAME ?= dataclaw
 
 BUN ?= bun
-ENTRY := src/console/api/server.ts
+ENTRY := src/backend/api/server.ts
 
 # `.run/` is gitignored; keeping the pidfile and log there means `logs` stays a command.
 RUN_DIR := .run

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import type { WorkspaceSnapshot, DataSource } from '../../state/workspace-types';
 
-export function WorkspaceInspection({
+export function WorkspaceInspector({
     snapshot,
     isOpen,
     onClose,
@@ -399,3 +399,5 @@ export function WorkspaceInspection({
         </aside>
     );
 }
+
+export const WorkspaceInspection = WorkspaceInspector;

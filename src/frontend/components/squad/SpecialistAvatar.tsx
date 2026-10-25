@@ -1,9 +1,9 @@
 import React from 'react';
 import type { FC } from 'react';
-import type { BotShape } from './types';
+import type { SpecialistShape } from './types';
 
-interface BotAvatarProps {
-    shape: BotShape;
+export interface SpecialistAvatarProps {
+    shape: SpecialistShape;
     color: string;
     size?: number;
     className?: string;
@@ -14,19 +14,20 @@ interface BotAvatarProps {
     isInteracting?: boolean;
 }
 
-export const BOT_COLORS = [
+export const SPECIALIST_COLORS = [
     { id: 'cyan', name: 'Databricks Cyan', hex: '#06B6D4', ringHex: '#22D3EE' },
     { id: 'emerald', name: 'Analyst Emerald', hex: '#10B981', ringHex: '#34D399' },
     { id: 'indigo', name: 'Deep Indigo', hex: '#6366F1', ringHex: '#818CF8' },
     { id: 'amber', name: 'Auditor Amber', hex: '#F59E0B', ringHex: '#FBBF24' },
     { id: 'rose', name: 'Skeptic Crimson', hex: '#EF4444', ringHex: '#F87171' },
     { id: 'orange', name: 'Tangerine Orange', hex: '#F97316', ringHex: '#FB923C' },
-    { id: 'blue', name: 'Grok Royal Blue', hex: '#3B82F6', ringHex: '#60A5FA' },
+    { id: 'blue', name: 'Cobalt Blue', hex: '#3B82F6', ringHex: '#60A5FA' },
     { id: 'purple', name: 'Deep Purple', hex: '#8B5CF6', ringHex: '#A78BFA' },
     { id: 'slate', name: 'Stealth Slate', hex: '#64748B', ringHex: '#94A3B8' },
 ];
+export const BOT_COLORS = SPECIALIST_COLORS;
 
-export const BOT_SHAPES: { id: BotShape; label: string }[] = [
+export const SPECIALIST_SHAPES: { id: SpecialistShape; label: string }[] = [
     { id: 'droplet', label: 'Droplet' },
     { id: 'round', label: 'Round' },
     { id: 'squircle', label: 'Squircle' },
@@ -36,8 +37,9 @@ export const BOT_SHAPES: { id: BotShape; label: string }[] = [
     { id: 'cloud', label: 'Cloud' },
     { id: 'tear', label: 'Teardrop' },
 ];
+export const BOT_SHAPES = SPECIALIST_SHAPES;
 
-export const BotAvatar: FC<BotAvatarProps> = ({
+export const SpecialistAvatar: FC<SpecialistAvatarProps> = ({
     shape,
     color,
     size = 40,
@@ -121,14 +123,14 @@ export const BotAvatar: FC<BotAvatarProps> = ({
             aria-hidden="true"
             data-working={working || isInteracting}
             data-created={entering}
-            className={`bot-avatar ${entering ? 'bot-avatar-entering' : ''} relative inline-flex items-center justify-center shrink-0 transition-transform duration-200 select-none ${
+            className={`specialist-avatar ${entering ? 'specialist-avatar-entering' : ''} relative inline-flex items-center justify-center shrink-0 transition-transform duration-200 select-none ${
                 animated ? 'hover:scale-105 active:scale-95' : ''
             } ${className}`}
             style={{ width: size, height: size }}
         >
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
                 {renderShapePath()}
-                <g transform={`translate(${eyeOffsetX}, ${eyeOffsetY})`} className="bot-avatar-eyes">
+                <g transform={`translate(${eyeOffsetX}, ${eyeOffsetY})`} className="specialist-avatar-eyes">
                     <rect
                         x="36"
                         y="54"
@@ -154,3 +156,5 @@ export const BotAvatar: FC<BotAvatarProps> = ({
         </div>
     );
 };
+
+export const BotAvatar = SpecialistAvatar;

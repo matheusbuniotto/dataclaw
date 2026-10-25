@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import type { Bot, TeamFolder } from './types';
+import type { Specialist, SquadFolder } from './types';
 
-const botTransfer = 'application/x-dataclaw-bot';
+const specialistTransfer = 'application/x-dataclaw-specialist';
 
 /** Native desktop dragging; existing move menus remain the touch/keyboard path. */
-export function useBotGrouping(
-    bots: Bot[],
-    folders: TeamFolder[],
+export function useSquadGrouping(
+    specialists: Specialist[],
+    folders: SquadFolder[],
     move: (id: string, groupId: string) => Promise<void>,
     disabled = false,
     reveal?: (groupId: string) => void,
@@ -20,7 +20,7 @@ export function useBotGrouping(
     const busy = useRef(false);
 
     const accepts = (event: DragEvent) =>
-        !disabled && !busy.current && event.dataTransfer.types.includes(botTransfer);
+        !disabled && !busy.current && event.dataTransfer.types.includes(specialistTransfer);
 
     const clear = () => {
         setDraggedId(null);
@@ -61,16 +61,16 @@ export function useBotGrouping(
                 }
             },
         },
-        source: (bot: Bot) => ({
+        source: (specialist: Specialist) => ({
             draggable: !disabled && !moving,
             onDragStart: (event: DragEvent) => {
                 if (disabled || busy.current) {
                     event.preventDefault();
                     return;
                 }
-                event.dataTransfer.setData(botTransfer, bot.id);
+                event.dataTransfer.setData(specialistTransfer, specialist.id);
                 event.dataTransfer.effectAllowed = 'move';
-                setDraggedId(bot.id);
+                setDraggedId(specialist.id);
                 setError('');
                 setNotice('Drag to a folder, or to Ungrouped to remove membership.');
             },
@@ -95,24 +95,24 @@ export function useBotGrouping(
                 if (!accepts(event)) return;
                 event.preventDefault();
                 event.stopPropagation();
-                const id = event.dataTransfer.getData(botTransfer);
+                const id = event.dataTransfer.getData(specialistTransfer);
                 clear();
-                const bot = bots.find((candidate) => candidate.id === id);
+                const specialist = specialists.find((candidate) => candidate.id === id);
                 const group = groupId
                     ? folders.find((candidate) => candidate.id === groupId)
                     : { name: 'Ungrouped' };
-                if (!bot || !group) {
+                if (!specialist || !group) {
                     setError('The specialist or folder is no longer available. Refresh and try again.');
                     return;
                 }
-                if ((bot.folderId ?? '') === groupId) return;
+                if ((specialist.folderId ?? '') === groupId) return;
                 busy.current = true;
                 setMoving(true);
                 setError('');
-                setNotice(`Moving ${bot.name} to ${group.name}…`);
+                setNotice(`Moving ${specialist.name} to ${group.name}…`);
                 void move(id, groupId)
                     .then(() => {
-                        setNotice(`Moved ${bot.name} to ${group.name}.`);
+                        setNotice(`Moved ${specialist.name} to ${group.name}.`);
                         reveal?.(groupId);
                     })
                     .catch((failure) => {
@@ -126,3 +126,5 @@ export function useBotGrouping(
         }),
     };
 }
+
+export const useBotGrouping = useSquadGrouping;

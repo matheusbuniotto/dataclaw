@@ -24,4 +24,4 @@ ENV HOST=0.0.0.0 \
 
 EXPOSE 7860
 
-CMD ["bun", "run", "src/console/api/server.ts"]
+CMD ["bun", "run", "src/backend/api/server.ts"]

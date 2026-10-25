@@ -1,0 +1,80 @@
+// DataClaw: Durable Agent Data Platform (Console API Server)
+//
+// The console's entry point and its only listener. The API itself lives in `routes.ts`, which
+// imports nothing that binds a port, so it can be exercised in a test without starting this.
+import indexHtml from "../../frontend/index.html";
+import { handle, respond } from "./routes";
+
+const PAGES = [
+    "/",
+    "/console",
+    "/console/agents",
+    "/console/runs",
+    "/console/data",
+    "/console/capabilities",
+    "/console/observability",
+    "/console/settings",
+    // Backward compatibility aliases for /prototype
+    "/prototype",
+    "/prototype/agents",
+    "/prototype/runs",
+    "/prototype/data",
+    "/prototype/capabilities",
+    "/prototype/observability",
+    "/prototype/settings",
+];
+
+/**
+ * Start the console. `/api/*` is one route table (`handle`); the pages are the same HTML app,
+ * which routes on the client.
+ */
+export function startServer(options: { port?: number; hostname?: string } = {}) {
+    // Local-only by default: the auth endpoints can mint Databricks sessions.
+    // In Databricks Apps or container environments, bind DATABRICKS_APP_PORT and 0.0.0.0.
+    const port = options.port ?? (Number(process.env.DATABRICKS_APP_PORT || process.env.PORT) || 3000);
+    const hostname = options.hostname ?? process.env.HOST ?? (process.env.DATABRICKS_APP_PORT ? "0.0.0.0" : "127.0.0.1");
+    const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.DATABRICKS_APP_PORT);
+
+    const server = Bun.serve({
+        port,
+        hostname,
+        // The first workspace open can spend time on Databricks MCP auth.
+        idleTimeout: 60,
+        // `/prototype/` and `/prototype/agents/` are the same page: people type the slash.
+        routes: Object.fromEntries(
+            PAGES.flatMap((path) => (path === "/" ? [path] : [path, `${path}/`]))
+                .map((path) => [path, indexHtml]),
+        ),
+        // Everything else is the API table; an unknown path answers a JSON 404.
+        fetch: (request) => handle(request),
+        development: isProd ? false : {
+            hmr: true,
+            console: true,
+        },
+        error(error) {
+            return respond(() => { throw error; });
+        },
+    });
+
+    const base = `http://localhost:${server.port}`;
+    console.log("\n==========================================================");
+    console.log("  DATACLAW: DURABLE AGENT DATA PLATFORM");
+    if (process.env.DATABRICKS_APP_PORT) {
+        console.log(`  Databricks Apps Runtime (Port: ${server.port})`);
+    }
+    console.log("==========================================================");
+    console.log(`\n  🚀 URL: ${base}/console`);
+    console.log(`\n  Pages:`);
+    console.log(`  - Overview:     ${base}/console`);
+    console.log(`  - Agents:       ${base}/console/agents`);
+    console.log(`  - Durable runs: ${base}/console/runs`);
+    console.log(`  - Data health:  ${base}/console/data`);
+    console.log(`  - Capabilities: ${base}/console/capabilities`);
+    console.log(`  - Settings:     ${base}/console/settings`);
+    console.log(`  - Databricks:   ${base}/api/databricks/status`);
+    console.log(`  - Main agent:   ${base}/api/workspace`);
+    console.log("==========================================================\n");
+    return server;
+}
+
+if (import.meta.main) startServer();

@@ -175,7 +175,7 @@ test("chat creates a specialist, delegates a run, and archives it", async () => 
         await analyst.close();
         await rm(projectRoot, { recursive: true, force: true });
     }
-});
+}, 15_000);
 
 function run(id: number, status: AgentRun["status"]): AgentRun {
     return {

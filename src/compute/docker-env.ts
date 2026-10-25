@@ -12,6 +12,7 @@
  */
 import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import type { Context } from "@earendil-works/chord";
 import {
     ExecutionError,
@@ -53,12 +54,23 @@ export function idleStopMs(): number {
 }
 
 function docker(args: string[]): DockerResult {
-    let proc: ReturnType<typeof Bun.spawnSync>;
     try {
-        proc = Bun.spawnSync(["docker", ...args], {
-            stdout: "pipe",
-            stderr: "pipe",
+        const proc = spawnSync("docker", args, {
+            encoding: "utf8",
+            timeout: 1500,
         });
+        if (proc.error) {
+            return {
+                code: 1,
+                stdout: proc.stdout ?? "",
+                stderr: proc.error.message,
+            };
+        }
+        return {
+            code: proc.status ?? 1,
+            stdout: proc.stdout ?? "",
+            stderr: proc.stderr ?? "",
+        };
     } catch (err) {
         return {
             code: 1,
@@ -66,12 +78,6 @@ function docker(args: string[]): DockerResult {
             stderr: err instanceof Error ? err.message : String(err),
         };
     }
-    const decoder = new TextDecoder();
-    return {
-        code: proc.exitCode ?? 1,
-        stdout: decoder.decode(proc.stdout),
-        stderr: decoder.decode(proc.stderr),
-    };
 }
 
 /** Single-quote for a POSIX shell. */

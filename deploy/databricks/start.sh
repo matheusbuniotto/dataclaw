@@ -31,4 +31,4 @@ echo "[Databricks Apps] Using Bun: $(bun --version)"
 echo "[Databricks Apps] Host: ${HOST:-0.0.0.0} | Port: ${DATABRICKS_APP_PORT:-${PORT:-3000}}"
 
 # Execute DataClaw Console server
-exec bun run src/console/api/server.ts
+exec bun run src/backend/api/server.ts

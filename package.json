@@ -4,10 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/console/api/server.ts",
+    "start": "bun run src/backend/api/server.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "console": "bun run src/console/api/server.ts",
+    "console": "bun run src/backend/api/server.ts",
+    "server": "bun run src/backend/api/server.ts",
     "cli": "bun run src/cli.ts",
     "demo": "bun run examples/demo-run.ts",
     "demo:auto-improve": "bun run examples/auto-improve-demo.ts",
@@ -25,7 +26,7 @@
     "dab:validate": "databricks bundle validate -t dev --profile dev",
     "dab:deploy": "databricks apps deploy -t dev --profile dev",
     "dab:logs": "databricks apps logs dataclaw --profile dev",
-    "vps:start": "HOST=0.0.0.0 NODE_ENV=production bun run src/console/api/server.ts"
+    "vps:start": "HOST=0.0.0.0 NODE_ENV=production bun run src/backend/api/server.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

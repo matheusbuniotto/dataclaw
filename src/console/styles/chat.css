@@ -216,7 +216,7 @@
 .composer-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;color:#8b968d;font-size:10px}
 .composer-error{color:#b15449;font-size:11px;margin-top:6px}
 
-/* Grokbot sidebar row and hover-only actions */
+/* Specialist squad sidebar row and hover-only actions */
 .bot-row {
     position: relative;
     border-radius: 12px;

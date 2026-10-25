@@ -9,22 +9,24 @@ export const avatarShapes = [
     'tear',
 ] as const;
 
-export type BotShape = (typeof avatarShapes)[number] | 'bot' | 'spark' | 'search';
+export type SpecialistShape = (typeof avatarShapes)[number] | 'bot' | 'spark' | 'search';
+export type BotShape = SpecialistShape;
 
-export interface TeamFolder {
+export interface SquadFolder {
     id: string;
     name: string;
     color?: string;
 }
+export type TeamFolder = SquadFolder;
 
-export interface Bot {
+export interface Specialist {
     configurationVersion: number;
     id: string;
     name: string;
     role: string;
     department: string;
     folderId?: string;
-    shape: BotShape;
+    shape: SpecialistShape;
     color: string;
     description: string;
     systemPrompt: string;
@@ -35,7 +37,7 @@ export interface Bot {
     unreadCount?: number;
     pinned?: boolean;
     justCreated?: boolean;
-    // Data-specific badges
     specialty?: 'lakehouse' | 'statistics' | 'orchestration' | 'sandbox' | 'custom';
     sampleQueries?: string[];
 }
+export type Bot = Specialist;

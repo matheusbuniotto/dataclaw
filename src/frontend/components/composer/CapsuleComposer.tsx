@@ -11,13 +11,13 @@ import {
     Square,
     Zap,
 } from 'lucide-react';
-import type { Bot } from '../grok/types';
+import type { Specialist, Bot } from '../squad/types';
 
-interface CapsuleComposerProps {
+export interface CapsuleComposerProps {
     onSend: (content: string, specialistId?: string) => Promise<void>;
     onAbort?: () => Promise<void>;
     working?: boolean;
-    bots: Bot[];
+    bots: Specialist[];
     dark?: boolean;
 }
 

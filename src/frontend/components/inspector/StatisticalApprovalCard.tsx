@@ -37,7 +37,7 @@ export interface StatisticalApprovalPayload {
     isReadOnlyViolation?: boolean;
 }
 
-export function ApprovalCard({
+export function StatisticalApprovalCard({
     card,
     dark = true,
     connected = true,
@@ -267,3 +267,5 @@ export function ApprovalCard({
         </article>
     );
 }
+
+export const ApprovalCard = StatisticalApprovalCard;

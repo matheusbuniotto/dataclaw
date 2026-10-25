@@ -1,8 +1,8 @@
 import React, { useState, type FC, type FormEvent } from 'react';
-import type { Bot, TeamFolder } from './types';
-import { BotAvatar } from './BotAvatar';
+import type { Specialist, SquadFolder } from './types';
+import { SpecialistAvatar } from './SpecialistAvatar';
 import { SidebarContextMenu, type SidebarMenuTarget } from './SidebarContextMenu';
-import { useBotGrouping } from './useBotGrouping';
+import { useSquadGrouping } from './useSquadGrouping';
 import {
     Activity,
     Check,
@@ -21,9 +21,9 @@ import {
     Zap,
 } from 'lucide-react';
 
-interface SidebarProps {
-    bots: Bot[];
-    folders: TeamFolder[];
+export interface SpecialistSidebarProps {
+    bots: Specialist[];
+    folders: SquadFolder[];
     selectedBotId: string;
     onSelectBot: (botId: string) => void;
     onOpenNewBotModal: (folderId?: string) => void;
@@ -40,7 +40,7 @@ interface SidebarProps {
     onOpenDatabricksModal?: () => void;
 }
 
-export const Sidebar: FC<SidebarProps> = ({
+export const SpecialistSidebar: FC<SpecialistSidebarProps> = ({
     bots,
     folders,
     selectedBotId,
@@ -67,7 +67,7 @@ export const Sidebar: FC<SidebarProps> = ({
     const [newFolderName, setNewFolderName] = useState('');
     const [activeMenuBotId, setActiveMenuBotId] = useState<string | null>(null);
 
-    const grouping = useBotGrouping(
+    const grouping = useSquadGrouping(
         bots,
         folders,
         onMoveBotToFolder,
@@ -129,7 +129,7 @@ export const Sidebar: FC<SidebarProps> = ({
                     opener: document.activeElement instanceof HTMLElement ? document.activeElement : null,
                 });
             }}
-            className={`grok-sidebar w-72 md:w-80 shrink-0 h-full flex flex-col border-r transition-all select-none ${
+            className={`squad-sidebar w-72 md:w-80 shrink-0 h-full flex flex-col border-r transition-all select-none ${
                 mobileOpen
                     ? 'motion-roster flex fixed inset-y-0 left-0 z-40 shadow-2xl'
                     : 'hidden md:flex'
@@ -224,7 +224,7 @@ export const Sidebar: FC<SidebarProps> = ({
                                 : 'hover:bg-white/5'
                         }`}
                     >
-                        <BotAvatar
+                        <SpecialistAvatar
                             shape={principalBot.shape}
                             color={principalBot.color}
                             size={44}
@@ -354,7 +354,7 @@ export const Sidebar: FC<SidebarProps> = ({
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2.5 min-w-0">
-                                                    <BotAvatar
+                                                    <SpecialistAvatar
                                                         shape={bot.shape}
                                                         color={bot.color}
                                                         size={28}
@@ -400,3 +400,5 @@ export const Sidebar: FC<SidebarProps> = ({
         </aside>
     );
 };
+
+export const Sidebar = SpecialistSidebar;
