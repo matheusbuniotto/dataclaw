@@ -87,6 +87,11 @@ export interface DatabricksUiStatus {
     warehouseId?: string;
     catalogs: string[];
     user?: string;
+    userName?: string;
+    userEmail?: string;
+    userInitials?: string;
+    userRole?: string;
+    hasUserToken?: boolean;
     connectedAt?: number;
     profiles: DatabricksProfileInfo[];
     defaultProfile: string;

@@ -200,7 +200,15 @@ export function useDatabricksAuth(): AuthState {
     };
 }
 
-export function authMethodLabel(method?: DatabricksAuthMethod, oauthMode?: DatabricksOAuthMode): string {
+export function authMethodLabel(
+    method?: DatabricksAuthMethod,
+    oauthMode?: DatabricksOAuthMode,
+    isApp?: boolean,
+    hasUserToken?: boolean,
+): string {
+    if (isApp) {
+        return hasUserToken ? "Databricks Apps SSO · OBO User Token" : "Databricks Apps · App Container Runtime";
+    }
     switch (method) {
         case "cli":
             return "Databricks CLI profile";
@@ -211,7 +219,7 @@ export function authMethodLabel(method?: DatabricksAuthMethod, oauthMode?: Datab
         case "token":
             return "Personal access token";
         case "oauth":
-            return oauthMode === "m2m" ? "OAuth · service principal" : "OAuth · browser sign-in";
+            return oauthMode === "m2m" ? "OAuth · service principal" : "OAuth · user session";
         default:
             return "Not authenticated";
     }
@@ -255,13 +263,23 @@ export function DatabricksAuthCard({
                     <span>Workspace</span>
                     <b>{status?.host ?? "Not configured"}</b>
                 </div>
+                {(status?.userName || status?.user) && (
+                    <div className="auth-summary-row">
+                        <span>Signed-in user</span>
+                        <b>
+                            {status.userName
+                                ? `${status.userName}${status.userEmail ? ` (${status.userEmail})` : ""}`
+                                : status.user}
+                        </b>
+                    </div>
+                )}
                 <div className="auth-summary-row">
                     <span>Authentication</span>
                     <b>
                         {status?.connected
-                            ? authMethodLabel(status.authMethod, status.oauthMode)
+                            ? authMethodLabel(status.authMethod, status.oauthMode, status.isApp, status.hasUserToken)
                             : status?.configured
-                                ? authMethodLabel(status.authMethod, status.oauthMode)
+                                ? authMethodLabel(status.authMethod, status.oauthMode, status.isApp, status.hasUserToken)
                                 : "Add a CLI profile or token"}
                     </b>
                 </div>
@@ -434,7 +452,18 @@ export function DatabricksAuthModal({
                             <div>
                                 <b>Connected to {status?.host}</b>
                                 <span>
-                                    {status?.user ? `Signed in as ${status.user}` : "Workspace session active"}
+                                    {status?.userName
+                                        ? `Signed in as ${status.userName}${status.userEmail ? ` (${status.userEmail})` : ""}`
+                                        : status?.user
+                                            ? `Signed in as ${status.user}`
+                                            : status?.isApp
+                                                ? "Databricks Apps Session"
+                                                : "Workspace session active"}
+                                    {status?.isApp && (
+                                        <span style={{ marginLeft: 6, fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(39, 109, 96, 0.2)", color: "#276d60", fontWeight: 700 }}>
+                                            {status.hasUserToken ? "SSO · OBO User Auth" : "Databricks App"}
+                                        </span>
+                                    )}
                                     {status?.profile ? ` · profile ${status.profile}` : ""}
                                 </span>
                             </div>
@@ -447,16 +476,18 @@ export function DatabricksAuthModal({
                             </div>
                             <div>
                                 <span>Authentication</span>
-                                <b>{authMethodLabel(status?.authMethod, status?.oauthMode)}</b>
+                                <b>{authMethodLabel(status?.authMethod, status?.oauthMode, status?.isApp, status?.hasUserToken)}</b>
                             </div>
                             <div>
                                 <span>Token</span>
                                 <b>
-                                    {status?.tokenExpiresAt
-                                        ? `Expires ${expiryLabel(status.tokenExpiresAt)}`
-                                        : status?.authMethod === "cli"
-                                            ? "Managed by the Databricks CLI"
-                                            : "Static token (no expiry reported)"}
+                                    {status?.hasUserToken
+                                        ? "Forwarded User Token (Databricks Apps OBO)"
+                                        : status?.tokenExpiresAt
+                                            ? `Expires ${expiryLabel(status.tokenExpiresAt)}`
+                                            : status?.authMethod === "cli"
+                                                ? "Managed by the Databricks CLI"
+                                                : "Ambient Workspace Token"}
                                 </b>
                             </div>
                             <div>

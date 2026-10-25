@@ -452,6 +452,7 @@ export function DurableAgentConsole() {
                             onOpenPlatformMenu={() => setMenuOpen(true)}
                             onOpenSettings={() => setLocation("/console/settings")}
                             onOpenDatabricksModal={() => setAuthOpen(true)}
+                            dbxStatus={auth.status}
                         />
                     </Route>
                     <Route path="/console/runs">

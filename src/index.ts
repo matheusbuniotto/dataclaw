@@ -136,10 +136,18 @@ export {
     isDatabricksModelConfigured,
     normalizeBaseUrl,
     DATABRICKS_FOUNDATION_MODELS,
+    DATABRICKS_GATEWAY_ROUTES,
+    OPENROUTER_RECOMMENDED_MODELS,
+    resolveModelFallback,
+    listAvailableAiModels,
+    fetchRemoteRouterModels,
 } from "./config";
 export type {
     CustomModelConfig,
     DatabricksModelConfig,
     ResolvedModelConfig,
     ModelRegistryOptions,
+    ModelOptionInfo,
+    AvailableAiModelsResponse,
+    RemoteModelFetchOptions,
 } from "./config";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, PlugZap, Puzzle } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, FileText, Globe, PlugZap, Puzzle, ShieldCheck } from "lucide-react";
 import { DatabricksAuthCard, useDatabricksAuth } from "../components/DatabricksAuth";
 import type { WorkspaceSnapshot } from "../state/workspace-types";
 import type { PluginCheck, PluginsSummary } from "../api/plugins-api";
@@ -46,6 +46,255 @@ function DataSourcesCard({ agentId }: { agentId: string }) {
                         {provider.id} · {provider.kind}
                     </span>
                 ))}
+            </div>
+        </section>
+    );
+}
+
+function AiModelsCard({ currentModel }: { currentModel?: string }) {
+    const [aiInfo, setAiInfo] = useState<{
+        ok?: boolean;
+        current?: { provider: string; modelId: string };
+        fallback?: { model: { provider: string; modelId: string }; available: boolean; reason: string };
+        categories?: Array<{ id: string; name: string; description: string; models: Array<unknown> }>;
+    } | null>(null);
+
+    const [explorerOpen, setExplorerOpen] = useState(false);
+    const [baseUrl, setBaseUrl] = useState("https://openrouter.ai/api/v1");
+    const [apiKey, setApiKey] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [remoteModels, setRemoteModels] = useState<Array<{ id: string; name: string; reasoning?: boolean; description?: string }>>([]);
+    const [filterQuery, setFilterQuery] = useState("");
+
+    useEffect(() => {
+        let live = true;
+        fetch("/api/ai/models")
+            .then((res) => res.json())
+            .then((data) => {
+                if (live && data?.ok) setAiInfo(data);
+            })
+            .catch(() => undefined);
+        return () => { live = false; };
+    }, []);
+
+    const handleQueryEndpoint = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch("/api/ai/models/fetch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() || undefined }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const list = Array.isArray(data?.models) ? data.models : [];
+            setRemoteModels(list);
+            if (list.length === 0) {
+                setError("No models discovered at this endpoint. Check the base URL and API key.");
+            }
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fallback = aiInfo?.fallback;
+    const current = aiInfo?.current;
+    const filteredRemote = remoteModels.filter(
+        (m) =>
+            !filterQuery ||
+            m.id.toLowerCase().includes(filterQuery.toLowerCase()) ||
+            m.name.toLowerCase().includes(filterQuery.toLowerCase()),
+    );
+
+    return (
+        <section className="panel settings-card" style={{ borderLeft: "3px solid #10b981" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ margin: 0 }}>AI Models & Databricks Gateway Fallback</h3>
+                <span className="badge" style={{ fontSize: 10, background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 6px", borderRadius: 4 }}>
+                    Resilient Failover
+                </span>
+            </div>
+            <p style={{ marginTop: 6, marginBottom: 12 }}>
+                DataClaw supports OpenRouter (starting with OpenAI GPT-6 Luna), custom multi-model endpoints, and in-perimeter Databricks AI Gateway routes.
+            </p>
+
+            <div className="form-row">
+                <div>
+                    <label>Active Primary Model</label>
+                    <small>
+                        {current ? `${current.provider} / ${current.modelId}` : currentModel ?? "Resolving…"}
+                    </small>
+                </div>
+                <span className="chip">{current?.provider ?? "default"}</span>
+            </div>
+
+            <div className="form-row">
+                <div>
+                    <label>Databricks AI Gateway Fallback</label>
+                    <small>
+                        {fallback?.available
+                            ? `Active: fails over to ${fallback.model.provider} / ${fallback.model.modelId} if external router encounters rate limits or errors.`
+                            : "Primary model is already running within Databricks perimeter (Zero Data Egress)."}
+                    </small>
+                </div>
+                <span
+                    className="chip"
+                    style={{
+                        background: fallback?.available ? "rgba(16, 185, 129, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                        color: fallback?.available ? "#10b981" : "#3b82f6",
+                    }}
+                >
+                    {fallback?.available ? "Gateway Fallback Ready" : "In-Perimeter"}
+                </span>
+            </div>
+
+            {aiInfo?.categories && (
+                <div style={{ marginTop: 12 }}>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 6, color: "var(--app-text-muted)" }}>
+                        Configured Model Catalogs
+                    </label>
+                    <div className="data-chips">
+                        {aiInfo.categories.map((cat) => (
+                            <span className="chip" key={cat.id} title={cat.description}>
+                                {cat.name} ({cat.models.length})
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Base URL & Router Model Discovery */}
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--app-border, rgba(255,255,255,0.08))" }}>
+                <button
+                    type="button"
+                    onClick={() => setExplorerOpen(!explorerOpen)}
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--app-accent, #10b981)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        padding: 0,
+                    }}
+                >
+                    {explorerOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <Globe size={13} />
+                    <span>Test & Discover Models from Custom Router Endpoint</span>
+                </button>
+
+                {explorerOpen && (
+                    <div style={{ marginTop: 10, background: "var(--app-surface, rgba(0,0,0,0.2))", borderRadius: 8, padding: 12 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                            <input
+                                type="text"
+                                value={baseUrl}
+                                onChange={(e) => setBaseUrl(e.target.value)}
+                                placeholder="Base URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1)"
+                                style={{
+                                    flex: 2,
+                                    minWidth: 200,
+                                    padding: "6px 10px",
+                                    fontSize: 12,
+                                    borderRadius: 6,
+                                    border: "1px solid var(--app-border, rgba(255,255,255,0.12))",
+                                    background: "var(--app-bg, #0e121b)",
+                                    color: "var(--app-text, #f1f5f9)",
+                                    fontFamily: "monospace",
+                                }}
+                            />
+                            <input
+                                type="password"
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                placeholder="Optional API Key"
+                                style={{
+                                    flex: 1,
+                                    minWidth: 140,
+                                    padding: "6px 10px",
+                                    fontSize: 12,
+                                    borderRadius: 6,
+                                    border: "1px solid var(--app-border, rgba(255,255,255,0.12))",
+                                    background: "var(--app-bg, #0e121b)",
+                                    color: "var(--app-text, #f1f5f9)",
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={handleQueryEndpoint}
+                                disabled={loading}
+                                className="button primary"
+                                style={{
+                                    padding: "6px 14px",
+                                    fontSize: 12,
+                                    cursor: loading ? "wait" : "pointer",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {loading ? "Querying…" : "Discover Models"}
+                            </button>
+                        </div>
+
+                        {error && (
+                            <div style={{ fontSize: 11, color: "#ef4444", marginBottom: 8 }}>
+                                {error}
+                            </div>
+                        )}
+
+                        {remoteModels.length > 0 && (
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                    <span style={{ fontSize: 11, color: "var(--app-text-muted)" }}>
+                                        Discovered {remoteModels.length} models from endpoint:
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={filterQuery}
+                                        onChange={(e) => setFilterQuery(e.target.value)}
+                                        placeholder="Search by ID or name…"
+                                        style={{
+                                            padding: "3px 8px",
+                                            fontSize: 11,
+                                            borderRadius: 4,
+                                            border: "1px solid var(--app-border, rgba(255,255,255,0.1))",
+                                            background: "var(--app-bg, #0e121b)",
+                                            color: "var(--app-text, #f1f5f9)",
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                                    {filteredRemote.slice(0, 100).map((m) => (
+                                        <div
+                                            key={m.id}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                fontSize: 11,
+                                                padding: "4px 8px",
+                                                borderRadius: 4,
+                                                background: "rgba(255,255,255,0.03)",
+                                            }}
+                                        >
+                                            <span style={{ fontFamily: "monospace", color: "var(--app-text, #f1f5f9)" }}>{m.id}</span>
+                                            <span style={{ color: "var(--app-text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                                                {m.reasoning && <span title="Reasoning model">🧠</span>}
+                                                {m.name !== m.id ? m.name : ""}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </section>
     );
@@ -105,6 +354,8 @@ export function SettingsPage({
                             </button>
                         </div>
                     </section>
+
+                    <AiModelsCard currentModel={snapshot?.agent.model} />
 
                     <DataSourcesCard agentId={snapshot?.agent.id ?? "dataclaw"} />
 

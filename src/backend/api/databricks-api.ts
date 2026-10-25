@@ -51,6 +51,119 @@ interface LiveConnection {
     genieSpacesCount?: number;
 }
 
+export interface ForwardedUserContext {
+    user: string;
+    userName?: string;
+    userEmail?: string;
+    userInitials?: string;
+    userRole?: string;
+    userToken?: string;
+    capturedAt: number;
+}
+
+let activeForwardedUser: ForwardedUserContext | null = null;
+
+export function resetForwardedUser(): void {
+    activeForwardedUser = null;
+}
+
+export function getActiveForwardedUser(): ForwardedUserContext | null {
+    return activeForwardedUser;
+}
+
+export function getActiveForwardedToken(): string | undefined {
+    return activeForwardedUser?.userToken;
+}
+
+export function deriveDisplayName(identifier?: string): string | undefined {
+    if (!identifier) return undefined;
+    const clean = identifier.trim();
+    if (!clean) return undefined;
+    if (clean.includes("@")) {
+        const prefix = clean.split("@")[0] || "";
+        const parts = prefix.split(/[\.\-_\+]/).filter(Boolean);
+        if (parts.length > 0) {
+            return parts
+                .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+                .join(" ");
+        }
+    }
+    if (clean.includes(" ")) return clean;
+    if (clean.includes(".") || clean.includes("_")) {
+        return clean
+            .split(/[\._]/)
+            .filter(Boolean)
+            .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+            .join(" ");
+    }
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+export function deriveInitials(nameOrEmail?: string): string {
+    if (!nameOrEmail) return "DC";
+    const name = deriveDisplayName(nameOrEmail) ?? nameOrEmail.trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+        return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+    }
+    if (parts.length === 1 && parts[0]!.length >= 2) {
+        return parts[0]!.slice(0, 2).toUpperCase();
+    }
+    return (parts[0]?.[0] || "DC").toUpperCase();
+}
+
+/**
+ * Capture Databricks user identity and user OAuth access token forwarded by
+ * Databricks Apps reverse proxy headers:
+ * - X-Forwarded-Preferred-Username
+ * - X-Forwarded-Email
+ * - X-Forwarded-User
+ * - X-Forwarded-Access-Token (User OAuth token with requested user_api_scopes)
+ */
+export function captureForwardedUser(request?: Request): ForwardedUserContext | undefined {
+    if (!request) return activeForwardedUser ?? undefined;
+    const h = request.headers;
+
+    const forwardedPreferred = h.get("x-forwarded-preferred-username")?.trim();
+    const forwardedEmail = h.get("x-forwarded-email")?.trim();
+    const forwardedUser = h.get("x-forwarded-user")?.trim();
+    const rawToken = h.get("x-forwarded-access-token")?.trim() ||
+        (h.get("authorization")?.startsWith("Bearer ") ? h.get("authorization")?.slice(7).trim() : undefined);
+
+    const user = forwardedUser || forwardedEmail || forwardedPreferred;
+    if (!user && !rawToken) {
+        return activeForwardedUser ?? undefined;
+    }
+
+    const email = forwardedEmail || (forwardedUser?.includes("@") ? forwardedUser : undefined);
+    const userName = forwardedPreferred || deriveDisplayName(email || user);
+    const userInitials = deriveInitials(userName || email || user);
+    const appContext = resolveDatabricksAppContext();
+    const userRole = appContext.isApp ? "Databricks Analytics" : "Data & AI";
+
+    const resolvedUser = user || (email ? email : "databricks-user");
+
+    activeForwardedUser = {
+        user: resolvedUser,
+        userName,
+        userEmail: email,
+        userInitials,
+        userRole,
+        userToken: rawToken || undefined,
+        capturedAt: Date.now(),
+    };
+
+    if (connection) {
+        connection.user = resolvedUser;
+        if (rawToken) {
+            connection.authMethod = "oauth";
+            connection.oauthMode = "u2m";
+        }
+    }
+
+    return activeForwardedUser;
+}
+
 let connection: LiveConnection | null = null;
 let lastError: string | undefined;
 
@@ -101,7 +214,9 @@ async function getDatabricksCredentials(): Promise<{ host: string; token: string
     if (host) host = host.replace(/\/$/, "");
 
     let token: string | undefined;
-    if (connection?.oauthSession) {
+    if (activeForwardedUser?.userToken) {
+        token = activeForwardedUser.userToken;
+    } else if (connection?.oauthSession) {
         try {
             token = await connection.oauthSession.getAccessToken();
         } catch {
@@ -168,10 +283,20 @@ export function getMlflowStatus(): MlflowStatusSummary {
 }
 
 /** Serialize current auth/connection state for the console. Never includes a token. */
-export function getDatabricksUiStatus(): DatabricksUiStatus {
+export function getDatabricksUiStatus(request?: Request): DatabricksUiStatus {
+    if (request) {
+        captureForwardedUser(request);
+    }
     const profiles = listDatabricksProfiles();
     const appContext = resolveDatabricksAppContext();
     const mlflow = getMlflowStatus();
+
+    const currentUser = activeForwardedUser?.user ?? connection?.user;
+    const currentName = activeForwardedUser?.userName ?? (currentUser ? deriveDisplayName(currentUser) : undefined);
+    const currentEmail = activeForwardedUser?.userEmail ?? (currentUser?.includes("@") ? currentUser : undefined);
+    const currentInitials = activeForwardedUser?.userInitials ?? (currentName || currentUser ? deriveInitials(currentName || currentUser) : undefined);
+    const currentRole = activeForwardedUser?.userRole ?? (appContext.isApp ? "Databricks Analytics" : "Data & AI");
+    const hasUserToken = Boolean(activeForwardedUser?.userToken);
 
     if (connection) {
         return {
@@ -180,12 +305,17 @@ export function getDatabricksUiStatus(): DatabricksUiStatus {
             host: connection.host,
             mcpUrl: connection.mcpUrl,
             ...(connection.profile ? { profile: connection.profile } : {}),
-            authMethod: connection.authMethod,
-            ...(connection.oauthMode ? { oauthMode: connection.oauthMode } : {}),
+            authMethod: hasUserToken ? "oauth" : connection.authMethod,
+            ...(connection.oauthMode || (hasUserToken ? "u2m" : undefined) ? { oauthMode: hasUserToken ? "u2m" : connection.oauthMode } : {}),
             ...(connection.tokenExpiresAt ? { tokenExpiresAt: connection.tokenExpiresAt } : {}),
             ...(connection.warehouseId ? { warehouseId: connection.warehouseId } : {}),
             catalogs: connection.catalogs,
-            ...(connection.user ? { user: connection.user } : {}),
+            ...(currentUser ? { user: currentUser } : {}),
+            ...(currentName ? { userName: currentName } : {}),
+            ...(currentEmail ? { userEmail: currentEmail } : {}),
+            ...(currentInitials ? { userInitials: currentInitials } : {}),
+            userRole: currentRole,
+            hasUserToken,
             connectedAt: connection.connectedAt,
             profiles,
             defaultProfile: defaultProfile(),
@@ -211,6 +341,12 @@ export function getDatabricksUiStatus(): DatabricksUiStatus {
         ...(summary.tokenExpiresAt ? { tokenExpiresAt: summary.tokenExpiresAt } : {}),
         ...(summary.error || lastError ? { error: summary.error ?? lastError } : {}),
         catalogs: [],
+        ...(currentUser ? { user: currentUser } : {}),
+        ...(currentName ? { userName: currentName } : {}),
+        ...(currentEmail ? { userEmail: currentEmail } : {}),
+        ...(currentInitials ? { userInitials: currentInitials } : {}),
+        userRole: currentRole,
+        hasUserToken,
         profiles,
         defaultProfile: defaultProfile(),
         isApp: appContext.isApp,
@@ -243,7 +379,8 @@ async function establishConnection(
     },
 ): Promise<DatabricksUiStatus> {
     const catalogs = await adapter.listCatalogs().catch(() => [] as string[]);
-    const user = await probeUser(adapter);
+    const probed = await probeUser(adapter);
+    const user = activeForwardedUser?.user ?? probed;
 
     const previous = connection;
     connection = {
@@ -251,8 +388,8 @@ async function establishConnection(
         host: adapter.options.host ?? "",
         mcpUrl: adapter.options.mcpUrl ?? "",
         ...(adapter.options.profile ? { profile: adapter.options.profile } : {}),
-        authMethod: meta.authMethod,
-        ...(meta.oauthMode ? { oauthMode: meta.oauthMode } : {}),
+        authMethod: activeForwardedUser?.userToken ? "oauth" : meta.authMethod,
+        ...(meta.oauthMode || (activeForwardedUser?.userToken ? "u2m" : undefined) ? { oauthMode: activeForwardedUser?.userToken ? "u2m" : meta.oauthMode } : {}),
         ...(meta.oauthSession ? { oauthSession: meta.oauthSession } : {}),
         ...(adapter.options.warehouseId ? { warehouseId: adapter.options.warehouseId } : {}),
         catalogs,
@@ -366,6 +503,7 @@ export async function reconnectDatabricks(): Promise<DatabricksUiStatus> {
 export async function disconnectDatabricks(): Promise<DatabricksUiStatus> {
     const previous = connection;
     connection = null;
+    activeForwardedUser = null;
     publishDatabricksSession();
     if (previous) await previous.adapter.close().catch(() => { });
     return getDatabricksUiStatus();

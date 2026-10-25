@@ -5,6 +5,7 @@ import type {
     WorkspaceAgent,
     WorkspaceSkillInfo,
 } from "../state/workspace-types";
+import type { DatabricksUiStatus } from "../../backend/api/wire";
 import { AssistantTurnView, groupIntoTurns, type ChatTurn } from "../components/ChatComponents";
 import { STARTER_PROMPTS } from "../components/starters";
 import {
@@ -78,10 +79,25 @@ export interface UserProfile {
     avatarColor: string;
 }
 
+export function deriveInitials(nameOrEmail?: string): string {
+    if (!nameOrEmail) return "DC";
+    const clean = nameOrEmail.trim();
+    if (!clean) return "DC";
+    const name = clean.includes("@") ? clean.split("@")[0]! : clean;
+    const parts = name.split(/[\s\.\-_]+/).filter(Boolean);
+    if (parts.length >= 2) {
+        return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+    }
+    if (parts.length === 1 && parts[0]!.length >= 2) {
+        return parts[0]!.slice(0, 2).toUpperCase();
+    }
+    return (parts[0]?.[0] || "DC").toUpperCase();
+}
+
 const DEFAULT_USER_PROFILE: UserProfile = {
     name: "Workspace Member",
     role: "Data & AI",
-    initials: "WM",
+    initials: "DC",
     avatarColor: "#1d4ed8",
 };
 
@@ -91,10 +107,9 @@ export function loadUserProfile(): UserProfile {
         const raw = window.localStorage.getItem("dataclaw.userProfile");
         if (raw) {
             const parsed = JSON.parse(raw);
-            if (parsed.name === "Matheus" || parsed.name === "Matheus Buniotto") {
-                return DEFAULT_USER_PROFILE;
+            if (typeof parsed === "object" && parsed !== null) {
+                return { ...DEFAULT_USER_PROFILE, ...parsed };
             }
-            return { ...DEFAULT_USER_PROFILE, ...parsed };
         }
     } catch {}
     return DEFAULT_USER_PROFILE;
@@ -117,6 +132,7 @@ export function ProfileSettingsModal({
     onOpenSettings,
     theme = "classic",
     onSelectTheme,
+    dbxStatus,
 }: {
     isOpen: boolean;
     onClose: () => void;
@@ -127,6 +143,7 @@ export function ProfileSettingsModal({
     onOpenSettings?: () => void;
     theme?: "classic" | "dark" | "lovable";
     onSelectTheme?: (theme: "classic" | "dark") => void;
+    dbxStatus?: DatabricksUiStatus | null;
 }) {
     if (!isOpen) return null;
 
@@ -136,21 +153,14 @@ export function ProfileSettingsModal({
     const isDark = theme === "dark" || theme === "lovable";
 
     const derivedInitials = useMemo(() => {
-        return (
-            name
-                .trim()
-                .split(/\s+/)
-                .map((p) => p[0] ?? "")
-                .join("")
-                .slice(0, 2)
-                .toUpperCase() || "WM"
-        );
+        return deriveInitials(name) || "DC";
     }, [name]);
 
     const handleSave = () => {
+        const fallbackName = dbxStatus?.userName || dbxStatus?.user || "Workspace User";
         onSaveProfile({
-            name: name.trim() || "Workspace Member",
-            role: role.trim() || "Data & AI",
+            name: name.trim() || fallbackName,
+            role: role.trim() || (dbxStatus?.isApp ? "Databricks Analytics" : "Data & AI"),
             initials: derivedInitials,
             avatarColor,
         });
@@ -377,6 +387,56 @@ export function ProfileSettingsModal({
                                 {derivedInitials}
                             </div>
                             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                                {(dbxStatus?.userName || dbxStatus?.user) && (
+                                    <div
+                                        style={{
+                                            padding: "8px 10px",
+                                            borderRadius: 8,
+                                            background: isDark ? "rgba(39, 109, 96, 0.22)" : "rgba(39, 109, 96, 0.08)",
+                                            border: isDark ? "1px solid rgba(39, 109, 96, 0.4)" : "1px solid rgba(39, 109, 96, 0.25)",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 8,
+                                            marginBottom: 4,
+                                        }}
+                                    >
+                                        <div style={{ minWidth: 0, overflow: "hidden" }}>
+                                            <div style={{ fontSize: 10, fontWeight: 700, color: isDark ? "#4ade80" : "#1b5e50", display: "flex", alignItems: "center", gap: 4 }}>
+                                                <span>Databricks SSO</span>
+                                                {dbxStatus.hasUserToken && (
+                                                    <span style={{ fontSize: 8.5, padding: "1px 4px", borderRadius: 3, background: "rgba(39,109,96,0.35)", color: isDark ? "#86efac" : "#166534" }}>
+                                                        OBO Auth
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: isDark ? "#f1f3f7" : "#203a37", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                {dbxStatus.userName || dbxStatus.user}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const nextName = dbxStatus.userName || dbxStatus.user || "";
+                                                setName(nextName);
+                                                setRole(dbxStatus.userRole || (dbxStatus.isApp ? "Databricks Analytics" : "Data & AI"));
+                                            }}
+                                            style={{
+                                                fontSize: 10,
+                                                fontWeight: 600,
+                                                padding: "4px 8px",
+                                                borderRadius: 6,
+                                                border: "none",
+                                                background: isDark ? "#276d60" : "#276d60",
+                                                color: "#ffffff",
+                                                cursor: "pointer",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            Sync
+                                        </button>
+                                    </div>
+                                )}
                                 <div>
                                     <label
                                         style={{
@@ -1345,6 +1405,7 @@ export function AgentsPage({
     onOpenSettings,
     onOpenDatabricksModal,
     onToggleOps,
+    dbxStatus,
 }: {
     snapshot?: WorkspaceSnapshot | null;
     agents: WorkspaceAgent[];
@@ -1363,6 +1424,7 @@ export function AgentsPage({
     onOpenSettings?: () => void;
     onOpenDatabricksModal?: () => void;
     onToggleOps?: () => void;
+    dbxStatus?: DatabricksUiStatus | null;
 }) {
     const [inspectionOpen, setInspectionOpen] = useState(false);
     const [view, setView] = useState<'chat' | 'team'>('chat');
@@ -1380,6 +1442,29 @@ export function AgentsPage({
         loadAgentCustomizations
     );
     const [userProfile, setUserProfile] = useState<UserProfile>(loadUserProfile);
+
+    // Sync logged user identity from Databricks when running in Databricks Apps or connected
+    useEffect(() => {
+        if (!dbxStatus?.userName && !dbxStatus?.user) return;
+        const databricksName = dbxStatus.userName || dbxStatus.user!;
+        const databricksInitials = dbxStatus.userInitials || deriveInitials(databricksName);
+        const databricksRole = dbxStatus.userRole || (dbxStatus.isApp ? "Databricks Analytics" : "Data & AI");
+
+        setUserProfile((prev) => {
+            const isPlaceholder = !prev.name || prev.name === "Workspace Member";
+            const customSaved = typeof window !== "undefined" && window.localStorage.getItem("dataclaw.userProfile.custom");
+            if (isPlaceholder || !customSaved) {
+                return {
+                    ...prev,
+                    name: databricksName,
+                    initials: databricksInitials,
+                    role: databricksRole,
+                };
+            }
+            return prev;
+        });
+    }, [dbxStatus?.userName, dbxStatus?.user, dbxStatus?.userInitials, dbxStatus?.userRole, dbxStatus?.isApp]);
+
     const [profileModalOpen, setProfileModalOpen] = useState(false);
     const [theme, setTheme] = useState<"classic" | "dark">(() => {
         if (typeof window !== "undefined") {
@@ -1857,6 +1942,7 @@ export function AgentsPage({
         compute?: { kind: "shared" | "local" | "docker"; image?: string; network?: "none" | "bridge" };
         skills?: string[];
         initialTask?: string;
+        model?: string;
     }) => {
         const cleanId =
             newAgentData.name
@@ -1878,6 +1964,7 @@ export function AgentsPage({
             skills: newAgentData.skills,
             initialTask: newAgentData.initialTask,
             createdAt: Date.now(),
+            model: newAgentData.model,
         };
 
         const updated = saveCustomAgent(record);
@@ -1893,6 +1980,7 @@ export function AgentsPage({
             capabilities: newAgentData.capabilities,
             compute: newAgentData.compute?.kind,
             skills: newAgentData.skills,
+            model: newAgentData.model,
         });
         setCustomizations(loadAgentCustomizations());
 
@@ -1910,10 +1998,11 @@ export function AgentsPage({
         const skillsStr = newAgentData.skills && newAgentData.skills.length > 0
             ? ` skills: [${newAgentData.skills.map((s) => `"${s}"`).join(", ")}]`
             : "";
+        const modelStr = newAgentData.model ? ` model: "${newAgentData.model}"` : "";
 
         const directive = newAgentData.initialTask
-            ? `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${instrStr}${skillsStr} Set up their workspace and run kickoff task: "${newAgentData.initialTask}".`
-            : `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${instrStr}${skillsStr} Set up their workspace.`;
+            ? `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${modelStr}${instrStr}${skillsStr} Set up their workspace and run kickoff task: "${newAgentData.initialTask}".`
+            : `Create a specialist agent named "${cleanId}" (Role: ${newAgentData.role}) with purpose: "${newAgentData.description}".${capsStr}${computeStr}${modelStr}${instrStr}${skillsStr} Set up their workspace.`;
         ask(directive);
         setScreenLogs((prev) => [
             ...prev,
@@ -2370,20 +2459,22 @@ export function AgentsPage({
                                     flexShrink: 0,
                                 }}
                             >
-                                {userProfile.initials || "WM"}
+                                {userProfile.initials || dbxStatus?.userInitials || "DC"}
                             </div>
-                            <span
-                                style={{
-                                    fontSize: 12.5,
-                                    fontWeight: 600,
-                                    color: t.textPrimary,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                }}
-                            >
-                                {userProfile.name || "Workspace Member"}
-                            </span>
+                            <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+                                <span
+                                    style={{
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                        color: t.textPrimary,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                    }}
+                                >
+                                    {userProfile.name || dbxStatus?.userName || dbxStatus?.user || "Databricks User"}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Right: Theme Toggle + Settings Icon (no blue arrow!) */}
@@ -2787,25 +2878,25 @@ export function AgentsPage({
                                     return (
                                         <div className="chat-msg chat-user" key={turn.id}>
                                             <div className="chat-bubble">
-                                                {toneBadge && (
-                                                    <div
-                                                        style={{
-                                                            fontSize: 10,
-                                                            fontWeight: 700,
-                                                            letterSpacing: "0.4px",
-                                                            opacity: 0.9,
-                                                            marginBottom: 5,
-                                                            display: "inline-flex",
-                                                            alignItems: "center",
-                                                            gap: 4,
-                                                            padding: "1px 7px",
-                                                            borderRadius: 999,
-                                                            background: "rgba(255, 255, 255, 0.16)",
-                                                        }}
-                                                    >
-                                                        <span>{toneBadge}</span>
-                                                    </div>
-                                                )}
+                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginBottom: 4 }}>
+                                                    <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.85 }}>
+                                                        {userProfile.name || dbxStatus?.userName || dbxStatus?.user || "You"}
+                                                    </span>
+                                                    {toneBadge && (
+                                                        <div
+                                                            style={{
+                                                                fontSize: 9.5,
+                                                                fontWeight: 600,
+                                                                letterSpacing: "0.3px",
+                                                                padding: "1px 6px",
+                                                                borderRadius: 999,
+                                                                background: "rgba(255, 255, 255, 0.2)",
+                                                            }}
+                                                        >
+                                                            <span>{toneBadge}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <div className="chat-user-text">
                                                     {displayUserText}
                                                 </div>
@@ -4254,12 +4345,16 @@ export function AgentsPage({
                 onSaveProfile={(p) => {
                     setUserProfile(p);
                     saveUserProfile(p);
+                    if (typeof window !== "undefined") {
+                        window.localStorage.setItem("dataclaw.userProfile.custom", "true");
+                    }
                 }}
                 ops={ops}
                 onToggleOps={onToggleOps}
                 onOpenSettings={onOpenSettings}
                 theme={theme}
                 onSelectTheme={toggleTheme}
+                dbxStatus={dbxStatus}
             />
 
             {/* Workspace & Lakehouse Inspector Drawer */}
