@@ -15,6 +15,11 @@ resources:
       name: dataclaw
       source_code_path: .
       description: "DataClaw: Crash-resilient data analytics agent console with Pi Durable SQLite WAL"
+      user_api_scopes:
+        - "sql"
+        - "files"
+        - "model-serving"
+        - "genie"
 
 targets:
   dev:

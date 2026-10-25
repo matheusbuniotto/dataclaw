@@ -355,7 +355,7 @@ export async function fetchRemoteRouterModels(
                 ? data.models
                 : [];
 
-        const provider = options.provider || (rawUrl.includes("openrouter") ? "openrouter" : "custom");
+        const provider = options.provider || (resolvedUrl.includes("openrouter") ? "openrouter" : "custom");
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const models: ModelOptionInfo[] = list

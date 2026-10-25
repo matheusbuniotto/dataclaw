@@ -20,6 +20,7 @@ import {
 } from "./capabilities-api";
 import {
     cancelBrowserOAuth,
+    captureForwardedUser,
     connectDatabricks,
     disconnectDatabricks,
     getDatabricksUiStatus,
@@ -225,7 +226,29 @@ export const routes: RouteTable = {
     },
 
     "/api/databricks/status": {
-        GET: { run: () => getDatabricksUiStatus() },
+        GET: {
+            input: (request) => request,
+            run: (request?: Request) => getDatabricksUiStatus(request),
+        },
+    },
+    "/api/auth/me": {
+        GET: {
+            input: (request) => request,
+            run: (request?: Request) => {
+                const status = getDatabricksUiStatus(request);
+                return {
+                    user: status.user,
+                    name: status.userName,
+                    email: status.userEmail,
+                    initials: status.userInitials,
+                    role: status.userRole,
+                    hasUserToken: status.hasUserToken,
+                    isApp: status.isApp,
+                    connected: status.connected,
+                    host: status.host,
+                };
+            },
+        },
     },
     "/api/databricks/connect": {
         POST: {
@@ -342,6 +365,7 @@ export async function respond(run: () => unknown): Promise<Response> {
 
 /** Read the request through the route's declared input, then run its one domain function. */
 export async function handle(request: Request): Promise<Response> {
+    captureForwardedUser(request);
     const { pathname } = new URL(request.url);
     const methods = routes[pathname];
     if (!methods) return respond(() => { throw new NotFoundError(`No route for ${pathname}`) });
