@@ -139,6 +139,21 @@ describe("the route table is data, not a listener", () => {
         const cancelled = await answer("POST", "/api/databricks/oauth/cancel");
         expect(cancelled.body).toMatchObject({ ok: true, state: "idle" });
 
+        const genie = await answer("GET", "/api/databricks/genie/spaces");
+        expect(genie.status).toBe(200);
+        expect(genie.body.ok).toBe(true);
+        expect(Array.isArray(genie.body.spaces)).toBe(true);
+
+        const conns = await answer("GET", "/api/databricks/connections");
+        expect(conns.status).toBe(200);
+        expect(conns.body.ok).toBe(true);
+        expect(Array.isArray(conns.body.connections)).toBe(true);
+
+        const mlflow = await answer("GET", "/api/databricks/mlflow/status");
+        expect(mlflow.status).toBe(200);
+        expect(mlflow.body.ok).toBe(true);
+        expect(typeof mlflow.body.enabled).toBe("boolean");
+
         const obs = await answer("GET", "/api/observability");
         expect(obs.status).toBe(200);
         expect(obs.body.evals).toBeDefined();

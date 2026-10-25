@@ -9,8 +9,11 @@ import { DatabricksDataAdapter } from "../../adapters/databricks-adapter";
 import {
     describeDatabricksConfig,
     listDatabricksProfiles,
+    resolveDatabricksConfig,
 } from "../../mcp/databricks-config";
 import { resolveDatabricksAppContext } from "../../mcp/databricks-env";
+import { DatabricksGenieClient } from "../../mcp/databricks-genie";
+import { DatabricksConnectionsClient } from "../../mcp/databricks-connections";
 import {
     buildAuthorizeUrl,
     DatabricksOAuthError,
@@ -26,6 +29,9 @@ import {
     type DatabricksOAuthFlow,
     type DatabricksOAuthMode,
     type DatabricksUiStatus,
+    type GenieSpaceSummary,
+    type LakehouseConnectionSummary,
+    type MlflowStatusSummary,
 } from "./wire";
 
 interface LiveConnection {
@@ -41,6 +47,8 @@ interface LiveConnection {
     user?: string;
     connectedAt: number;
     tokenExpiresAt?: number;
+    connectionsCount?: number;
+    genieSpacesCount?: number;
 }
 
 let connection: LiveConnection | null = null;
@@ -86,10 +94,84 @@ function errorText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
+/** Resolve credentials for Databricks platform APIs (Genie, Connections, MLflow). */
+async function getDatabricksCredentials(): Promise<{ host: string; token: string } | null> {
+    const appContext = resolveDatabricksAppContext();
+    let host = connection?.host ?? appContext.host ?? process.env.DATABRICKS_HOST;
+    if (host) host = host.replace(/\/$/, "");
+
+    let token: string | undefined;
+    if (connection?.oauthSession) {
+        try {
+            token = await connection.oauthSession.getAccessToken();
+        } catch {
+            token = undefined;
+        }
+    }
+    if (!token) {
+        token = appContext.token ?? process.env.DATABRICKS_TOKEN;
+    }
+
+    if (!host || !token) return null;
+    return { host, token };
+}
+
+/** Lists curated Databricks AI/BI Genie Spaces available in the workspace. */
+export async function listGenieSpaces(): Promise<GenieSpaceSummary[]> {
+    const creds = await getDatabricksCredentials();
+    if (!creds) return [];
+    try {
+        const client = new DatabricksGenieClient(creds);
+        const spaces = await client.listSpaces();
+        return spaces.map((s) => ({
+            spaceId: String(s.spaceId),
+            title: s.title,
+            description: s.description,
+            warehouseId: s.warehouseId,
+        }));
+    } catch {
+        return [];
+    }
+}
+
+/** Lists Lakehouse Federation connections (e.g. Postgres, Snowflake, BigQuery) registered in Unity Catalog. */
+export async function listDatabricksConnections(): Promise<LakehouseConnectionSummary[]> {
+    const creds = await getDatabricksCredentials();
+    if (!creds) return [];
+    try {
+        const client = new DatabricksConnectionsClient(creds);
+        const conns = await client.listConnections();
+        return conns.map((c) => ({
+            name: String(c.name),
+            connectionType: c.connectionType,
+            comment: c.comment,
+            host: c.host,
+        }));
+    } catch {
+        return [];
+    }
+}
+
+/** Reports Databricks MLflow tracking and experiment status. */
+export function getMlflowStatus(): MlflowStatusSummary {
+    const appContext = resolveDatabricksAppContext();
+    const host = connection?.host || appContext.host || process.env.DATABRICKS_HOST || describeDatabricksConfig().host;
+    const experimentPath = process.env.DATABRICKS_EXPERIMENT_PATH || "/Shared/dataclaw-evals";
+    const hasCreds = Boolean(
+        host && (connection || process.env.DATABRICKS_TOKEN || appContext.token || describeDatabricksConfig().configured),
+    );
+    return {
+        enabled: hasCreds,
+        experimentPath: hasCreds ? experimentPath : undefined,
+        host: hasCreds ? host : undefined,
+    };
+}
+
 /** Serialize current auth/connection state for the console. Never includes a token. */
 export function getDatabricksUiStatus(): DatabricksUiStatus {
     const profiles = listDatabricksProfiles();
     const appContext = resolveDatabricksAppContext();
+    const mlflow = getMlflowStatus();
 
     if (connection) {
         return {
@@ -111,6 +193,10 @@ export function getDatabricksUiStatus(): DatabricksUiStatus {
             appId: appContext.appId,
             appName: appContext.appName,
             hasLakePostgres: appContext.hasLakePostgres,
+            connectionsCount: connection.connectionsCount,
+            genieSpacesCount: connection.genieSpacesCount,
+            mlflowExperiment: mlflow.experimentPath,
+            mlflowEnabled: mlflow.enabled,
         };
     }
 
@@ -131,6 +217,8 @@ export function getDatabricksUiStatus(): DatabricksUiStatus {
         appId: appContext.appId,
         appName: appContext.appName,
         hasLakePostgres: appContext.hasLakePostgres,
+        mlflowExperiment: mlflow.experimentPath,
+        mlflowEnabled: mlflow.enabled,
     };
 }
 

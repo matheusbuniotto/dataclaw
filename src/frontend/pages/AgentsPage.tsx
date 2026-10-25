@@ -627,7 +627,6 @@ export function ProfileSettingsModal({
 // Specialist Avatar Component (Expressive dot-eyes or icon)
 // ============================================================================
 export type SpecialistMood = "normal" | "sharp" | "thinking" | "verified" | "alert";
-export type GrokbotMood = SpecialistMood;
 
 export function SpecialistFaceAvatar({
     name,
@@ -911,8 +910,6 @@ export function SpecialistFaceAvatar({
     );
 }
 
-export const GrokbotAvatar = SpecialistFaceAvatar;
-
 // ============================================================================
 // Specialist Quick Action Pills Configuration
 // ============================================================================
@@ -923,7 +920,6 @@ export interface SpecialistQuickAction {
     prompt: string;
     description: string;
 }
-export type GrokQuickAction = SpecialistQuickAction;
 
 export const SPECIALIST_QUICK_ACTIONS: SpecialistQuickAction[] = [
     {
@@ -969,7 +965,6 @@ export const SPECIALIST_QUICK_ACTIONS: SpecialistQuickAction[] = [
         description: "High-level summary with key decisions and risks",
     },
 ];
-export const GROK_QUICK_ACTIONS = SPECIALIST_QUICK_ACTIONS;
 
 // ============================================================================
 // Routine definition & defaults
@@ -1015,7 +1010,6 @@ export interface ExecutionOutcomeItem {
     status?: "done" | "flag" | "info";
     tag?: string;
 }
-export type GrokOutcomeItem = ExecutionOutcomeItem;
 
 export function extractTurnOutcomes(turn: ChatTurn): ExecutionOutcomeItem[] {
     const text = (turn.assistantText || "").toLowerCase();
@@ -1276,8 +1270,6 @@ export function ExecutionOutcomeCard({
         </div>
     );
 }
-
-export const GrokOutcomeCard = ExecutionOutcomeCard;
 
 function detectApprovalCard(turn: ChatTurn): StatisticalApprovalPayload | null {
     const text = (turn.assistantText || "").toLowerCase();

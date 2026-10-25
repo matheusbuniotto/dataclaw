@@ -84,8 +84,8 @@ export function Overview({
             <div className="platform-highlights-bar">
                 <div className="highlight-pill">
                     <Database size={13} style={{ color: "var(--green, #10b981)" }} />
-                    <span>Data Engine:</span>
-                    <b>DuckDB + Databricks MCP (Read-Only AST Scan)</b>
+                    <span>Lakehouse Engine:</span>
+                    <b>Unity Catalog MCP + Serverless SQL</b>
                 </div>
                 <div className="highlight-pill">
                     <ShieldCheck size={13} style={{ color: "var(--indigo, #6366f1)" }} />
@@ -94,13 +94,13 @@ export function Overview({
                 </div>
                 <div className="highlight-pill">
                     <Workflow size={13} style={{ color: "#ff5e57" }} />
-                    <span>Crash Resiliency:</span>
-                    <b>Pi Durable SQLite WAL Checkpoints</b>
+                    <span>Databricks Suite:</span>
+                    <b>MLflow · Genie · system.ai · Federation</b>
                 </div>
                 <div className="highlight-pill">
                     <Sparkles size={13} style={{ color: "var(--amber, #f59e0b)" }} />
-                    <span>Observability:</span>
-                    <b>LangWatch OpenTelemetry Pipeline</b>
+                    <span>Resilience:</span>
+                    <b>Pi Durable Checkpoints & Zero Egress</b>
                 </div>
             </div>
 

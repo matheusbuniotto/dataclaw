@@ -480,6 +480,58 @@ function databricksSources(): DataSource[] {
             runs: [],
         });
     }
+
+    if (status.hasLakePostgres) {
+        sources.push({
+            id: "lakehouse:postgres",
+            name: "Lakehouse App DB",
+            type: "Lakehouse PostgreSQL",
+            status: "Connected",
+            freshness: "Live",
+            records: "App Database",
+            agents: [MAIN_AGENT_NAME],
+            runs: [],
+        });
+    }
+
+    if (status.genieSpacesCount !== undefined && status.genieSpacesCount > 0) {
+        sources.push({
+            id: "databricks:genie",
+            name: "AI/BI Genie",
+            type: "Databricks Semantic Layer",
+            status: "Connected",
+            freshness: "Live",
+            records: `${status.genieSpacesCount} certified space(s)`,
+            agents: [MAIN_AGENT_NAME],
+            runs: [],
+        });
+    }
+
+    if (status.connectionsCount !== undefined && status.connectionsCount > 0) {
+        sources.push({
+            id: "lakehouse:federation",
+            name: "Lakehouse Federation",
+            type: "Federated Connections",
+            status: "Connected",
+            freshness: "Live",
+            records: `${status.connectionsCount} foreign connection(s)`,
+            agents: [MAIN_AGENT_NAME],
+            runs: [],
+        });
+    }
+
+    if (status.mlflowEnabled) {
+        sources.push({
+            id: "databricks:mlflow",
+            name: "MLflow Tracking",
+            type: "MLflow Experiments & Evals",
+            status: "Connected",
+            freshness: "Live",
+            records: status.mlflowExperiment || "/Shared/dataclaw-evals",
+            agents: [MAIN_AGENT_NAME],
+            runs: [],
+        });
+    }
     return sources;
 }
 

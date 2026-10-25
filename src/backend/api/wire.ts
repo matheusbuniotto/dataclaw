@@ -97,6 +97,28 @@ export interface DatabricksUiStatus {
     hasLakePostgres?: boolean;
     connectionsCount?: number;
     genieSpacesCount?: number;
+    mlflowExperiment?: string;
+    mlflowEnabled?: boolean;
+}
+
+export interface GenieSpaceSummary {
+    spaceId: string;
+    title: string;
+    description?: string;
+    warehouseId?: string;
+}
+
+export interface LakehouseConnectionSummary {
+    name: string;
+    connectionType: string;
+    comment?: string;
+    host?: string;
+}
+
+export interface MlflowStatusSummary {
+    enabled: boolean;
+    experimentPath?: string;
+    host?: string;
 }
 
 /** What the auth panel posts to connect: a CLI profile, a host, a PAT, and/or client credentials. */

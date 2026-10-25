@@ -38,11 +38,12 @@ fi
 echo "Validating Databricks Asset Bundle..."
 databricks bundle validate -t "${TARGET}" --profile "${PROFILE}"
 
-echo "Deploying application to Databricks Apps..."
-databricks apps deploy -t "${TARGET}" --profile "${PROFILE}"
+echo "Deploying application to Databricks Apps via Asset Bundle..."
+databricks bundle deploy -t "${TARGET}" --profile "${PROFILE}"
 
 echo ""
 echo "=========================================================="
 echo "  ✓ DataClaw deployment initiated successfully!"
+echo "  Target: dev/prod app running on Databricks Apps"
 echo "  View status with: databricks apps get ${APP_NAME} --profile ${PROFILE}"
 echo "=========================================================="
