@@ -23,7 +23,10 @@ import {
     connectDatabricks,
     disconnectDatabricks,
     getDatabricksUiStatus,
+    getMlflowStatus,
     getOAuthFlow,
+    listDatabricksConnections,
+    listGenieSpaces,
     reconnectDatabricks,
     startBrowserOAuth,
 } from "./databricks-api";
@@ -260,6 +263,15 @@ export const routes: RouteTable = {
                 return getOAuthFlow();
             },
         },
+    },
+    "/api/databricks/genie/spaces": {
+        GET: { run: async () => ({ spaces: await listGenieSpaces() }) },
+    },
+    "/api/databricks/connections": {
+        GET: { run: async () => ({ connections: await listDatabricksConnections() }) },
+    },
+    "/api/databricks/mlflow/status": {
+        GET: { run: () => getMlflowStatus() },
     },
 };
 

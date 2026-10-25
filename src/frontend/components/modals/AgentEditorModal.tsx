@@ -62,6 +62,58 @@ export interface SpecialistArchetype {
 
 export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
     {
+        id: "lakehouse_architect",
+        role: "lakehouse_architect",
+        title: "Lakehouse Scout & Architect",
+        tagline: "Unity Catalog, Lineage & Federation",
+        description: "Explores catalogs, schemas, tables, and federated external databases across the lakehouse.",
+        color: "#ff3621",
+        icon: "database",
+        capabilities: ["databricks", "analyst", "data", "plugins"],
+        compute: { kind: "local" },
+        instructions:
+            "You are a Databricks Lakehouse Scout & Architect for DataClaw.\nExplore Unity Catalog metastores, schemas, and table lineage. Discover Lakehouse Federation connections (Postgres, Snowflake, BigQuery) and profile tabular distributions.\nInspect column nullability, distinct counts, and statistics before making claims.",
+    },
+    {
+        id: "delta_sql_optimizer",
+        role: "delta_sql_optimizer",
+        title: "Delta Lake & SQL Optimizer",
+        tagline: "Liquid Clustering & Query Tuning",
+        description: "Crafts high-performance Delta queries, advises on Z-Ordering, partitioning, and liquid clustering.",
+        color: "#0284c7",
+        icon: "sparkles",
+        capabilities: ["databricks", "analyst", "data", "coding"],
+        compute: { kind: "local" },
+        instructions:
+            "You are a Delta Lake & SQL Optimization Specialist for DataClaw.\nWrite performant, idiomatic Databricks SQL queries utilizing Unity Catalog features, liquid clustering, and partition pruning.\nLeverage native Databricks functions (corr, percentile_approx, system.ai functions) and never issue mutating SQL commands.",
+    },
+    {
+        id: "genie_semantic",
+        role: "genie_semantic",
+        title: "AI/BI Genie Partner",
+        tagline: "Certified KPIs & Semantic Layer",
+        description: "Consults Databricks Genie spaces, retrieves certified KPI queries, and verifies business metrics.",
+        color: "#a855f7",
+        icon: "workflow",
+        capabilities: ["databricks", "analyst", "data"],
+        compute: { kind: "local" },
+        instructions:
+            "You are an AI/BI Genie Partner for DataClaw.\nConsult curated Databricks Genie spaces to extract certified business logic, metric definitions, and gold-standard queries.\nCross-check user KPI questions against enterprise semantic definitions before formulating ad-hoc SQL.",
+    },
+    {
+        id: "mlflow_evaluator",
+        role: "mlflow_evaluator",
+        title: "MLflow & Eval Engineer",
+        tagline: "Experiments, Traces & Benchmark Gates",
+        description: "Tracks experiment runs, logs statistical scores to MLflow, and benchmarks agent and LLM quality.",
+        color: "#059669",
+        icon: "shield",
+        capabilities: ["databricks", "analyst", "coding", "plugins"],
+        compute: { kind: "local" },
+        instructions:
+            "You are an MLflow & Eval Engineer for DataClaw.\nEvaluate agent analytical quality, detect stuck loops, measure statistical power, and log benchmark scores and experiment artifacts to Databricks MLflow tracking server.\nEnsure reproducible evaluation runs with git commit hashes and model metadata.",
+    },
+    {
         id: "data_scientist",
         role: "data_scientist",
         title: "Data Scientist",
@@ -69,7 +121,7 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
         description: "Conducts exploratory data analysis, hypothesis testing, and statistical modeling.",
         color: "#8b5cf6",
         icon: "brain",
-        capabilities: ["analyst", "data", "coding", "plugins"],
+        capabilities: ["databricks", "analyst", "data", "coding", "plugins"],
         compute: { kind: "local" },
         instructions:
             "You are a Data Scientist for DataClaw. Conduct rigorous exploratory data analysis, hypothesis testing, and statistical evaluations.\nFormulate testable hypotheses, examine distributions, detect anomalies and confounders (such as Simpson's Paradox or cohort biases), and write Python or SQL scripts in your workspace to model patterns.\nValidate assumptions against observed data before drawing causal or predictive conclusions. Provide reproducible code and clear analytical summaries.",
@@ -155,6 +207,11 @@ export const SPECIALIST_ARCHETYPES: SpecialistArchetype[] = [
 ];
 
 export const AVAILABLE_CAPABILITY_OPTIONS = [
+    {
+        id: "databricks",
+        label: "Databricks Lakehouse",
+        description: "Unity Catalog MCP, Genie Spaces, system.ai SQL functions, MLflow evals & Lakehouse Federation",
+    },
     {
         id: "data",
         label: "Data Sources",
