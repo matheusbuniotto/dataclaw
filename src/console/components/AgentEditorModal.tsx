@@ -3,6 +3,8 @@ import {
     Bot,
     BrainCircuit,
     Check,
+    ChevronDown,
+    ChevronRight,
     Cpu,
     Database,
     Layers,
@@ -262,14 +264,57 @@ export function deleteCustomAgent(agentId: string): CustomAgentRecord[] {
     }
 }
 
+function resolveIsDark(explicitDark?: boolean): boolean {
+    if (explicitDark !== undefined) return explicitDark;
+    if (typeof document !== "undefined") {
+        return (
+            document.documentElement.classList.contains("theme-lovable") ||
+            document.documentElement.getAttribute("data-theme") === "lovable" ||
+            document.documentElement.getAttribute("data-theme") === "dark"
+        );
+    }
+    return false;
+}
+
+function getModalTheme(isDark: boolean) {
+    return {
+        isDark,
+        backdrop: isDark ? "rgba(0, 0, 0, 0.72)" : "rgba(15, 23, 42, 0.45)",
+        bg: isDark ? "#10141d" : "#ffffff",
+        headerBg: isDark ? "#141924" : "#fbf9f5",
+        cardBg: isDark ? "#151a26" : "#f8f6f0",
+        cardBorder: isDark ? "rgba(255, 255, 255, 0.08)" : "#e6e2d8",
+        border: isDark ? "rgba(255, 255, 255, 0.1)" : "#e2ded4",
+        borderSubtle: isDark ? "rgba(255, 255, 255, 0.05)" : "#ece8de",
+        textPrimary: isDark ? "#f1f5f9" : "#1e293b",
+        textSecondary: isDark ? "#94a3b8" : "#475569",
+        textMuted: isDark ? "#64748b" : "#6b7c75",
+        inputBg: isDark ? "#161c28" : "#ffffff",
+        inputBorder: isDark ? "rgba(255, 255, 255, 0.12)" : "#d8d4c7",
+        inputFocusBorder: isDark ? "#10b981" : "#276d60",
+        accent: isDark ? "#10b981" : "#276d60",
+        accentHover: isDark ? "#059669" : "#1f584e",
+        accentSubtle: isDark ? "rgba(16, 185, 129, 0.12)" : "#eef6f2",
+        accentText: isDark ? "#34d399" : "#1f584e",
+        activePillBg: isDark ? "rgba(16, 185, 129, 0.15)" : "#e0ece5",
+        activePillText: isDark ? "#34d399" : "#226353",
+        shadow: isDark
+            ? "0 24px 48px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)"
+            : "0 24px 48px -12px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06)",
+        footerBg: isDark ? "#121721" : "#faf9f5",
+        hoverBg: isDark ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.03)",
+    };
+}
+
 // ============================================================================
-// Modal to Edit an Existing Agent
+// Modal to Customize an Existing Specialist Teammate
 // ============================================================================
 export function AgentEditorModal({
     agent,
     isOpen,
     onClose,
     onSave,
+    isDark,
 }: {
     agent: {
         id: string;
@@ -282,7 +327,11 @@ export function AgentEditorModal({
     isOpen: boolean;
     onClose: () => void;
     onSave: (customization: AgentCustomization) => void;
+    isDark?: boolean;
 }) {
+    const isDarkMode = resolveIsDark(isDark);
+    const theme = getModalTheme(isDarkMode);
+
     const [name, setName] = useState(agent.name);
     const [role, setRole] = useState(agent.role || "Specialist");
     const [description, setDescription] = useState(agent.description);
@@ -308,9 +357,9 @@ export function AgentEditorModal({
             style={{
                 position: "fixed",
                 inset: 0,
-                background: "rgba(23, 40, 36, 0.45)",
-                backdropFilter: "blur(6px)",
-                WebkitBackdropFilter: "blur(6px)",
+                background: theme.backdrop,
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -323,24 +372,23 @@ export function AgentEditorModal({
         >
             <div
                 style={{
-                    background: "#fffdf8",
-                    border: "1px solid #e1ddd2",
-                    borderRadius: 18,
+                    background: theme.bg,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 16,
                     width: "100%",
                     maxWidth: 480,
-                    boxShadow: "0 20px 40px rgba(23, 61, 59, 0.18)",
+                    boxShadow: theme.shadow,
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
-                    animation: "modalFadeIn 0.2s ease-out",
-                    fontFamily:
-                        "var(--app-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
-                    color: "#203a37",
+                    animation: "modalFadeIn 0.18s ease-out",
+                    fontFamily: "var(--app-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
+                    color: theme.textPrimary,
                 }}
             >
                 <style>{`
                     @keyframes modalFadeIn {
-                        from { opacity: 0; transform: scale(0.96) translateY(8px); }
+                        from { opacity: 0; transform: scale(0.97) translateY(6px); }
                         to { opacity: 1; transform: scale(1) translateY(0); }
                     }
                 `}</style>
@@ -349,40 +397,33 @@ export function AgentEditorModal({
                 <div
                     style={{
                         padding: "16px 20px",
-                        borderBottom: "1px solid #ece7dd",
+                        borderBottom: `1px solid ${theme.borderSubtle}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        background: "#fbf9f4",
+                        background: theme.headerBg,
                     }}
                 >
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div
                             style={{
-                                width: 28,
-                                height: 28,
+                                width: 30,
+                                height: 30,
                                 borderRadius: 8,
-                                background: "#e8f3ee",
+                                background: theme.accentSubtle,
                                 display: "grid",
                                 placeItems: "center",
-                                color: "#276d60",
+                                color: theme.accent,
                             }}
                         >
                             <Pencil size={15} />
                         </div>
                         <div>
-                            <div
-                                style={{
-                                    fontWeight: 700,
-                                    fontSize: 14,
-                                    color: "#203a37",
-                                    lineHeight: 1.2,
-                                }}
-                            >
-                                Customize Teammate
+                            <div style={{ fontWeight: 700, fontSize: 14.5, color: theme.textPrimary, lineHeight: 1.2 }}>
+                                Edit Specialist Profile
                             </div>
-                            <div style={{ fontSize: 11, color: "#6e8078" }}>
-                                Personalize avatar, role, and details for {agent.name}
+                            <div style={{ fontSize: 11, color: theme.textMuted }}>
+                                Personalize identity and presentation for {agent.name}
                             </div>
                         </div>
                     </div>
@@ -392,51 +433,35 @@ export function AgentEditorModal({
                         style={{
                             background: "transparent",
                             border: "none",
-                            color: "#8a9a92",
+                            color: theme.textMuted,
                             cursor: "pointer",
                             padding: 4,
                             borderRadius: 6,
                             display: "grid",
                             placeItems: "center",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#203a37")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#8a9a92")}
                     >
                         <X size={18} />
                     </button>
                 </div>
 
-                <form onSubmit={handleSave} style={{ padding: "20px 22px" }}>
+                <form onSubmit={handleSave} style={{ padding: "18px 22px 20px" }}>
                     {/* Live Preview Card */}
                     <div
                         style={{
-                            background: "#f4f1e9",
-                            border: "1px solid #ded9cb",
+                            background: theme.cardBg,
+                            border: `1px solid ${theme.cardBorder}`,
                             borderRadius: 12,
                             padding: "12px 14px",
                             display: "flex",
                             alignItems: "center",
                             gap: 12,
-                            marginBottom: 20,
+                            marginBottom: 16,
                         }}
                     >
-                        <GrokbotAvatar
-                            name={name || agent.name}
-                            color={color}
-                            icon={icon}
-                            size={42}
-                        />
+                        <GrokbotAvatar name={name || agent.name} color={color} icon={icon} size={42} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                                style={{
-                                    fontWeight: 700,
-                                    fontSize: 14,
-                                    color: "#1a332d",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                }}
-                            >
+                            <div style={{ fontWeight: 700, fontSize: 14, color: theme.textPrimary, display: "flex", alignItems: "center", gap: 6 }}>
                                 <span>{name || agent.name}</span>
                                 <span
                                     style={{
@@ -444,174 +469,102 @@ export function AgentEditorModal({
                                         fontWeight: 600,
                                         padding: "1px 6px",
                                         borderRadius: 999,
-                                        background: "#e0ece5",
-                                        color: "#226353",
+                                        background: theme.activePillBg,
+                                        color: theme.activePillText,
                                     }}
                                 >
                                     {role}
                                 </span>
                             </div>
-                            <div
-                                style={{
-                                    fontSize: 11.5,
-                                    color: "#5b6e66",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                }}
-                            >
+                            <div style={{ fontSize: 11.5, color: theme.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
                                 {description || "Role and purpose description"}
                             </div>
                         </div>
-                        <span
-                            style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                padding: "2px 8px",
-                                borderRadius: 999,
-                                background: "#e0ece5",
-                                color: "#226353",
-                                border: "1px solid #c7ded3",
-                            }}
-                        >
-                            Preview
-                        </span>
                     </div>
 
-                    {/* Agent Name */}
-                    <div style={{ marginBottom: 14 }}>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11.5,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 6,
-                            }}
-                        >
-                            Name
-                        </label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Churn Analyst, DataClaw"
-                            required
-                            style={{
-                                width: "100%",
-                                background: "#ffffff",
-                                border: "1px solid #d9d4c7",
-                                borderRadius: 10,
-                                padding: "8px 12px",
-                                fontSize: 13.5,
-                                color: "#203a37",
-                                outline: "none",
-                                boxSizing: "border-box",
-                            }}
-                            onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                            onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
-                        />
-                    </div>
-
-                    {/* Agent Role */}
-                    <div style={{ marginBottom: 14 }}>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11.5,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 6,
-                            }}
-                        >
-                            Role / Title
-                        </label>
-                        <input
-                            type="text"
-                            value={role}
-                            onChange={(e) => setRole(e.target.value)}
-                            placeholder="e.g. Specialist, Researcher, Data Scout"
-                            style={{
-                                width: "100%",
-                                background: "#ffffff",
-                                border: "1px solid #d9d4c7",
-                                borderRadius: 10,
-                                padding: "8px 12px",
-                                fontSize: 13.5,
-                                color: "#203a37",
-                                outline: "none",
-                                boxSizing: "border-box",
-                            }}
-                            onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                            onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
-                        />
+                    {/* Agent Name & Role Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 10, marginBottom: 12 }}>
+                        <div>
+                            <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                                Specialist Name
+                            </label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g. Churn Analyst"
+                                required
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 13,
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                                Role / Title
+                            </label>
+                            <input
+                                type="text"
+                                value={role}
+                                onChange={(e) => setRole(e.target.value)}
+                                placeholder="e.g. data_scientist"
+                                style={{
+                                    width: "100%",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 13,
+                                    fontFamily: "var(--app-font-mono, monospace)",
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+                        </div>
                     </div>
 
                     {/* Agent Purpose & Description */}
-                    <div style={{ marginBottom: 16 }}>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11.5,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 6,
-                            }}
-                        >
-                            Role & Description
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                            Purpose & Scope
                         </label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Describe what this agent explores or accomplishes..."
+                            placeholder="Describe what data this agent explores or questions it resolves..."
                             rows={2}
                             style={{
                                 width: "100%",
-                                background: "#ffffff",
-                                border: "1px solid #d9d4c7",
-                                borderRadius: 10,
-                                padding: "8px 12px",
-                                fontSize: 13,
-                                color: "#203a37",
+                                background: theme.inputBg,
+                                border: `1px solid ${theme.inputBorder}`,
+                                borderRadius: 8,
+                                padding: "7px 10px",
+                                fontSize: 12.5,
+                                color: theme.textPrimary,
                                 outline: "none",
                                 resize: "vertical",
-                                lineHeight: 1.45,
+                                lineHeight: 1.4,
                                 boxSizing: "border-box",
                                 fontFamily: "inherit",
                             }}
-                            onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                            onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
                         />
                     </div>
 
                     {/* Icon Selection */}
-                    <div style={{ marginBottom: 16 }}>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11.5,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 8,
-                            }}
-                        >
-                            Avatar Icon Style
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 6 }}>
+                            Avatar Icon
                         </label>
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(4, 1fr)",
-                                gap: 8,
-                            }}
-                        >
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6 }}>
                             {ICON_OPTIONS.map((item) => {
                                 const isSelected = icon === item.id;
                                 const IconCmp = item.icon;
@@ -620,41 +573,24 @@ export function AgentEditorModal({
                                         type="button"
                                         key={item.id}
                                         onClick={() => setIcon(item.id)}
+                                        title={item.label}
                                         style={{
-                                            border: isSelected
-                                                ? "2px solid #276d60"
-                                                : "1px solid #ded9cc",
-                                            background: isSelected ? "#eef6f2" : "#ffffff",
-                                            color: isSelected ? "#1f584e" : "#4a5d56",
-                                            borderRadius: 10,
-                                            padding: "8px 6px",
+                                            border: isSelected ? `2px solid ${theme.accent}` : `1px solid ${theme.cardBorder}`,
+                                            background: isSelected ? theme.accentSubtle : theme.inputBg,
+                                            color: isSelected ? theme.accentText : theme.textSecondary,
+                                            borderRadius: 8,
+                                            padding: "6px 2px",
                                             display: "flex",
-                                            flexDirection: "column",
                                             alignItems: "center",
-                                            gap: 4,
+                                            justifyContent: "center",
                                             cursor: "pointer",
-                                            transition: "all 0.15s ease",
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                height: 22,
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                fontWeight: 800,
-                                                fontSize: 16,
-                                            }}
-                                        >
-                                            {typeof IconCmp === "string" ? (
-                                                <span>{IconCmp}</span>
-                                            ) : (
-                                                <IconCmp size={18} />
-                                            )}
-                                        </div>
-                                        <span style={{ fontSize: 10.5, fontWeight: 600 }}>
-                                            {item.label}
-                                        </span>
+                                        {typeof IconCmp === "string" ? (
+                                            <span style={{ fontWeight: 800, fontSize: 14 }}>{IconCmp}</span>
+                                        ) : (
+                                            <IconCmp size={16} />
+                                        )}
                                     </button>
                                 );
                             })}
@@ -662,25 +598,9 @@ export function AgentEditorModal({
                     </div>
 
                     {/* Color Swatch Picker */}
-                    <div style={{ marginBottom: 22 }}>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifySelf: "space-between",
-                                justifyContent: "space-between",
-                                marginBottom: 8,
-                            }}
-                        >
-                            <label
-                                style={{
-                                    fontSize: 11.5,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                }}
-                            >
+                    <div style={{ marginBottom: 18 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                            <label style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
                                 Accent Color
                             </label>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -690,37 +610,24 @@ export function AgentEditorModal({
                                     onChange={(e) => setColor(e.target.value)}
                                     title="Choose custom color"
                                     style={{
-                                        width: 22,
-                                        height: 22,
+                                        width: 18,
+                                        height: 18,
                                         padding: 0,
-                                        border: "1px solid #d9d4c7",
-                                        borderRadius: 6,
+                                        border: `1px solid ${theme.inputBorder}`,
+                                        borderRadius: 4,
                                         cursor: "pointer",
                                         background: "transparent",
                                     }}
                                 />
-                                <span
-                                    style={{
-                                        fontFamily: "var(--app-font-mono, monospace)",
-                                        fontSize: 11,
-                                        color: "#6b7c75",
-                                    }}
-                                >
+                                <span style={{ fontFamily: "var(--app-font-mono, monospace)", fontSize: 10, color: theme.textMuted }}>
                                     {color.toUpperCase()}
                                 </span>
                             </div>
                         </div>
 
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(8, 1fr)",
-                                gap: 6,
-                            }}
-                        >
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6 }}>
                             {PRESET_COLORS.map((preset) => {
-                                const isSelected =
-                                    color.toLowerCase() === preset.hex.toLowerCase();
+                                const isSelected = color.toLowerCase() === preset.hex.toLowerCase();
                                 return (
                                     <button
                                         type="button"
@@ -728,30 +635,19 @@ export function AgentEditorModal({
                                         onClick={() => setColor(preset.hex)}
                                         title={preset.label}
                                         style={{
-                                            height: 32,
-                                            borderRadius: 8,
+                                            height: 28,
+                                            borderRadius: 6,
                                             background: preset.hex,
-                                            border: isSelected
-                                                ? "2px solid #1a332d"
-                                                : "1px solid rgba(0,0,0,0.12)",
+                                            border: isSelected ? "2px solid #ffffff" : "1px solid rgba(0,0,0,0.15)",
                                             cursor: "pointer",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             color: "#ffffff",
-                                            boxShadow: isSelected
-                                                ? "0 0 0 2px #fff, 0 0 0 4px #276d60"
-                                                : "none",
-                                            transition: "transform 0.15s ease",
+                                            boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : "none",
                                         }}
-                                        onMouseEnter={(e) =>
-                                            (e.currentTarget.style.transform = "scale(1.08)")
-                                        }
-                                        onMouseLeave={(e) =>
-                                            (e.currentTarget.style.transform = "scale(1)")
-                                        }
                                     >
-                                        {isSelected && <Check size={14} strokeWidth={3} />}
+                                        {isSelected && <Check size={12} strokeWidth={3} />}
                                     </button>
                                 );
                             })}
@@ -764,21 +660,21 @@ export function AgentEditorModal({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "flex-end",
-                            gap: 10,
-                            paddingTop: 14,
-                            borderTop: "1px solid #ece7dd",
+                            gap: 8,
+                            paddingTop: 12,
+                            borderTop: `1px solid ${theme.borderSubtle}`,
                         }}
                     >
                         <button
                             type="button"
                             onClick={onClose}
                             style={{
-                                background: "#f2eee5",
-                                border: "1px solid #ded8cc",
-                                color: "#4f625b",
-                                borderRadius: 10,
-                                padding: "8px 16px",
-                                fontSize: 13,
+                                background: theme.hoverBg,
+                                border: `1px solid ${theme.border}`,
+                                color: theme.textSecondary,
+                                borderRadius: 8,
+                                padding: "7px 14px",
+                                fontSize: 12.5,
                                 fontWeight: 600,
                                 cursor: "pointer",
                             }}
@@ -788,15 +684,14 @@ export function AgentEditorModal({
                         <button
                             type="submit"
                             style={{
-                                background: "#276d60",
+                                background: theme.accent,
                                 border: "none",
-                                color: "#fffdf8",
-                                borderRadius: 10,
-                                padding: "8px 20px",
-                                fontSize: 13,
+                                color: "#ffffff",
+                                borderRadius: 8,
+                                padding: "7px 16px",
+                                fontSize: 12.5,
                                 fontWeight: 600,
                                 cursor: "pointer",
-                                boxShadow: "0 2px 6px rgba(39, 109, 96, 0.25)",
                             }}
                         >
                             Save Changes
@@ -809,13 +704,15 @@ export function AgentEditorModal({
 }
 
 // ============================================================================
-// Modal to Configure and Create a New Teammate
+// Modal to Configure and Create a New Specialist Teammate
+// (Refactored with Modern Dark Theme, Progressive Disclosure, and Streamlined UI)
 // ============================================================================
 export function CreateAgentModal({
     isOpen,
     onClose,
     onCreate,
     availableSkills = [],
+    isDark,
 }: {
     isOpen: boolean;
     onClose: () => void;
@@ -832,7 +729,11 @@ export function CreateAgentModal({
         initialTask?: string;
     }) => void;
     availableSkills?: Array<{ name: string; description: string }>;
+    isDark?: boolean;
 }) {
+    const isDarkMode = resolveIsDark(isDark);
+    const theme = getModalTheme(isDarkMode);
+
     const defaultArchetype = SPECIALIST_ARCHETYPES[0]!;
     const [selectedArchetypeId, setSelectedArchetypeId] = useState(defaultArchetype.id);
     const [name, setName] = useState(defaultArchetype.title);
@@ -847,11 +748,18 @@ export function CreateAgentModal({
     const [color, setColor] = useState(defaultArchetype.color);
     const [icon, setIcon] = useState(defaultArchetype.icon);
     const [initialTask, setInitialTask] = useState("");
-    const [showAdvancedInstructions, setShowAdvancedInstructions] = useState(false);
+
+    // Progressive Disclosure Collapsible States
+    const [openCapabilities, setOpenCapabilities] = useState(false);
+    const [openCompute, setOpenCompute] = useState(false);
+    const [openInstructions, setOpenInstructions] = useState(false);
+    const [openAppearance, setOpenAppearance] = useState(false);
 
     if (!isOpen) return null;
 
-    const handleSelectArchetype = (arch: SpecialistArchetype) => {
+    const handleSelectArchetype = (archId: string) => {
+        const arch = SPECIALIST_ARCHETYPES.find((a) => a.id === archId);
+        if (!arch) return;
         setSelectedArchetypeId(arch.id);
         setName(arch.title);
         setRole(arch.role);
@@ -902,14 +810,16 @@ export function CreateAgentModal({
         onClose();
     };
 
+    const activeArchetype = SPECIALIST_ARCHETYPES.find((a) => a.id === selectedArchetypeId) || defaultArchetype;
+
     return (
         <div
             style={{
                 position: "fixed",
                 inset: 0,
-                background: "rgba(23, 40, 36, 0.55)",
-                backdropFilter: "blur(6px)",
-                WebkitBackdropFilter: "blur(6px)",
+                background: theme.backdrop,
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -922,60 +832,59 @@ export function CreateAgentModal({
         >
             <div
                 style={{
-                    background: "#fffdf8",
-                    border: "1px solid #e1ddd2",
-                    borderRadius: 18,
+                    background: theme.bg,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 16,
                     width: "100%",
-                    maxWidth: 580,
-                    boxShadow: "0 24px 48px rgba(23, 61, 59, 0.22)",
+                    maxWidth: 560,
+                    boxShadow: theme.shadow,
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
-                    animation: "modalFadeIn 0.2s ease-out",
-                    fontFamily:
-                        "var(--app-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
-                    color: "#203a37",
-                    maxHeight: "92vh",
+                    animation: "modalFadeIn 0.18s ease-out",
+                    fontFamily: "var(--app-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
+                    color: theme.textPrimary,
+                    maxHeight: "90vh",
                 }}
             >
+                <style>{`
+                    @keyframes modalFadeIn {
+                        from { opacity: 0; transform: scale(0.97) translateY(6px); }
+                        to { opacity: 1; transform: scale(1) translateY(0); }
+                    }
+                `}</style>
+
                 {/* Header */}
                 <div
                     style={{
-                        padding: "16px 20px",
-                        borderBottom: "1px solid #ece7dd",
+                        padding: "16px 20px 14px",
+                        borderBottom: `1px solid ${theme.borderSubtle}`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        background: "#fbf9f4",
+                        background: theme.headerBg,
                     }}
                 >
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div
                             style={{
-                                width: 30,
-                                height: 30,
+                                width: 32,
+                                height: 32,
                                 borderRadius: 8,
-                                background: "#276d60",
+                                background: theme.accentSubtle,
                                 display: "grid",
                                 placeItems: "center",
-                                color: "#ffffff",
+                                color: theme.accent,
                             }}
                         >
                             <Sparkles size={16} />
                         </div>
                         <div>
-                            <div
-                                style={{
-                                    fontWeight: 700,
-                                    fontSize: 14.5,
-                                    color: "#203a37",
-                                    lineHeight: 1.2,
-                                }}
-                            >
-                                Configure New Specialist Agent
+                            <div style={{ fontWeight: 700, fontSize: 15, color: theme.textPrimary, letterSpacing: "-0.01em", lineHeight: 1.2 }}>
+                                New Specialist
                             </div>
-                            <div style={{ fontSize: 11, color: "#6e8078" }}>
-                                Customize domain role, toolings, compute sandbox, and operating instructions
+                            <div style={{ fontSize: 11, color: theme.textMuted }}>
+                                Autonomous teammate with dedicated compute & tools
                             </div>
                         </div>
                     </div>
@@ -985,15 +894,13 @@ export function CreateAgentModal({
                         style={{
                             background: "transparent",
                             border: "none",
-                            color: "#8a9a92",
+                            color: theme.textMuted,
                             cursor: "pointer",
                             padding: 4,
                             borderRadius: 6,
                             display: "grid",
                             placeItems: "center",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#203a37")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#8a9a92")}
                     >
                         <X size={18} />
                     </button>
@@ -1002,843 +909,684 @@ export function CreateAgentModal({
                 <form
                     onSubmit={handleSubmit}
                     style={{
-                        padding: "18px 22px 20px",
+                        padding: "16px 20px 20px",
                         overflowY: "auto",
                         display: "flex",
                         flexDirection: "column",
-                        gap: 16,
+                        gap: 14,
                     }}
                 >
-                    {/* Live Preview Card */}
+                    {/* Live Specialist Header Preview */}
                     <div
                         style={{
-                            background: "#f4f1e9",
-                            border: "1px solid #ded9cb",
+                            background: theme.cardBg,
+                            border: `1px solid ${theme.cardBorder}`,
                             borderRadius: 12,
-                            padding: "12px 14px",
+                            padding: "10px 14px",
                             display: "flex",
                             alignItems: "center",
                             gap: 12,
                         }}
                     >
-                        <GrokbotAvatar
-                            name={name || "New Specialist"}
-                            color={color}
-                            icon={icon}
-                            size={44}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                            onClick={() => setOpenAppearance(!openAppearance)}
+                            title="Click to customize avatar appearance"
+                            style={{ cursor: "pointer", position: "relative" }}
+                        >
+                            <GrokbotAvatar name={name || "New Specialist"} color={color} icon={icon} size={40} />
                             <div
                                 style={{
-                                    fontWeight: 700,
-                                    fontSize: 14,
-                                    color: "#1a332d",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    flexWrap: "wrap",
+                                    position: "absolute",
+                                    bottom: -2,
+                                    right: -2,
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: "50%",
+                                    background: theme.bg,
+                                    border: `1px solid ${theme.cardBorder}`,
+                                    display: "grid",
+                                    placeItems: "center",
+                                    color: theme.textSecondary,
                                 }}
                             >
+                                <Palette size={9} />
+                            </div>
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13.5, color: theme.textPrimary, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                 <span>{name || "Specialist Name"}</span>
                                 <span
                                     style={{
-                                        fontSize: 10,
+                                        fontSize: 9.5,
                                         fontWeight: 600,
                                         padding: "1px 6px",
                                         borderRadius: 999,
-                                        background: "#e0ece5",
-                                        color: "#226353",
+                                        background: theme.activePillBg,
+                                        color: theme.activePillText,
                                     }}
                                 >
                                     {role}
                                 </span>
                                 <span
                                     style={{
-                                        fontSize: 10,
+                                        fontSize: 9.5,
                                         fontWeight: 600,
                                         padding: "1px 6px",
                                         borderRadius: 999,
-                                        background: computeKind === "docker" ? "#e0f2fe" : "#fef3c7",
-                                        color: computeKind === "docker" ? "#0369a1" : "#b45309",
+                                        background: computeKind === "docker" ? (isDarkMode ? "rgba(6, 182, 212, 0.15)" : "#e0f2fe") : theme.hoverBg,
+                                        color: computeKind === "docker" ? (isDarkMode ? "#22d3ee" : "#0369a1") : theme.textSecondary,
                                     }}
                                 >
                                     {computeKind === "docker" ? "Docker Sandbox" : computeKind === "local" ? "Local Agent Home" : "Shared Workspace"}
                                 </span>
                             </div>
-                            <div
-                                style={{
-                                    fontSize: 11.5,
-                                    color: "#5b6e66",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    marginTop: 2,
-                                }}
-                            >
+                            <div style={{ fontSize: 11, color: theme.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
                                 {description || "Domain mission and analytical tasks..."}
                             </div>
                         </div>
                     </div>
 
-                    {/* Specialist Role Archetypes */}
+                    {/* Step 1: Specialist Archetype Dropdown (Clean, high-visibility select) */}
                     <div>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.06em",
-                                color: "#566761",
-                                marginBottom: 8,
-                            }}
-                        >
-                            Select Specialist Archetype
+                        <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 6 }}>
+                            Specialist Archetype
                         </label>
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                                gap: 6,
-                            }}
-                        >
-                            {SPECIALIST_ARCHETYPES.map((arch) => {
-                                const isSelected = selectedArchetypeId === arch.id;
-                                return (
-                                    <button
-                                        type="button"
-                                        key={arch.id}
-                                        onClick={() => handleSelectArchetype(arch)}
-                                        style={{
-                                            border: isSelected
-                                                ? `2px solid ${arch.color}`
-                                                : "1px solid #ded9cc",
-                                            background: isSelected ? "#ffffff" : "#f8f6f0",
-                                            borderRadius: 9,
-                                            padding: "8px 6px",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            alignItems: "center",
-                                            textAlign: "center",
-                                            cursor: "pointer",
-                                            boxShadow: isSelected
-                                                ? `0 2px 8px ${arch.color}22`
-                                                : "none",
-                                            transition: "all 0.15s ease",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                width: 8,
-                                                height: 8,
-                                                borderRadius: "50%",
-                                                background: arch.color,
-                                                marginBottom: 4,
-                                            }}
-                                        />
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: "#203a37", lineHeight: 1.2 }}>
-                                            {arch.title}
-                                        </span>
-                                        <span style={{ fontSize: 9, color: "#6b7c75", marginTop: 2, lineHeight: 1.15 }}>
-                                            {arch.tagline}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                        <div style={{ position: "relative" }}>
+                            <select
+                                value={selectedArchetypeId}
+                                onChange={(e) => handleSelectArchetype(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    appearance: "none",
+                                    WebkitAppearance: "none",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 9,
+                                    padding: "8px 30px 8px 12px",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: theme.textPrimary,
+                                    outline: "none",
+                                    cursor: "pointer",
+                                    boxSizing: "border-box",
+                                }}
+                            >
+                                {SPECIALIST_ARCHETYPES.map((arch) => (
+                                    <option key={arch.id} value={arch.id}>
+                                        {arch.title} — {arch.tagline}
+                                    </option>
+                                ))}
+                            </select>
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    right: 12,
+                                    top: "50%",
+                                    transform: "translateY(-50%)",
+                                    pointerEvents: "none",
+                                    color: theme.textMuted,
+                                    display: "flex",
+                                    alignItems: "center",
+                                }}
+                            >
+                                <ChevronDown size={14} />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Agent Name & Role Identifier */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
+                    {/* Step 2: Name & Role Identifier */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 10 }}>
                         <div>
-                            <label
-                                style={{
-                                    display: "block",
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                    marginBottom: 6,
-                                }}
-                            >
-                                Teammate Name <span style={{ color: "#d97706" }}>*</span>
+                            <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                                Teammate Name <span style={{ color: theme.accent }}>*</span>
                             </label>
                             <input
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="e.g. Churn Scientist, Pipeline Auditor"
+                                placeholder="e.g. Churn Scientist"
                                 required
                                 style={{
                                     width: "100%",
-                                    background: "#ffffff",
-                                    border: "1px solid #d9d4c7",
-                                    borderRadius: 9,
-                                    padding: "8px 11px",
-                                    fontSize: 13,
-                                    color: "#203a37",
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 12.5,
+                                    color: theme.textPrimary,
                                     outline: "none",
                                     boxSizing: "border-box",
                                 }}
-                                onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                                onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
                             />
                         </div>
                         <div>
-                            <label
-                                style={{
-                                    display: "block",
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                    marginBottom: 6,
-                                }}
-                            >
+                            <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
                                 Role Identifier
                             </label>
                             <input
                                 type="text"
                                 value={role}
                                 onChange={(e) => setRole(e.target.value)}
-                                placeholder="e.g. data_scientist, mlops, custom"
+                                placeholder="e.g. data_scientist"
                                 style={{
                                     width: "100%",
-                                    background: "#ffffff",
-                                    border: "1px solid #d9d4c7",
-                                    borderRadius: 9,
-                                    padding: "8px 11px",
-                                    fontSize: 13,
+                                    background: theme.inputBg,
+                                    border: `1px solid ${theme.inputBorder}`,
+                                    borderRadius: 8,
+                                    padding: "7px 10px",
+                                    fontSize: 12.5,
                                     fontFamily: "var(--app-font-mono, monospace)",
-                                    color: "#203a37",
+                                    color: theme.textPrimary,
                                     outline: "none",
                                     boxSizing: "border-box",
                                 }}
-                                onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                                onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
                             />
                         </div>
                     </div>
 
-                    {/* Mission / Description */}
+                    {/* Step 3: Purpose & Mission */}
                     <div>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 6,
-                            }}
-                        >
-                            Purpose & Mission
+                        <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                            Purpose & Scope
                         </label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="What data does this agent monitor or explore? What questions will it answer?"
+                            placeholder="What analytical questions or datasets does this agent explore?"
                             rows={2}
                             style={{
                                 width: "100%",
-                                background: "#ffffff",
-                                border: "1px solid #d9d4c7",
-                                borderRadius: 9,
-                                padding: "8px 11px",
-                                fontSize: 12.5,
-                                color: "#203a37",
+                                background: theme.inputBg,
+                                border: `1px solid ${theme.inputBorder}`,
+                                borderRadius: 8,
+                                padding: "7px 10px",
+                                fontSize: 12,
+                                color: theme.textPrimary,
                                 outline: "none",
                                 resize: "vertical",
                                 lineHeight: 1.4,
                                 boxSizing: "border-box",
                                 fontFamily: "inherit",
                             }}
-                            onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                            onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
                         />
                     </div>
 
-                    {/* Tooling Capabilities Multi-Select */}
+                    {/* Step 4: Optional Kickoff Task */}
                     <div>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                marginBottom: 6,
-                            }}
-                        >
-                            <label
-                                style={{
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                }}
-                            >
-                                Tooling & Capabilities
-                            </label>
-                            <span style={{ fontSize: 10, color: "#6b7c75" }}>
-                                {capabilities.length} active group{capabilities.length !== 1 ? "s" : ""}
-                            </span>
-                        </div>
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                                gap: 6,
-                            }}
-                        >
-                            {AVAILABLE_CAPABILITY_OPTIONS.map((cap) => {
-                                const isChecked = capabilities.includes(cap.id);
-                                return (
-                                    <button
-                                        type="button"
-                                        key={cap.id}
-                                        onClick={() => toggleCapability(cap.id)}
-                                        style={{
-                                            border: isChecked
-                                                ? "1.5px solid #276d60"
-                                                : "1px solid #ded9cc",
-                                            background: isChecked ? "#eef6f2" : "#ffffff",
-                                            borderRadius: 8,
-                                            padding: "7px 10px",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            alignItems: "flex-start",
-                                            cursor: "pointer",
-                                            textAlign: "left",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 6,
-                                                fontWeight: 650,
-                                                fontSize: 11.5,
-                                                color: isChecked ? "#1f584e" : "#3b4b45",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    width: 14,
-                                                    height: 14,
-                                                    borderRadius: 4,
-                                                    border: isChecked
-                                                        ? "1.5px solid #276d60"
-                                                        : "1.5px solid #b5b0a3",
-                                                    background: isChecked ? "#276d60" : "transparent",
-                                                    display: "grid",
-                                                    placeItems: "center",
-                                                    color: "#ffffff",
-                                                    flexShrink: 0,
-                                                }}
-                                            >
-                                                {isChecked && <Check size={10} strokeWidth={3} />}
-                                            </div>
-                                            <span>{cap.label}</span>
-                                        </div>
-                                        <span
-                                            style={{
-                                                fontSize: 9.5,
-                                                color: "#6b7c75",
-                                                marginTop: 3,
-                                                lineHeight: 1.25,
-                                            }}
-                                        >
-                                            {cap.description}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Compute Environment Selector */}
-                    <div>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 6,
-                            }}
-                        >
-                            Compute & Execution Sandbox
-                        </label>
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(3, 1fr)",
-                                gap: 8,
-                            }}
-                        >
-                            {[
-                                {
-                                    kind: "local" as const,
-                                    label: "Private Local Directory",
-                                    desc: "Isolated cwd at /workspace/agents/<id>",
-                                },
-                                {
-                                    kind: "docker" as const,
-                                    label: "Docker Container Sandbox",
-                                    desc: "Process & network boundary",
-                                },
-                                {
-                                    kind: "shared" as const,
-                                    label: "Shared Workspace",
-                                    desc: "Root /workspace directory",
-                                },
-                            ].map((item) => {
-                                const isSelected = computeKind === item.kind;
-                                return (
-                                    <button
-                                        type="button"
-                                        key={item.kind}
-                                        onClick={() => setComputeKind(item.kind)}
-                                        style={{
-                                            border: isSelected
-                                                ? "1.5px solid #276d60"
-                                                : "1px solid #ded9cc",
-                                            background: isSelected ? "#eef6f2" : "#ffffff",
-                                            borderRadius: 8,
-                                            padding: "8px 9px",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            alignItems: "flex-start",
-                                            textAlign: "left",
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                fontSize: 11.5,
-                                                fontWeight: 700,
-                                                color: isSelected ? "#1f584e" : "#203a37",
-                                            }}
-                                        >
-                                            {item.label}
-                                        </span>
-                                        <span style={{ fontSize: 9.5, color: "#6b7c75", marginTop: 2 }}>
-                                            {item.desc}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* Extra Docker options when Docker is active */}
-                        {computeKind === "docker" && (
-                            <div
-                                style={{
-                                    marginTop: 8,
-                                    padding: "10px 12px",
-                                    background: "#f8fafd",
-                                    border: "1px solid #d0e1fd",
-                                    borderRadius: 8,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: 8,
-                                }}
-                            >
-                                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                    <div style={{ flex: 1 }}>
-                                        <label
-                                            style={{
-                                                display: "block",
-                                                fontSize: 10,
-                                                fontWeight: 700,
-                                                textTransform: "uppercase",
-                                                color: "#0369a1",
-                                                marginBottom: 3,
-                                            }}
-                                        >
-                                            Container Image
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={dockerImage}
-                                            onChange={(e) => setDockerImage(e.target.value)}
-                                            placeholder="oven/bun:1 or python:3.11-slim"
-                                            style={{
-                                                width: "100%",
-                                                padding: "5px 8px",
-                                                fontSize: 12,
-                                                fontFamily: "var(--app-font-mono, monospace)",
-                                                border: "1px solid #b9d5fc",
-                                                borderRadius: 6,
-                                                background: "#ffffff",
-                                                boxSizing: "border-box",
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label
-                                            style={{
-                                                display: "block",
-                                                fontSize: 10,
-                                                fontWeight: 700,
-                                                textTransform: "uppercase",
-                                                color: "#0369a1",
-                                                marginBottom: 3,
-                                            }}
-                                        >
-                                            Container Network
-                                        </label>
-                                        <div style={{ display: "flex", gap: 4 }}>
-                                            {(["none", "bridge"] as const).map((net) => (
-                                                <button
-                                                    type="button"
-                                                    key={net}
-                                                    onClick={() => setDockerNetwork(net)}
-                                                    style={{
-                                                        padding: "4px 8px",
-                                                        fontSize: 11,
-                                                        fontWeight: 600,
-                                                        borderRadius: 6,
-                                                        border: dockerNetwork === net ? "1px solid #0284c7" : "1px solid #cbd5e1",
-                                                        background: dockerNetwork === net ? "#0284c7" : "#ffffff",
-                                                        color: dockerNetwork === net ? "#ffffff" : "#475569",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    {net === "none" ? "Offline (none)" : "Internet (bridge)"}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Available Skills To Equip (if any) */}
-                    {availableSkills.length > 0 && (
-                        <div>
-                            <label
-                                style={{
-                                    display: "block",
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                    marginBottom: 6,
-                                }}
-                            >
-                                Equip Domain Skills (Optional)
-                            </label>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {availableSkills.map((sk) => {
-                                    const isSelected = selectedSkills.includes(sk.name);
-                                    return (
-                                        <button
-                                            type="button"
-                                            key={sk.name}
-                                            onClick={() => toggleSkill(sk.name)}
-                                            style={{
-                                                border: isSelected
-                                                    ? "1px solid #276d60"
-                                                    : "1px solid #ded9cc",
-                                                background: isSelected ? "#eef6f2" : "#ffffff",
-                                                color: isSelected ? "#1f584e" : "#4a5d56",
-                                                borderRadius: 6,
-                                                padding: "4px 8px",
-                                                fontSize: 11,
-                                                fontWeight: isSelected ? 700 : 500,
-                                                cursor: "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 4,
-                                            }}
-                                        >
-                                            {isSelected && <Check size={11} strokeWidth={3} />}
-                                            <span>{sk.name}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Avatar Icon & Accent Color */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        <div>
-                            <label
-                                style={{
-                                    display: "block",
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                    marginBottom: 6,
-                                }}
-                            >
-                                Avatar Icon Style
-                            </label>
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: "repeat(4, 1fr)",
-                                    gap: 5,
-                                }}
-                            >
-                                {ICON_OPTIONS.map((item) => {
-                                    const isSelected = icon === item.id;
-                                    const IconCmp = item.icon;
-                                    return (
-                                        <button
-                                            type="button"
-                                            key={item.id}
-                                            onClick={() => setIcon(item.id)}
-                                            style={{
-                                                border: isSelected
-                                                    ? "1.5px solid #276d60"
-                                                    : "1px solid #ded9cc",
-                                                background: isSelected ? "#eef6f2" : "#ffffff",
-                                                color: isSelected ? "#1f584e" : "#4a5d56",
-                                                borderRadius: 6,
-                                                padding: "4px 2px",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                alignItems: "center",
-                                                gap: 2,
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    height: 18,
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    fontWeight: 800,
-                                                    fontSize: 13,
-                                                }}
-                                            >
-                                                {typeof IconCmp === "string" ? (
-                                                    <span>{IconCmp}</span>
-                                                ) : (
-                                                    <IconCmp size={14} />
-                                                )}
-                                            </div>
-                                            <span style={{ fontSize: 9, fontWeight: 600 }}>
-                                                {item.label}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div>
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    marginBottom: 6,
-                                }}
-                            >
-                                <label
-                                    style={{
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.05em",
-                                        color: "#566761",
-                                    }}
-                                >
-                                    Accent Color
-                                </label>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                    <input
-                                        type="color"
-                                        value={color}
-                                        onChange={(e) => setColor(e.target.value)}
-                                        title="Choose custom color"
-                                        style={{
-                                            width: 18,
-                                            height: 18,
-                                            padding: 0,
-                                            border: "1px solid #d9d4c7",
-                                            borderRadius: 4,
-                                            cursor: "pointer",
-                                            background: "transparent",
-                                        }}
-                                    />
-                                    <span
-                                        style={{
-                                            fontFamily: "var(--app-font-mono, monospace)",
-                                            fontSize: 10,
-                                            color: "#6b7c75",
-                                        }}
-                                    >
-                                        {color.toUpperCase()}
-                                    </span>
-                                </div>
-                            </div>
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: "repeat(8, 1fr)",
-                                    gap: 4,
-                                }}
-                            >
-                                {PRESET_COLORS.map((preset) => {
-                                    const isSelected =
-                                        color.toLowerCase() === preset.hex.toLowerCase();
-                                    return (
-                                        <button
-                                            type="button"
-                                            key={preset.hex}
-                                            onClick={() => setColor(preset.hex)}
-                                            title={preset.label}
-                                            style={{
-                                                height: 24,
-                                                borderRadius: 6,
-                                                background: preset.hex,
-                                                border: isSelected
-                                                    ? "2px solid #1a332d"
-                                                    : "1px solid rgba(0,0,0,0.12)",
-                                                cursor: "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                color: "#ffffff",
-                                                boxShadow: isSelected
-                                                    ? "0 0 0 1px #fff, 0 0 0 2px #276d60"
-                                                    : "none",
-                                            }}
-                                        >
-                                            {isSelected && <Check size={11} strokeWidth={3} />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Operating Instructions / Persona */}
-                    <div>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                marginBottom: 4,
-                            }}
-                        >
-                            <label
-                                style={{
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    color: "#566761",
-                                }}
-                            >
-                                System Persona & Operating Instructions
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => setShowAdvancedInstructions(!showAdvancedInstructions)}
-                                style={{
-                                    background: "none",
-                                    border: "none",
-                                    fontSize: 10.5,
-                                    fontWeight: 600,
-                                    color: "#276d60",
-                                    cursor: "pointer",
-                                    padding: 0,
-                                }}
-                            >
-                                {showAdvancedInstructions ? "Hide details" : "Customize persona"}
-                            </button>
-                        </div>
-                        {showAdvancedInstructions ? (
-                            <textarea
-                                value={instructions}
-                                onChange={(e) => setInstructions(e.target.value)}
-                                rows={4}
-                                placeholder="Operating instructions for this specialist..."
-                                style={{
-                                    width: "100%",
-                                    background: "#ffffff",
-                                    border: "1px solid #d9d4c7",
-                                    borderRadius: 9,
-                                    padding: "8px 11px",
-                                    fontSize: 12,
-                                    color: "#203a37",
-                                    outline: "none",
-                                    resize: "vertical",
-                                    lineHeight: 1.45,
-                                    boxSizing: "border-box",
-                                    fontFamily: "inherit",
-                                }}
-                                onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                                onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
-                            />
-                        ) : (
-                            <div
-                                style={{
-                                    fontSize: 11,
-                                    color: "#6b7c75",
-                                    lineHeight: 1.35,
-                                    background: "#f9f7f2",
-                                    padding: "6px 10px",
-                                    borderRadius: 7,
-                                    border: "1px dashed #ded9cb",
-                                }}
-                            >
-                                {instructions.slice(0, 140)}...
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Optional Kickoff Goal / Task */}
-                    <div>
-                        <label
-                            style={{
-                                display: "block",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: "#566761",
-                                marginBottom: 6,
-                            }}
-                        >
-                            Kickoff Task (Optional)
+                        <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                            Initial Task (Optional)
                         </label>
                         <input
                             type="text"
                             value={initialTask}
                             onChange={(e) => setInitialTask(e.target.value)}
-                            placeholder="e.g. Profile cohort_retention.csv and test for Simpson's Paradox"
+                            placeholder="e.g. Profile customer_churn table and test for Simpson's Paradox"
                             style={{
                                 width: "100%",
-                                background: "#ffffff",
-                                border: "1px solid #d9d4c7",
-                                borderRadius: 9,
-                                padding: "8px 11px",
-                                fontSize: 12.5,
-                                color: "#203a37",
+                                background: theme.inputBg,
+                                border: `1px solid ${theme.inputBorder}`,
+                                borderRadius: 8,
+                                padding: "7px 10px",
+                                fontSize: 12,
+                                color: theme.textPrimary,
                                 outline: "none",
                                 boxSizing: "border-box",
                             }}
-                            onFocus={(e) => (e.target.style.borderColor = "#276d60")}
-                            onBlur={(e) => (e.target.style.borderColor = "#d9d4c7")}
                         />
+                    </div>
+
+                    {/* ========================================================================= */}
+                    {/* PROGRESSIVE DISCLOSURE ACCORDIONS (Advanced Settings) */}
+                    {/* ========================================================================= */}
+
+                    {/* Accordion 1: Tooling Capabilities */}
+                    <div style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: 10, overflow: "hidden" }}>
+                        <button
+                            type="button"
+                            onClick={() => setOpenCapabilities(!openCapabilities)}
+                            style={{
+                                width: "100%",
+                                padding: "9px 12px",
+                                background: theme.cardBg,
+                                border: "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                cursor: "pointer",
+                                color: theme.textPrimary,
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 650 }}>
+                                <Cpu size={14} color={theme.accent} />
+                                <span>Tooling & Capabilities</span>
+                                <span
+                                    style={{
+                                        fontSize: 9.5,
+                                        fontWeight: 700,
+                                        padding: "1px 6px",
+                                        borderRadius: 999,
+                                        background: theme.activePillBg,
+                                        color: theme.activePillText,
+                                    }}
+                                >
+                                    {capabilities.length} active
+                                </span>
+                            </div>
+                            <div style={{ color: theme.textMuted, display: "flex", alignItems: "center" }}>
+                                {openCapabilities ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </div>
+                        </button>
+
+                        {openCapabilities && (
+                            <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${theme.borderSubtle}`, background: theme.bg }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                                    {AVAILABLE_CAPABILITY_OPTIONS.map((cap) => {
+                                        const isChecked = capabilities.includes(cap.id);
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={cap.id}
+                                                onClick={() => toggleCapability(cap.id)}
+                                                style={{
+                                                    border: isChecked ? `1.5px solid ${theme.accent}` : `1px solid ${theme.inputBorder}`,
+                                                    background: isChecked ? theme.accentSubtle : theme.inputBg,
+                                                    borderRadius: 7,
+                                                    padding: "6px 8px",
+                                                    display: "flex",
+                                                    alignItems: "flex-start",
+                                                    gap: 6,
+                                                    cursor: "pointer",
+                                                    textAlign: "left",
+                                                }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        width: 14,
+                                                        height: 14,
+                                                        borderRadius: 3,
+                                                        border: isChecked ? `1px solid ${theme.accent}` : `1px solid ${theme.textMuted}`,
+                                                        background: isChecked ? theme.accent : "transparent",
+                                                        display: "grid",
+                                                        placeItems: "center",
+                                                        color: "#ffffff",
+                                                        flexShrink: 0,
+                                                        marginTop: 2,
+                                                    }}
+                                                >
+                                                    {isChecked && <Check size={10} strokeWidth={3} />}
+                                                </div>
+                                                <div style={{ minWidth: 0, flex: 1 }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: isChecked ? theme.accentText : theme.textPrimary }}>
+                                                        {cap.label}
+                                                    </div>
+                                                    <div style={{ fontSize: 9.5, color: theme.textMuted, marginTop: 1, lineHeight: 1.25 }}>
+                                                        {cap.description}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Accordion 2: Compute Sandbox */}
+                    <div style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: 10, overflow: "hidden" }}>
+                        <button
+                            type="button"
+                            onClick={() => setOpenCompute(!openCompute)}
+                            style={{
+                                width: "100%",
+                                padding: "9px 12px",
+                                background: theme.cardBg,
+                                border: "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                cursor: "pointer",
+                                color: theme.textPrimary,
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 650 }}>
+                                <Server size={14} color={theme.accent} />
+                                <span>Compute & Execution Sandbox</span>
+                                <span
+                                    style={{
+                                        fontSize: 9.5,
+                                        fontWeight: 600,
+                                        padding: "1px 6px",
+                                        borderRadius: 999,
+                                        background: theme.hoverBg,
+                                        color: theme.textSecondary,
+                                    }}
+                                >
+                                    {computeKind === "docker" ? "Docker Sandbox" : computeKind === "local" ? "Local Directory" : "Shared Workspace"}
+                                </span>
+                            </div>
+                            <div style={{ color: theme.textMuted, display: "flex", alignItems: "center" }}>
+                                {openCompute ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </div>
+                        </button>
+
+                        {openCompute && (
+                            <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${theme.borderSubtle}`, background: theme.bg }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                                    {[
+                                        { kind: "local" as const, label: "Local Directory", desc: "/workspace/agents/<id>" },
+                                        { kind: "docker" as const, label: "Docker Sandbox", desc: "Isolated container" },
+                                        { kind: "shared" as const, label: "Shared Workspace", desc: "Root /workspace" },
+                                    ].map((item) => {
+                                        const isSelected = computeKind === item.kind;
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={item.kind}
+                                                onClick={() => setComputeKind(item.kind)}
+                                                style={{
+                                                    border: isSelected ? `1.5px solid ${theme.accent}` : `1px solid ${theme.inputBorder}`,
+                                                    background: isSelected ? theme.accentSubtle : theme.inputBg,
+                                                    borderRadius: 7,
+                                                    padding: "6px 8px",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    alignItems: "flex-start",
+                                                    textAlign: "left",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? theme.accentText : theme.textPrimary }}>
+                                                    {item.label}
+                                                </span>
+                                                <span style={{ fontSize: 9.5, color: theme.textMuted, marginTop: 1 }}>
+                                                    {item.desc}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {computeKind === "docker" && (
+                                    <div
+                                        style={{
+                                            marginTop: 8,
+                                            padding: "8px 10px",
+                                            background: theme.cardBg,
+                                            border: `1px solid ${theme.cardBorder}`,
+                                            borderRadius: 8,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 8,
+                                        }}
+                                    >
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", color: theme.textMuted, marginBottom: 3 }}>
+                                                Container Image
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={dockerImage}
+                                                onChange={(e) => setDockerImage(e.target.value)}
+                                                placeholder="oven/bun:1"
+                                                style={{
+                                                    width: "100%",
+                                                    padding: "5px 8px",
+                                                    fontSize: 11.5,
+                                                    fontFamily: "var(--app-font-mono, monospace)",
+                                                    border: `1px solid ${theme.inputBorder}`,
+                                                    borderRadius: 6,
+                                                    background: theme.inputBg,
+                                                    color: theme.textPrimary,
+                                                    boxSizing: "border-box",
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", color: theme.textMuted, marginBottom: 3 }}>
+                                                Network
+                                            </label>
+                                            <div style={{ display: "flex", gap: 3 }}>
+                                                {(["none", "bridge"] as const).map((net) => (
+                                                    <button
+                                                        type="button"
+                                                        key={net}
+                                                        onClick={() => setDockerNetwork(net)}
+                                                        style={{
+                                                            padding: "4px 8px",
+                                                            fontSize: 10.5,
+                                                            fontWeight: 600,
+                                                            borderRadius: 5,
+                                                            border: dockerNetwork === net ? `1px solid ${theme.accent}` : `1px solid ${theme.inputBorder}`,
+                                                            background: dockerNetwork === net ? theme.accent : theme.inputBg,
+                                                            color: dockerNetwork === net ? "#ffffff" : theme.textSecondary,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        {net === "none" ? "Offline" : "Bridge"}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Accordion 3: System Persona & Instructions */}
+                    <div style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: 10, overflow: "hidden" }}>
+                        <button
+                            type="button"
+                            onClick={() => setOpenInstructions(!openInstructions)}
+                            style={{
+                                width: "100%",
+                                padding: "9px 12px",
+                                background: theme.cardBg,
+                                border: "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                cursor: "pointer",
+                                color: theme.textPrimary,
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 650 }}>
+                                <Terminal size={14} color={theme.accent} />
+                                <span>Operating Persona & Instructions</span>
+                            </div>
+                            <div style={{ color: theme.textMuted, display: "flex", alignItems: "center" }}>
+                                {openInstructions ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </div>
+                        </button>
+
+                        {openInstructions && (
+                            <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${theme.borderSubtle}`, background: theme.bg }}>
+                                <textarea
+                                    value={instructions}
+                                    onChange={(e) => setInstructions(e.target.value)}
+                                    rows={4}
+                                    placeholder="Enter system instructions, analytical methodology, and domain guardrails..."
+                                    style={{
+                                        width: "100%",
+                                        background: theme.inputBg,
+                                        border: `1px solid ${theme.inputBorder}`,
+                                        borderRadius: 8,
+                                        padding: "8px 10px",
+                                        fontSize: 11.5,
+                                        color: theme.textPrimary,
+                                        outline: "none",
+                                        resize: "vertical",
+                                        lineHeight: 1.45,
+                                        boxSizing: "border-box",
+                                        fontFamily: "inherit",
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Accordion 4: Appearance, Colors & Skills */}
+                    <div style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: 10, overflow: "hidden" }}>
+                        <button
+                            type="button"
+                            onClick={() => setOpenAppearance(!openAppearance)}
+                            style={{
+                                width: "100%",
+                                padding: "9px 12px",
+                                background: theme.cardBg,
+                                border: "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                cursor: "pointer",
+                                color: theme.textPrimary,
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 650 }}>
+                                <Palette size={14} color={theme.accent} />
+                                <span>Appearance, Palette & Skills</span>
+                                <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, border: "1px solid rgba(255,255,255,0.4)" }} />
+                            </div>
+                            <div style={{ color: theme.textMuted, display: "flex", alignItems: "center" }}>
+                                {openAppearance ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </div>
+                        </button>
+
+                        {openAppearance && (
+                            <div style={{ padding: "12px 14px", borderTop: `1px solid ${theme.borderSubtle}`, background: theme.bg, display: "flex", flexDirection: "column", gap: 12 }}>
+                                {/* Icon Style */}
+                                <div>
+                                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                                        Avatar Icon Style
+                                    </label>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6 }}>
+                                        {ICON_OPTIONS.map((item) => {
+                                            const isSelected = icon === item.id;
+                                            const IconCmp = item.icon;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={item.id}
+                                                    onClick={() => setIcon(item.id)}
+                                                    title={item.label}
+                                                    style={{
+                                                        border: isSelected ? `2px solid ${theme.accent}` : `1px solid ${theme.cardBorder}`,
+                                                        background: isSelected ? theme.accentSubtle : theme.inputBg,
+                                                        color: isSelected ? theme.accentText : theme.textSecondary,
+                                                        borderRadius: 7,
+                                                        padding: "6px 2px",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    {typeof IconCmp === "string" ? (
+                                                        <span style={{ fontWeight: 800, fontSize: 13 }}>{IconCmp}</span>
+                                                    ) : (
+                                                        <IconCmp size={15} />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Color Swatches */}
+                                <div>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                                        <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted }}>
+                                            Accent Color
+                                        </label>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <input
+                                                type="color"
+                                                value={color}
+                                                onChange={(e) => setColor(e.target.value)}
+                                                title="Choose custom color"
+                                                style={{
+                                                    width: 16,
+                                                    height: 16,
+                                                    padding: 0,
+                                                    border: `1px solid ${theme.inputBorder}`,
+                                                    borderRadius: 4,
+                                                    cursor: "pointer",
+                                                    background: "transparent",
+                                                }}
+                                            />
+                                            <span style={{ fontFamily: "var(--app-font-mono, monospace)", fontSize: 10, color: theme.textMuted }}>
+                                                {color.toUpperCase()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6 }}>
+                                        {PRESET_COLORS.map((preset) => {
+                                            const isSelected = color.toLowerCase() === preset.hex.toLowerCase();
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={preset.hex}
+                                                    onClick={() => setColor(preset.hex)}
+                                                    title={preset.label}
+                                                    style={{
+                                                        height: 24,
+                                                        borderRadius: 6,
+                                                        background: preset.hex,
+                                                        border: isSelected ? "2px solid #ffffff" : "1px solid rgba(0,0,0,0.15)",
+                                                        cursor: "pointer",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        color: "#ffffff",
+                                                        boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : "none",
+                                                    }}
+                                                >
+                                                    {isSelected && <Check size={11} strokeWidth={3} />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Workspace Skills (if available) */}
+                                {availableSkills.length > 0 && (
+                                    <div>
+                                        <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: theme.textMuted, marginBottom: 5 }}>
+                                            Equip Workspace Skills
+                                        </label>
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                                            {availableSkills.map((sk) => {
+                                                const isSelected = selectedSkills.includes(sk.name);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={sk.name}
+                                                        onClick={() => toggleSkill(sk.name)}
+                                                        style={{
+                                                            border: isSelected ? `1px solid ${theme.accent}` : `1px solid ${theme.inputBorder}`,
+                                                            background: isSelected ? theme.accentSubtle : theme.inputBg,
+                                                            color: isSelected ? theme.accentText : theme.textSecondary,
+                                                            borderRadius: 6,
+                                                            padding: "3px 8px",
+                                                            fontSize: 10.5,
+                                                            fontWeight: isSelected ? 700 : 500,
+                                                            cursor: "pointer",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: 4,
+                                                        }}
+                                                    >
+                                                        {isSelected && <Check size={10} strokeWidth={3} />}
+                                                        <span>{sk.name}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Actions */}
@@ -1848,18 +1596,18 @@ export function CreateAgentModal({
                             alignItems: "center",
                             justifyContent: "flex-end",
                             gap: 10,
-                            paddingTop: 12,
-                            borderTop: "1px solid #ece7dd",
+                            paddingTop: 14,
+                            borderTop: `1px solid ${theme.borderSubtle}`,
                         }}
                     >
                         <button
                             type="button"
                             onClick={onClose}
                             style={{
-                                background: "#f2eee5",
-                                border: "1px solid #ded8cc",
-                                color: "#4f625b",
-                                borderRadius: 9,
+                                background: theme.hoverBg,
+                                border: `1px solid ${theme.border}`,
+                                color: theme.textSecondary,
+                                borderRadius: 8,
                                 padding: "8px 16px",
                                 fontSize: 12.5,
                                 fontWeight: 600,
@@ -1871,22 +1619,22 @@ export function CreateAgentModal({
                         <button
                             type="submit"
                             style={{
-                                background: "#276d60",
+                                background: theme.accent,
                                 border: "none",
-                                color: "#fffdf8",
-                                borderRadius: 9,
-                                padding: "8px 20px",
+                                color: "#ffffff",
+                                borderRadius: 8,
+                                padding: "8px 18px",
                                 fontSize: 12.5,
                                 fontWeight: 600,
                                 cursor: "pointer",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 6,
-                                boxShadow: "0 2px 6px rgba(39, 109, 96, 0.25)",
+                                boxShadow: isDarkMode ? "0 2px 8px rgba(16, 185, 129, 0.3)" : "0 2px 6px rgba(39, 109, 96, 0.25)",
                             }}
                         >
-                            <Plus size={15} />
-                            <span>Create Teammate</span>
+                            <Plus size={14} />
+                            <span>Create Specialist</span>
                         </button>
                     </div>
                 </form>

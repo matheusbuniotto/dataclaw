@@ -1858,20 +1858,41 @@ export function AgentsPage({
                     height: "100%",
                 }}
             >
-                {/* Header: Window traffic lights (left) & Search / Plus (right) */}
+                {/* Sidebar Header: Specialists Section Title & Search / Plus Actions */}
                 <div
                     style={{
-                        padding: "14px 16px 8px",
+                        padding: "14px 16px 10px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
                     }}
                 >
-                    {/* Window traffic lights */}
+                    {/* Modern Specialists Header Badge */}
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ff5f56" }} />
-                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ffbd2e" }} />
-                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#27c93f" }} />
+                        <span
+                            style={{
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                                color: t.textSecondary,
+                            }}
+                        >
+                            Specialists
+                        </span>
+                        <span
+                            style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: "1px 6px",
+                                borderRadius: 999,
+                                background: isDark ? "rgba(255, 255, 255, 0.08)" : "#ece8dc",
+                                color: t.textSecondary,
+                                fontFamily: "var(--app-font-mono, monospace)",
+                            }}
+                        >
+                            {allBots.length}
+                        </span>
                     </div>
 
                     {/* Search & Plus buttons */}
@@ -4046,6 +4067,7 @@ export function AgentsPage({
                     isOpen={true}
                     onClose={() => setEditingAgent(null)}
                     onSave={handleSaveCustomization}
+                    isDark={isDark}
                 />
             )}
 
@@ -4055,6 +4077,7 @@ export function AgentsPage({
                 onClose={() => setIsCreatingAgent(false)}
                 onCreate={handleCreateAgent}
                 availableSkills={skills}
+                isDark={isDark}
             />
 
             {/* Profile & Settings Modal */}

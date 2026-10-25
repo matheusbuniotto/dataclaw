@@ -904,11 +904,17 @@ body.theme-lovable {
 }
 
 .theme-lovable .filter-select,
+.theme-lovable select,
 .theme-lovable .field-input {
   background: #11151e !important;
   border: 1px solid #202737 !important;
   color: #e2e8f0 !important;
   border-radius: 9px !important;
+}
+
+.theme-lovable select option {
+  background: #11151e !important;
+  color: #e2e8f0 !important;
 }
 
 .theme-lovable .filter-select:focus,
