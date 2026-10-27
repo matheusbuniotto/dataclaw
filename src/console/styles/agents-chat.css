@@ -3,7 +3,7 @@
   font-family: var(--chat-font);
   font-size: 15px;
   color: var(--foreground);
-  background: var(--background);
+  background: var(--sidebar);
 }
 
 .agents-chat-sidebar {
@@ -80,7 +80,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--background);
+  background: #ffffff;
 }
 
 .agents-chat-chip {
@@ -105,6 +105,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 72px 32px 24px;
+  background: #ffffff;
 }
 
 .agents-chat-thread {
@@ -126,46 +127,62 @@
   max-width: min(672px, 88%);
 }
 .agents-chat-page .chat-user .chat-bubble {
-  background: var(--muted);
-  color: var(--foreground);
+  background: oklch(0.965 0 0);
+  color: oklch(0.2 0 0);
   border-radius: 1rem;
   padding: 10px 16px;
   box-shadow: none;
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.6;
+}
+
+.agents-chat-page .chat-msg.chat-user time {
+  color: oklch(0.55 0 0);
+  font-size: 11px;
+  margin-top: 4px;
 }
 
 .agents-chat-page .chat-msg.chat-assistant {
   flex-direction: column;
   align-items: flex-start;
-  max-width: min(672px, 88%);
+  max-width: min(672px, 100%);
 }
 .agents-chat-page .chat-assistant .chat-avatar {
   display: none;
 }
 .agents-chat-page .chat-assistant-body {
-  background: var(--muted);
-  border-radius: 1rem;
-  padding: 10px 16px;
-  line-height: 1.55;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  line-height: 1.6;
   width: 100%;
+  gap: 8px;
 }
 .agents-chat-page .chat-assistant-body .chat-text,
 .agents-chat-page .chat-assistant-body .chat-p {
-  color: var(--foreground);
+  color: oklch(0.2 0 0);
   font-size: 15px;
 }
+.agents-chat-page .chat-assistant-body .chat-markdown-body {
+  gap: 8px;
+}
 .agents-chat-page .chat-msg-footer {
-  padding: 4px 4px 0;
+  padding: 2px 0 0;
 }
 .agents-chat-page .chat-msg-footer time {
-  color: var(--muted-foreground);
+  color: oklch(0.55 0 0);
+  font-size: 11px;
+}
+.agents-chat-page .chat-msg-copy-btn {
+  color: oklch(0.55 0 0);
+  font-size: 11px;
 }
 
 .agents-chat-page .chat-assistant-body .tool-stack {
-  margin: 10px 0 4px;
+  margin: 12px 0 8px;
   padding: 4px 6px;
-  background: color-mix(in srgb, var(--background) 55%, var(--muted));
+  background: oklch(0.97 0 0);
+  border-radius: calc(var(--radius) + 6px);
   box-shadow: none;
 }
 .agents-chat-page .chat-assistant-body .tool-card-body {

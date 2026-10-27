@@ -16,7 +16,7 @@
 
 /* User Message */
 .chat-user{align-self:flex-end;max-width:82%;align-items:flex-end}
-.chat-bubble{display:inline-block;text-align:left;background:var(--muted);color:var(--foreground);padding:10px 16px;border-radius:1rem;font-size:15px;line-height:1.55;box-shadow:none}
+.chat-bubble{display:inline-block;text-align:left;background:oklch(0.965 0 0);color:oklch(0.2 0 0);padding:10px 16px;border-radius:1rem;font-size:15px;line-height:1.6;box-shadow:none}
 .chat-user-text{white-space:pre-wrap;word-break:break-word}
 
 /* Assistant Message */
