@@ -1,5 +1,7 @@
 /* The console stylesheet: one file to import, three seams behind it.
    Order matters — shell and layout, then the chat surface, then the studio dark theme. */
+@import "./styles/tokens-studio.css";
 @import "./styles/base.css";
 @import "./styles/chat.css";
+@import "./styles/agents-chat.css";
 @import "./styles/theme-studio.css";
