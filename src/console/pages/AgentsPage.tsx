@@ -118,15 +118,15 @@ export function ProfileSettingsModal({
     ops: boolean;
     onToggleOps?: () => void;
     onOpenSettings?: () => void;
-    theme?: "classic" | "lovable";
-    onSelectTheme?: (theme: "classic" | "lovable") => void;
+    theme?: "classic" | "dark";
+    onSelectTheme?: (theme: "classic" | "dark") => void;
 }) {
     if (!isOpen) return null;
 
     const [name, setName] = useState(profile.name);
     const [role, setRole] = useState(profile.role);
     const [avatarColor, setAvatarColor] = useState(profile.avatarColor);
-    const isDark = theme === "lovable";
+    const isDark = theme === "dark";
 
     const derivedInitials = useMemo(() => {
         return (
@@ -288,7 +288,7 @@ export function ProfileSettingsModal({
 
                                 <button
                                     type="button"
-                                    onClick={() => onSelectTheme("lovable")}
+                                    onClick={() => onSelectTheme("dark")}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -296,8 +296,8 @@ export function ProfileSettingsModal({
                                         padding: "10px 12px",
                                         borderRadius: 9,
                                         border:
-                                            theme === "lovable"
-                                                ? "2px solid #ff5e57"
+                                            theme === "dark"
+                                                ? "2px solid #ec4899"
                                                 : `1px solid ${isDark ? "#262c3b" : "#ded8cb"}`,
                                         background: isDark ? "#191e29" : "#1a1e28",
                                         color: "#ffffff",
@@ -305,8 +305,8 @@ export function ProfileSettingsModal({
                                         fontWeight: 600,
                                         fontSize: 12,
                                         boxShadow:
-                                            theme === "lovable"
-                                                ? "0 0 0 2px rgba(255, 94, 87, 0.35)"
+                                            theme === "dark"
+                                                ? "0 0 0 2px rgba(236, 72, 153, 0.35)"
                                                 : "none",
                                         transition: "all 0.15s ease",
                                     }}
@@ -316,17 +316,17 @@ export function ProfileSettingsModal({
                                             width: 20,
                                             height: 20,
                                             borderRadius: "50%",
-                                            background: "#ff5e57",
+                                            background: "linear-gradient(135deg, #f97316, #ec4899, #a855f7)",
                                             border: "2px solid #0d0f12",
-                                            boxShadow: "0 1px 4px rgba(255, 94, 87, 0.4)",
+                                            boxShadow: "0 1px 4px rgba(236, 72, 153, 0.4)",
                                             flexShrink: 0,
                                         }}
                                     />
                                     <div style={{ textAlign: "left", flex: 1 }}>
-                                        <div style={{ lineHeight: 1.2 }}>Lovable Dark</div>
-                                        <div style={{ fontSize: 9.5, color: "#9ca7b6" }}>Obsidian & Coral</div>
+                                        <div style={{ lineHeight: 1.2 }}>Studio dark</div>
+                                        <div style={{ fontSize: 9.5, color: "#9ca7b6" }}>Neutral & gradient accents</div>
                                     </div>
-                                    {theme === "lovable" && <Check size={14} style={{ color: "#ff5e57" }} />}
+                                    {theme === "dark" && <Check size={14} style={{ color: "#ec4899" }} />}
                                 </button>
                             </div>
                         </div>
@@ -1315,63 +1315,62 @@ export function AgentsPage({
     );
     const [userProfile, setUserProfile] = useState<UserProfile>(loadUserProfile);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
-    const [theme, setTheme] = useState<"classic" | "lovable">(() => {
+    const [theme, setTheme] = useState<"classic" | "dark">(() => {
         if (typeof window !== "undefined") {
-            return (
-                (window.localStorage.getItem("dataclaw.theme") as "classic" | "lovable") ||
-                "lovable"
-            );
+            const stored = window.localStorage.getItem("dataclaw.theme");
+            if (stored === "classic") return "classic";
+            return "dark";
         }
-        return "lovable";
+        return "dark";
     });
 
-    const toggleTheme = (next?: "classic" | "lovable") => {
-        const val = next || (theme === "classic" ? "lovable" : "classic");
+    const toggleTheme = (next?: "classic" | "dark") => {
+        const val = next || (theme === "classic" ? "dark" : "classic");
         setTheme(val);
         if (typeof window !== "undefined") {
             window.localStorage.setItem("dataclaw.theme", val);
         }
     };
 
-    const isDark = theme === "lovable";
+    const isDark = theme === "dark";
     const t = {
         isDark,
-        bg: isDark ? "#0d0f12" : "#f9f7f1",
-        panelBg: isDark ? "#12151b" : "#fbf9f4",
+        bg: isDark ? "#0d0f12" : "#f4f4f6",
+        panelBg: isDark ? "#12151b" : "#ffffff",
         cardBg: isDark ? "#181c24" : "#ffffff",
-        border: isDark ? "#202531" : "#e4e0d6",
-        borderSubtle: isDark ? "#181c25" : "#ece7dd",
-        textPrimary: isDark ? "#f1f3f7" : "#203a37",
-        textSecondary: isDark ? "#9aa3b2" : "#52655d",
-        textMuted: isDark ? "#5e6676" : "#87968f",
-        accent: isDark ? "#ff5e57" : "#276d60",
-        accentHover: isDark ? "#ff4740" : "#1f584e",
-        accentSubtle: isDark ? "rgba(255, 94, 87, 0.12)" : "#eaf3ee",
-        accentBorder: isDark ? "rgba(255, 94, 87, 0.3)" : "#c7ded3",
-        activeItemBg: isDark ? "#191e2a" : "#eaf3ed",
-        activeItemBorder: isDark ? "#ff5e57" : "#9cc4b0",
-        inactiveItemBg: isDark ? "#161922" : "#ffffff",
-        inactiveItemBorder: isDark ? "#222736" : "#eae5db",
-        hoverItemBg: isDark ? "#161922" : "#f0ede4",
-        inputBg: isDark ? "#151821" : "#ffffff",
-        inputBorder: isDark ? "#252c3c" : "#dedbd1",
-        pillBg: isDark ? "#181d26" : "#f0f3eb",
-        pillText: isDark ? "#9aa5b6" : "#6d8174",
-        pillBorder: isDark ? "#222938" : "#d8e2d8",
-        headerBg: isDark ? "#12151b" : "#fbf9f4",
-        composerBg: isDark ? "#12151b" : "#fbf9f4",
+        border: isDark ? "#27272a" : "#e4e4e7",
+        borderSubtle: isDark ? "#1f1f23" : "#f0f0f3",
+        textPrimary: isDark ? "#fafafa" : "#18181b",
+        textSecondary: isDark ? "#a1a1aa" : "#52525b",
+        textMuted: isDark ? "#71717a" : "#a1a1aa",
+        accent: isDark ? "#ec4899" : "#18181b",
+        accentHover: isDark ? "#f472b6" : "#27272a",
+        accentSubtle: isDark ? "rgba(236, 72, 153, 0.12)" : "#f4f4f5",
+        accentBorder: isDark ? "rgba(236, 72, 153, 0.35)" : "#e4e4e7",
+        activeItemBg: isDark ? "#1a1a1f" : "#fafafa",
+        activeItemBorder: isDark ? "#ec4899" : "#18181b",
+        inactiveItemBg: isDark ? "#141418" : "#ffffff",
+        inactiveItemBorder: isDark ? "#27272a" : "#e4e4e7",
+        hoverItemBg: isDark ? "#1a1a1f" : "#f4f4f5",
+        inputBg: isDark ? "#141418" : "#ffffff",
+        inputBorder: isDark ? "#3f3f46" : "#e4e4e7",
+        pillBg: isDark ? "#18181b" : "#f4f4f5",
+        pillText: isDark ? "#a1a1aa" : "#52525b",
+        pillBorder: isDark ? "#27272a" : "#e4e4e7",
+        headerBg: isDark ? "#12151b" : "#ffffff",
+        composerBg: isDark ? "#12151b" : "#f4f4f6",
     };
 
     useEffect(() => {
         if (typeof document !== "undefined") {
             if (isDark) {
-                document.documentElement.classList.add("theme-lovable");
-                document.body.classList.add("theme-lovable");
-                document.documentElement.setAttribute("data-theme", "lovable");
+                document.documentElement.classList.add("theme-dark", "theme-studio", "dark");
+                document.body.classList.add("theme-dark", "theme-studio", "dark");
+                document.documentElement.setAttribute("data-theme", "dark");
             } else {
-                document.documentElement.classList.remove("theme-lovable");
-                document.body.classList.remove("theme-lovable");
-                document.documentElement.removeAttribute("data-theme");
+                document.documentElement.classList.remove("theme-dark", "theme-studio", "dark");
+                document.body.classList.remove("theme-dark", "theme-studio", "dark");
+                document.documentElement.setAttribute("data-theme", "classic");
             }
         }
     }, [isDark]);
@@ -1831,7 +1830,7 @@ export function AgentsPage({
 
     return (
         <div
-            className={isDark ? "theme-lovable" : ""}
+            className={isDark ? "theme-dark theme-studio dark" : ""}
             style={{
                 display: "flex",
                 height: "100dvh",

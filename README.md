@@ -531,7 +531,7 @@ dataclaw/
 │   │   ├── pages/                   # One module per page: overview, agents, runs, data, capabilities, settings
 │   │   ├── components/              # Shared presentational pieces: chat, page chrome, auth, agent editor
 │   │   ├── state/                   # workspace-types.ts, the shapes pages render
-│   │   ├── styles/                  # base.css, chat.css, theme-lovable.css
+│   │   ├── styles/                  # base.css, chat.css, theme-studio.css
 │   │   └── DurableAgentConsole.tsx  # The shell: navigation, sidebar, and client route table
 │   ├── capabilities/
 │   │   └── catalog.ts               # dataclaw.capabilities.json: what is installed and what is off
