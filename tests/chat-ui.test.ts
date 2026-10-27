@@ -136,14 +136,14 @@ This is **important** and uses \`SELECT 1\`.
         const html = renderToString(React.createElement(AssistantTurnView, { turn, live: false }));
         expect(html).toContain("Thought");
         expect(html).toContain("Evaluating customer churn drivers");
-        expect(html).toContain("Ran command");
+        expect(html).toContain("tool-stack");
         expect(html).toContain("bash");
-        expect(html).toContain("ls -la sample-data/");
+        expect(html).toContain('title="bash"');
 
         const cardHtml = renderToString(
             React.createElement(ToolInvocationCard, { tool: turn.tools[0]!, defaultOpen: true })
         );
-        expect(cardHtml).toContain("tool-name-badge");
+        expect(cardHtml).toContain("tool-card-title");
         expect(cardHtml).toContain("bash");
         expect(cardHtml).toContain("Call · Shell");
         expect(cardHtml).toContain("customer_churn.csv");
@@ -197,9 +197,9 @@ This is **important** and uses \`SELECT 1\`.
 
         const html = renderToString(React.createElement(AssistantTurnView, { turn: turns[1]!, live: false }));
         const thought = html.indexOf("Profile the file first.");
-        const skill = html.indexOf("Read instructions");
+        const skill = html.indexOf(">read</span>");
         const followup = html.indexOf("The skill says to explore before claiming.");
-        const query = html.indexOf("Queried the data source");
+        const query = html.indexOf("query_data");
         const answer = html.indexOf("Warehouse is up.");
         expect(thought).toBeGreaterThan(-1);
         expect(thought).toBeLessThan(skill);
@@ -265,8 +265,9 @@ This is **important** and uses \`SELECT 1\`.
         const cardHtml = renderToString(
             React.createElement(ToolInvocationCard, { tool: toolInvocation, defaultOpen: true })
         );
-        expect(cardHtml).toContain("Calling");
-        expect(cardHtml).toContain("Querying the data source");
+        expect(cardHtml).toContain('aria-label="Running"');
+        expect(cardHtml).toContain("query_data");
+        expect(cardHtml).toContain("Get trip count");
         expect(cardHtml).not.toContain("Failed");
         expect(cardHtml).not.toContain("Tool result unavailable: history ends before this call completed.");
 
@@ -292,8 +293,8 @@ This is **important** and uses \`SELECT 1\`.
         const completedCardHtml = renderToString(
             React.createElement(ToolInvocationCard, { tool: updatedTool, defaultOpen: true })
         );
-        expect(completedCardHtml).not.toContain("Calling");
-        expect(completedCardHtml).toContain("Queried the data source");
+        expect(completedCardHtml).not.toContain('aria-label="Running"');
+        expect(completedCardHtml).toContain("query_data");
         expect(completedCardHtml).toContain("1000000");
     });
 });

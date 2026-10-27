@@ -866,14 +866,14 @@ export function ToolInvocationCard({
     const isSyntheticUnavailable = Boolean(tool.resultText && isSyntheticMissingResultText(tool.resultText));
     const isRunning = tool.status === "running" || isSyntheticUnavailable;
     const failed = !isSyntheticUnavailable && (Boolean(tool.isError) || tool.status === "error" || Boolean(tool.resultText?.includes("<harness>\n[error]")));
-    const [open, setOpen] = useState(defaultOpen || isRunning || failed);
+    const [open, setOpen] = useState(defaultOpen);
     const previousStatus = useRef(tool.status);
 
     useEffect(() => {
         if (previousStatus.current === tool.status) return;
         const previous = previousStatus.current;
         previousStatus.current = tool.status;
-        if (isRunning || tool.status === "error") setOpen(true);
+        if (isRunning) setOpen(true);
         else if (previous === "running" && tool.status === "completed") setOpen(false);
     }, [tool.status, isRunning]);
 
@@ -882,8 +882,6 @@ export function ToolInvocationCard({
         : tool.toolName === "edit"
             ? { calling: "Editing instructions", called: "Edited instructions" }
             : { calling: "Reading instructions", called: "Read instructions" };
-    const phrase = instructionFile ? instructionPhrase : meta;
-    const title = isRunning ? phrase.calling : phrase.called;
     const summary = tool.summary && tool.summary !== tool.toolName ? tool.summary : "";
 
     const hiddenKeys = new Set(["sql", "command", "path", "filePath", "rationale", "instruction", "instructions"]);
@@ -891,75 +889,47 @@ export function ToolInvocationCard({
         ? Object.entries(args).filter(([key, value]) => !hiddenKeys.has(key) && value !== undefined && value !== "")
         : [];
 
+    const toolLabel = tool.toolName.replace(/__/g, " · ");
+
     return (
-        <div className={`tool-card ${tool.status} ${meta.colorClass}${isRunning ? " is-running" : ""}${failed ? " is-error" : ""}`}>
-            <div
+        <div className={`tool-card ${tool.status} ${meta.colorClass}${isRunning ? " is-running" : ""}${failed ? " is-error" : ""}${open ? " is-open" : ""}`}>
+            <button
+                type="button"
                 className="tool-card-head"
                 onClick={() => setOpen(!open)}
-                role="button"
-                tabIndex={0}
                 aria-expanded={open}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setOpen(!open);
-                    }
-                }}
             >
-                <div className="tool-card-left">
-                    <span className="tool-card-glyph">{instructionFile ? <BookOpen size={13} /> : meta.icon}</span>
-                    <span className="tool-card-title">{title}</span>
-                    <span className="tool-name-badge">{tool.toolName}</span>
-                    {tool.toolName === "query_data" && (
-                        <span className="chip" style={{ fontSize: 9.5, padding: "1px 5px", color: "var(--green, #10b981)", borderColor: "rgba(16, 185, 129, 0.3)" }}>
-                            Read-Only
-                        </span>
-                    )}
-                    {tool.toolName === "request_auditor_review" && (
-                        <span className="chip" style={{ fontSize: 9.5, padding: "1px 5px", color: "var(--amber, #f59e0b)", borderColor: "rgba(245, 158, 11, 0.3)" }}>
-                            Auditor κ=0.701
-                        </span>
-                    )}
-                    {tool.toolName === "profile_table" && (
-                        <span className="chip" style={{ fontSize: 9.5, padding: "1px 5px", color: "var(--indigo, #6366f1)", borderColor: "rgba(99, 102, 241, 0.3)" }}>
-                            Stats
-                        </span>
-                    )}
-                    {summary && (
-                        <span className="tool-summary" title={summary}>
-                            {summary}
-                        </span>
-                    )}
-                </div>
-
-                <div className="tool-card-right">
-                    {tool.durationMs !== undefined && !isRunning && (
-                        <span className="tool-duration">{formatDuration(tool.durationMs)}</span>
-                    )}
-                    {isRunning && (
-                        <span className="tool-status-pill tool-status-running">
-                            <Loader2 size={10} className="animate-spin" />
-                            <span>Calling</span>
-                        </span>
-                    )}
-                    {failed && (
-                        <span className="tool-status-pill tool-status-error">
-                            <XCircle size={10} />
-                            <span>Failed</span>
-                        </span>
-                    )}
+                <span className="tool-card-glyph" aria-hidden>
+                    {instructionFile ? <BookOpen size={12} /> : meta.icon}
+                </span>
+                <span className="tool-card-title" title={tool.toolName}>{toolLabel}</span>
+                <span className="tool-card-status" aria-label={isRunning ? "Running" : failed ? "Failed" : "Completed"}>
+                    {isRunning && <Loader2 size={13} className="tool-status-spin" />}
+                    {failed && !isRunning && <XCircle size={13} className="tool-status-err" />}
                     {tool.status === "completed" && !failed && !isRunning && (
-                        <Check size={13} className="tool-done-mark" />
+                        <Check size={13} className="tool-done-mark" strokeWidth={2.5} />
                     )}
-                    <ChevronRight
-                        size={12}
-                        className={`chat-chevron transition-transform ${open ? "rotate-90" : ""}`}
-                    />
-                </div>
-            </div>
+                </span>
+                {tool.durationMs !== undefined && !isRunning && (
+                    <span className="tool-duration">{formatDuration(tool.durationMs)}</span>
+                )}
+                <ChevronRight
+                    size={14}
+                    className={`tool-card-chevron chat-chevron ${open ? "open" : ""}`}
+                    aria-hidden
+                />
+            </button>
 
             {open && (
                 <div className="tool-card-body">
+                    {(tool.toolName === "query_data" || tool.toolName === "request_auditor_review" || tool.toolName === "profile_table") && (
+                        <div className="tool-meta-chips">
+                            {tool.toolName === "query_data" && <span className="tool-meta-chip">Read-only</span>}
+                            {tool.toolName === "request_auditor_review" && <span className="tool-meta-chip">Auditor κ=0.701</span>}
+                            {tool.toolName === "profile_table" && <span className="tool-meta-chip">Stats</span>}
+                        </div>
+                    )}
+                    {summary && <p className="tool-summary-line">{summary}</p>}
                     {instruction && (
                         <div className="tool-instruction">
                             <span className="tool-section-label">
@@ -1003,8 +973,9 @@ export function ToolInvocationCard({
 }
 
 function ToolTimeline({ tools }: { tools: ToolInvocation[] }) {
+    if (tools.length === 0) return null;
     return (
-        <div className="tool-timeline">
+        <div className="tool-stack" role="list" aria-label="Tool calls">
             {tools.map((tool) => (
                 <ToolInvocationCard key={tool.id} tool={tool} />
             ))}

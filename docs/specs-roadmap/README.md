@@ -86,7 +86,7 @@ deepening. All addressed:
   from active workspace snapshot, terminal log wired to real runtime activity, and routines aligned
   with durable pipeline tasks.
 - ~~`src/prototype/console.css` is imported nowhere; `index.html` carries a second copy of its rules.~~
-  **Resolved:** Reduced `console.css` to a modular manifest that imports `styles/{base,chat,theme-lovable}.css`.
+  **Resolved:** Reduced `console.css` to a modular manifest that imports `styles/{base,chat,theme-studio}.css`.
 - ~~Starter prompts are duplicated between `src/console/pages/Overview.tsx:19` and `src/console/pages/AgentsPage.tsx:757`.~~
   **Resolved:** Extracted to shared `src/console/components/starters.ts` (`STARTER_PROMPTS` and `STARTER_QUERIES`).
 - ~~`getSharedAdapter()` has no callers.~~ **Resolved:** Removed in spec 01.

@@ -6,6 +6,7 @@ import type {
     WorkspaceSkillInfo,
 } from "../state/workspace-types";
 import { AssistantTurnView, groupIntoTurns, type ChatTurn } from "../components/ChatComponents";
+import { BotAvatar, hexToBotColor, SHAPES, type Shape } from "../components/BotAvatar";
 import { STARTER_PROMPTS } from "../components/starters";
 import {
     AgentEditorModal,
@@ -118,15 +119,15 @@ export function ProfileSettingsModal({
     ops: boolean;
     onToggleOps?: () => void;
     onOpenSettings?: () => void;
-    theme?: "classic" | "lovable";
-    onSelectTheme?: (theme: "classic" | "lovable") => void;
+    theme?: "classic" | "dark";
+    onSelectTheme?: (theme: "classic" | "dark") => void;
 }) {
     if (!isOpen) return null;
 
     const [name, setName] = useState(profile.name);
     const [role, setRole] = useState(profile.role);
     const [avatarColor, setAvatarColor] = useState(profile.avatarColor);
-    const isDark = theme === "lovable";
+    const isDark = theme === "dark";
 
     const derivedInitials = useMemo(() => {
         return (
@@ -288,7 +289,7 @@ export function ProfileSettingsModal({
 
                                 <button
                                     type="button"
-                                    onClick={() => onSelectTheme("lovable")}
+                                    onClick={() => onSelectTheme("dark")}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -296,8 +297,8 @@ export function ProfileSettingsModal({
                                         padding: "10px 12px",
                                         borderRadius: 9,
                                         border:
-                                            theme === "lovable"
-                                                ? "2px solid #ff5e57"
+                                            theme === "dark"
+                                                ? "2px solid #ec4899"
                                                 : `1px solid ${isDark ? "#262c3b" : "#ded8cb"}`,
                                         background: isDark ? "#191e29" : "#1a1e28",
                                         color: "#ffffff",
@@ -305,8 +306,8 @@ export function ProfileSettingsModal({
                                         fontWeight: 600,
                                         fontSize: 12,
                                         boxShadow:
-                                            theme === "lovable"
-                                                ? "0 0 0 2px rgba(255, 94, 87, 0.35)"
+                                            theme === "dark"
+                                                ? "0 0 0 2px rgba(236, 72, 153, 0.35)"
                                                 : "none",
                                         transition: "all 0.15s ease",
                                     }}
@@ -316,17 +317,17 @@ export function ProfileSettingsModal({
                                             width: 20,
                                             height: 20,
                                             borderRadius: "50%",
-                                            background: "#ff5e57",
+                                            background: "var(--primary)",
                                             border: "2px solid #0d0f12",
-                                            boxShadow: "0 1px 4px rgba(255, 94, 87, 0.4)",
+                                            boxShadow: "0 1px 4px rgba(236, 72, 153, 0.4)",
                                             flexShrink: 0,
                                         }}
                                     />
                                     <div style={{ textAlign: "left", flex: 1 }}>
-                                        <div style={{ lineHeight: 1.2 }}>Lovable Dark</div>
-                                        <div style={{ fontSize: 9.5, color: "#9ca7b6" }}>Obsidian & Coral</div>
+                                        <div style={{ lineHeight: 1.2 }}>Studio dark</div>
+                                        <div style={{ fontSize: 9.5, color: "#9ca7b6" }}>Neutral & gradient accents</div>
                                     </div>
-                                    {theme === "lovable" && <Check size={14} style={{ color: "#ff5e57" }} />}
+                                    {theme === "dark" && <Check size={14} style={{ color: "var(--primary)" }} />}
                                 </button>
                             </div>
                         </div>
@@ -1315,63 +1316,70 @@ export function AgentsPage({
     );
     const [userProfile, setUserProfile] = useState<UserProfile>(loadUserProfile);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
-    const [theme, setTheme] = useState<"classic" | "lovable">(() => {
+    const [theme, setTheme] = useState<"classic" | "dark">(() => {
         if (typeof window !== "undefined") {
-            return (
-                (window.localStorage.getItem("dataclaw.theme") as "classic" | "lovable") ||
-                "lovable"
-            );
+            const stored = window.localStorage.getItem("dataclaw.theme");
+            if (stored === "dark") return "dark";
+            return "classic";
         }
-        return "lovable";
+        return "classic";
     });
 
-    const toggleTheme = (next?: "classic" | "lovable") => {
-        const val = next || (theme === "classic" ? "lovable" : "classic");
+    const toggleTheme = (next?: "classic" | "dark") => {
+        const val = next || (theme === "classic" ? "dark" : "classic");
         setTheme(val);
         if (typeof window !== "undefined") {
             window.localStorage.setItem("dataclaw.theme", val);
         }
     };
 
-    const isDark = theme === "lovable";
+    const isDark = theme === "dark";
     const t = {
         isDark,
-        bg: isDark ? "#0d0f12" : "#f9f7f1",
-        panelBg: isDark ? "#12151b" : "#fbf9f4",
-        cardBg: isDark ? "#181c24" : "#ffffff",
-        border: isDark ? "#202531" : "#e4e0d6",
-        borderSubtle: isDark ? "#181c25" : "#ece7dd",
-        textPrimary: isDark ? "#f1f3f7" : "#203a37",
-        textSecondary: isDark ? "#9aa3b2" : "#52655d",
-        textMuted: isDark ? "#5e6676" : "#87968f",
-        accent: isDark ? "#ff5e57" : "#276d60",
-        accentHover: isDark ? "#ff4740" : "#1f584e",
-        accentSubtle: isDark ? "rgba(255, 94, 87, 0.12)" : "#eaf3ee",
-        accentBorder: isDark ? "rgba(255, 94, 87, 0.3)" : "#c7ded3",
-        activeItemBg: isDark ? "#191e2a" : "#eaf3ed",
-        activeItemBorder: isDark ? "#ff5e57" : "#9cc4b0",
-        inactiveItemBg: isDark ? "#161922" : "#ffffff",
-        inactiveItemBorder: isDark ? "#222736" : "#eae5db",
-        hoverItemBg: isDark ? "#161922" : "#f0ede4",
-        inputBg: isDark ? "#151821" : "#ffffff",
-        inputBorder: isDark ? "#252c3c" : "#dedbd1",
-        pillBg: isDark ? "#181d26" : "#f0f3eb",
-        pillText: isDark ? "#9aa5b6" : "#6d8174",
-        pillBorder: isDark ? "#222938" : "#d8e2d8",
-        headerBg: isDark ? "#12151b" : "#fbf9f4",
-        composerBg: isDark ? "#12151b" : "#fbf9f4",
+        bg: isDark ? "#0d0f12" : "var(--background)",
+        panelBg: isDark ? "#12151b" : "var(--sidebar)",
+        cardBg: isDark ? "#181c24" : "var(--card)",
+        border: isDark ? "#27272a" : "var(--border)",
+        borderSubtle: isDark ? "#1f1f23" : "var(--border)",
+        textPrimary: isDark ? "#fafafa" : "var(--foreground)",
+        textSecondary: isDark ? "#a1a1aa" : "var(--muted-foreground)",
+        textMuted: isDark ? "#71717a" : "var(--muted-foreground)",
+        accent: isDark ? "oklch(0.65 0.2 25)" : "var(--primary)",
+        accentHover: isDark ? "oklch(0.7 0.2 25)" : "oklch(0.52 0.22 25)",
+        accentSubtle: isDark ? "rgba(255, 255, 255, 0.06)" : "var(--muted)",
+        accentBorder: isDark ? "rgba(255, 255, 255, 0.12)" : "var(--border)",
+        activeItemBg: isDark ? "#1a1a1f" : "var(--accent)",
+        activeItemBorder: isDark ? "var(--border)" : "var(--border)",
+        inactiveItemBg: isDark ? "#141418" : "transparent",
+        inactiveItemBorder: isDark ? "#27272a" : "transparent",
+        hoverItemBg: isDark ? "#1a1a1f" : "var(--muted)",
+        inputBg: isDark ? "#141418" : "var(--background)",
+        inputBorder: isDark ? "#3f3f46" : "var(--input)",
+        pillBg: isDark ? "#18181b" : "var(--background)",
+        pillText: isDark ? "#a1a1aa" : "var(--muted-foreground)",
+        pillBorder: isDark ? "#27272a" : "var(--border)",
+        headerBg: isDark ? "#12151b" : "var(--background)",
+        composerBg: isDark ? "#12151b" : "var(--background)",
+    };
+
+    const botShapeFor = (id: string, icon?: string): Shape => {
+        if (icon === "dot-eyes" || id === "dataclaw") return "circle";
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        const pick = SHAPES[Math.abs(hash) % SHAPES.length];
+        return pick ?? "egg";
     };
 
     useEffect(() => {
         if (typeof document !== "undefined") {
             if (isDark) {
-                document.documentElement.classList.add("theme-lovable");
-                document.body.classList.add("theme-lovable");
-                document.documentElement.setAttribute("data-theme", "lovable");
+                document.documentElement.classList.add("theme-dark", "theme-studio", "dark");
+                document.body.classList.add("theme-dark", "theme-studio", "dark");
+                document.documentElement.setAttribute("data-theme", "dark");
             } else {
-                document.documentElement.classList.remove("theme-lovable");
-                document.body.classList.remove("theme-lovable");
-                document.documentElement.removeAttribute("data-theme");
+                document.documentElement.classList.remove("theme-dark", "theme-studio", "dark");
+                document.body.classList.remove("theme-dark", "theme-studio", "dark");
+                document.documentElement.setAttribute("data-theme", "classic");
             }
         }
     }, [isDark]);
@@ -1831,13 +1839,13 @@ export function AgentsPage({
 
     return (
         <div
-            className={isDark ? "theme-lovable" : ""}
+            className={`agents-chat-page${isDark ? " theme-dark theme-studio dark" : ""}`}
             style={{
                 display: "flex",
                 height: "100dvh",
                 background: t.bg,
                 color: t.textPrimary,
-                fontFamily: "var(--app-font-sans, -apple-system, BlinkMacSystemFont, sans-serif)",
+                fontFamily: "var(--chat-font, var(--app-font-sans, system-ui, sans-serif))",
                 overflow: "hidden",
                 position: fullscreen ? "fixed" : "relative",
                 inset: fullscreen ? 0 : "auto",
@@ -1848,73 +1856,38 @@ export function AgentsPage({
             {/* COLUMN 1: TEAMMATES / DOTS ROSTER (PROMINENT AGENT NAMES)    */}
             {/* ============================================================ */}
             <aside
+                className="agents-chat-sidebar"
                 style={{
-                    width: 260,
-                    minWidth: 260,
-                    background: t.panelBg,
-                    borderRight: `1px solid ${t.border}`,
                     display: "flex",
                     flexDirection: "column",
                     height: "100%",
                 }}
             >
-                {/* Header: Window traffic lights (left) & Search / Plus (right) */}
                 <div
                     style={{
-                        padding: "14px 16px 8px",
+                        padding: "16px 16px 8px",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "space-between",
+                        justifyContent: "flex-end",
+                        gap: 8,
                     }}
                 >
-                    {/* Window traffic lights */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ff5f56" }} />
-                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ffbd2e" }} />
-                        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#27c93f" }} />
-                    </div>
-
-                    {/* Search & Plus buttons */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <button
-                            type="button"
-                            onClick={() => setSearchFilterOpen((prev) => !prev)}
-                            title="Search specialists"
-                            style={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: "50%",
-                                border: "none",
-                                background: isDark ? "rgba(255, 255, 255, 0.08)" : "#eeeeee",
-                                color: t.textSecondary,
-                                display: "grid",
-                                placeItems: "center",
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
-                            }}
-                        >
-                            <Search size={13} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setIsCreatingAgent(true)}
-                            title="Create agent"
-                            style={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: "50%",
-                                border: "none",
-                                background: isDark ? "rgba(255, 255, 255, 0.08)" : "#eeeeee",
-                                color: t.textSecondary,
-                                display: "grid",
-                                placeItems: "center",
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
-                            }}
-                        >
-                            <Plus size={15} />
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className="ref-icon-btn ref-icon-btn--md"
+                        onClick={() => setSearchFilterOpen((prev) => !prev)}
+                        title="Search specialists"
+                    >
+                        <Search size={18} />
+                    </button>
+                    <button
+                        type="button"
+                        className="ref-icon-btn ref-icon-btn--md"
+                        onClick={() => setIsCreatingAgent(true)}
+                        title="Create specialist"
+                    >
+                        <Plus size={18} />
+                    </button>
                 </div>
 
                 {/* Hero Principal (DataClaw coordinator) */}
@@ -1947,14 +1920,7 @@ export function AgentsPage({
                             transition: "all 0.15s ease",
                         }}
                     >
-                        <GrokbotAvatar
-                            name="Principal"
-                            color="#1d4ed8"
-                            size={52}
-                            isWorking={activeAgentId === "dataclaw" && working}
-                            mood={activeAgentId === "dataclaw" && working ? "thinking" : "normal"}
-                            hasStarBadge={true}
-                        />
+                        <BotAvatar shape="circle" color="blue" size={68} />
                     </div>
                     <div
                         style={{
@@ -2060,82 +2026,22 @@ export function AgentsPage({
                             if (bots.length === 0) return null;
                             return (
                                 <div key={section}>
-                                    <div
-                                        style={{
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            color: t.textMuted,
-                                            padding: "2px 8px 6px",
-                                            letterSpacing: "0.01em",
-                                            textTransform: "uppercase",
-                                        }}
-                                    >
-                                        {section}
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                    <p className="agents-section-label">{section}</p>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                         {bots.map((bot) => (
                                             <div
                                                 key={bot.id}
-                                                className="bot-row"
+                                                className={`bot-row agents-roster-row${bot.active ? " is-active" : ""}`}
                                                 onClick={() => onSelectAgent(bot.id)}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 10,
-                                                    padding: "8px 10px",
-                                                    borderRadius: 12,
-                                                    cursor: "pointer",
-                                                    background: bot.active
-                                                        ? (isDark ? "rgba(255, 255, 255, 0.08)" : "#ececec")
-                                                        : "transparent",
-                                                    border: bot.active
-                                                        ? `1px solid ${isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)"}`
-                                                        : "1px solid transparent",
-                                                    transition: "all 0.15s ease",
-                                                }}
                                             >
-                                                <GrokbotAvatar
-                                                    name={bot.name}
-                                                    color={bot.color}
-                                                    icon={bot.icon}
-                                                    size={34}
-                                                    isWorking={bot.active && working}
+                                                <BotAvatar
+                                                    shape={botShapeFor(bot.id, bot.icon)}
+                                                    color={hexToBotColor(bot.color)}
+                                                    size={44}
                                                 />
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "space-between",
-                                                            marginBottom: 2,
-                                                        }}
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                fontWeight: bot.active ? 600 : 500,
-                                                                fontSize: 13,
-                                                                color: bot.active
-                                                                    ? (isDark ? "#ffffff" : "#111827")
-                                                                    : t.textPrimary,
-                                                                whiteSpace: "nowrap",
-                                                                overflow: "hidden",
-                                                                textOverflow: "ellipsis",
-                                                            }}
-                                                        >
-                                                            {bot.name}
-                                                        </span>
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: 11,
-                                                            color: t.textSecondary,
-                                                            whiteSpace: "nowrap",
-                                                            overflow: "hidden",
-                                                            textOverflow: "ellipsis",
-                                                        }}
-                                                    >
-                                                        {bot.lastMessage}
-                                                    </div>
+                                                    <p className="agents-roster-name">{bot.name}</p>
+                                                    <p className="agents-roster-preview">{bot.lastMessage}</p>
                                                 </div>
 
                                                 {/* Hover-only actions: Screen + Edit */}
@@ -2320,26 +2226,27 @@ export function AgentsPage({
             {/* COLUMN 2: CENTER CHAT STREAM                                 */}
             {/* ============================================================ */}
             <main
+                className="agents-chat-main"
                 style={{
                     flex: 1,
                     display: "flex",
                     flexDirection: "column",
                     height: "100%",
-                    background: t.bg,
                     minWidth: 0,
                     borderRight: showDeepDive ? `1px solid ${t.border}` : "none",
                 }}
             >
-                {/* Chat Header (Serene, minimal, perfectly centered, matching reference) */}
                 <header
                     style={{
-                        height: 52,
+                        height: 48,
                         padding: "0 20px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        borderBottom: `1px solid ${t.borderSubtle}`,
-                        background: t.panelBg,
+                        background: "transparent",
+                        position: "relative",
+                        zIndex: 6,
+                        flexShrink: 0,
                     }}
                 >
                     {/* Left action: Platform Navigation Drawer Toggle */}
@@ -2380,19 +2287,14 @@ export function AgentsPage({
                         )}
                     </div>
 
-                    {/* Centered Bot Capsule matching reference screenshot */}
                     <div
+                        className="agents-chat-chip"
                         style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "4px 14px 4px 6px",
-                            borderRadius: 9999,
-                            background: isDark ? "rgba(255, 255, 255, 0.06)" : "#f3f4f6",
-                            border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)"}`,
-                            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
+                            position: "absolute",
+                            left: "50%",
+                            top: 8,
+                            transform: "translateX(-50%)",
                             cursor: "pointer",
-                            transition: "all 0.15s ease",
                         }}
                         onClick={() =>
                             setEditingAgent({
@@ -2406,24 +2308,12 @@ export function AgentsPage({
                         }
                         title={`Edit profile of ${activeDisplayName}`}
                     >
-                        <GrokbotAvatar
-                            name={activeDisplayName}
-                            color={activeColor}
-                            icon={activeIcon}
-                            size={22}
-                            isWorking={working}
-                            mood={working ? "thinking" : "normal"}
-                            hasStarBadge={activeAgentId === "dataclaw"}
+                        <BotAvatar
+                            shape={botShapeFor(activeAgentId, activeIcon)}
+                            color={hexToBotColor(activeColor || (activeAgentId === "dataclaw" ? "#1d4ed8" : undefined))}
+                            size={26}
                         />
-                        <span
-                            style={{
-                                fontWeight: 600,
-                                fontSize: 13,
-                                color: t.textPrimary,
-                            }}
-                        >
-                            {activeDisplayName}
-                        </span>
+                        <span>{activeDisplayName}</span>
                     </div>
 
                     {/* Right action: discreet Compute Screen button */}
@@ -2466,7 +2356,7 @@ export function AgentsPage({
                 )}
 
                 {/* Message Scroll Area */}
-                <div className="chat-scroll">
+                <div className="chat-scroll agents-chat-scroll">
                     {/* Unread banner matching reference screenshot */}
                     {!unreadBannerDismissed && transcript.length > 2 && (
                         <div
@@ -2718,7 +2608,7 @@ export function AgentsPage({
                 </div>
 
                 {/* Clean Floating Capsule Composer (Matching Grokbot reference) */}
-                <div className="chat-composer-wrap" style={{ position: "relative", padding: "10px 24px 18px" }}>
+                <div className="chat-composer-wrap agents-composer-dock" style={{ position: "relative" }}>
                     {/* Floating Action & Delegation Popover (+ Menu) */}
                     {actionMenuOpen && (
                         <div
@@ -2870,22 +2760,7 @@ export function AgentsPage({
                     )}
 
                     {/* Capsule Pill Composer */}
-                    <div
-                        className="chat-composer"
-                        style={{
-                            maxWidth: 820,
-                            margin: "0 auto",
-                            borderRadius: 9999,
-                            padding: "6px 10px 6px 12px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            background: isDark ? "#161922" : "#ffffff",
-                            border: `1px solid ${t.border}`,
-                            boxShadow: isDark ? "0 2px 14px rgba(0, 0, 0, 0.35)" : "0 2px 8px rgba(32, 58, 55, 0.05)",
-                            transition: "border 0.15s ease, box-shadow 0.15s ease",
-                        }}
-                    >
+                    <div className="chat-composer">
                         {/* Plus Action Button */}
                         <button
                             type="button"
