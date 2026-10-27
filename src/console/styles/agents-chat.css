@@ -162,6 +162,18 @@
   color: var(--muted-foreground);
 }
 
+.agents-chat-page .chat-assistant-body .tool-stack {
+  margin: 10px 0 4px;
+  padding: 4px 6px;
+  background: color-mix(in srgb, var(--background) 55%, var(--muted));
+  box-shadow: none;
+}
+.agents-chat-page .chat-assistant-body .tool-card-body {
+  background: var(--background);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
 .agents-composer-dock {
   padding: 0 32px 20px;
 }
