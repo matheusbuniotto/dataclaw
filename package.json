@@ -3,6 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "start": "bun run src/backend/api/server.ts",
     "test": "bun test",
